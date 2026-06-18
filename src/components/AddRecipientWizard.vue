@@ -859,13 +859,16 @@ const onSignedFile = (key, e) => {
   if (file) signedUploads.value = { ...signedUploads.value, [key]: file };
 };
 
+const fileToBase64 = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+  reader.onerror = reject;
+  reader.readAsDataURL(file);
+});
+
 const save = async () => {
   if (!f.value.rLast || !f.value.rFirst) {
     alert('Заполните ФИО реабилитанта (шаг 2)');
-    return;
-  }
-  if (!f.value.groupId) {
-    alert('Не выбрана группа');
     return;
   }
   saving.value = true;
@@ -874,7 +877,7 @@ const save = async () => {
     const crgNum = selectedCrgGroup.value?.num || '';
     const crgChild = !!f.value.rCrg && f.value.rCrg.startsWith('child');
 
-    await api.post('/recipients/intake', {
+    const { data: createdRecipient } = await api.post('/recipients/intake', {
       recipient: {
         firstName:  f.value.rFirst,
         middleName: f.value.rMid,
@@ -914,6 +917,34 @@ const save = async () => {
         specialNote:    f.value.rSpecial,
       },
     });
+
+    if (createdRecipient?.id) {
+      const scans = [];
+      for (const [docKey, file] of Object.entries(uploads.value)) {
+        if (!file) continue;
+        scans.push({
+          docKey,
+          entityType: docKey === 'rep-pass' ? 'representative' : 'rehabilitant',
+          originalName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          base64: await fileToBase64(file),
+        });
+      }
+      for (const [docKey, file] of Object.entries(signedUploads.value)) {
+        if (!file) continue;
+        scans.push({
+          docKey,
+          entityType: 'representative',
+          originalName: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          base64: await fileToBase64(file),
+        });
+      }
+      if (scans.length) {
+        await api.post(`/recipients/${createdRecipient.id}/scans`, { scans });
+      }
+    }
+
     emit('saved');
     emit('close');
   } catch (err) {

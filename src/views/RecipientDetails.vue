@@ -88,6 +88,21 @@
           <span v-if="curatorName" class="rd-card-sub">Куратор: {{ curatorName }}</span>
         </div>
         <div class="rd-card-body">
+          <div class="rd-group-select">
+            <label class="rd-gs-label">Выбрать группу</label>
+            <div class="rd-gs-row">
+              <select v-model.number="selectedGroupId" class="rd-gs-input" :disabled="groupsLoading || savingGroup">
+                <option v-if="groupsLoading" :value="null" disabled>Загрузка групп…</option>
+                <option v-for="g in allGroups" :key="g.id" :value="g.id">
+                  {{ g.name }}{{ g.curator ? ' · ' + g.curator : '' }}
+                </option>
+              </select>
+              <button class="btn-primary" :disabled="!groupChanged || savingGroup" @click="saveGroup">
+                {{ savingGroup ? 'Сохранение…' : 'Сохранить' }}
+              </button>
+            </div>
+          </div>
+
           <div v-if="!recipient.groupId" class="rd-inline-empty">Реабилитант не состоит в группе</div>
           <div v-else-if="groupMembersLoading" class="rd-loading" style="min-height:120px"><div class="spinner"></div></div>
           <div v-else-if="!groupMembers.length" class="rd-inline-empty">В группе пока нет участников</div>
@@ -120,6 +135,82 @@
         </div>
       </div>
 
+      <div v-else-if="activeTab === 'diagnostics'" class="rd-card">
+        <div class="rd-card-head"><h2>Назначение на диагностику</h2></div>
+        <div class="rd-card-body">
+          <div class="rd-assign">
+            <div class="rd-assign-grid">
+              <label class="rd-assign-field">
+                <span class="rd-assign-label">Направление</span>
+                <select v-model.number="assignForm.directionId" class="rd-gs-input" :disabled="directionsLoading || assigning">
+                  <option :value="null" disabled>{{ directionsLoading ? 'Загрузка…' : 'Выберите направление' }}</option>
+                  <option v-for="d in directions" :key="d.id" :value="d.id">{{ d.name }}</option>
+                </select>
+              </label>
+              <label class="rd-assign-field">
+                <span class="rd-assign-label">Психолог / специалист</span>
+                <select v-model.number="assignForm.specialistId" class="rd-gs-input" :disabled="specialistsLoading || assigning">
+                  <option :value="null" disabled>{{ specialistsLoading ? 'Загрузка…' : 'Выберите специалиста' }}</option>
+                  <option v-for="s in specialists" :key="s.id" :value="s.id">{{ s.fullName }}{{ s.cabinet ? ' · каб. ' + s.cabinet : '' }}</option>
+                </select>
+              </label>
+              <label class="rd-assign-field">
+                <span class="rd-assign-label">Дата</span>
+                <input type="date" v-model="assignForm.date" :min="todayStr" class="rd-gs-input" :disabled="assigning" />
+              </label>
+              <div class="rd-assign-action">
+                <button class="btn-primary" :disabled="!canAssign || assigning" @click="createAssignment">
+                  {{ assigning ? 'Назначение…' : 'Назначить' }}
+                </button>
+              </div>
+            </div>
+            <p v-if="assignError" class="rd-assign-err">{{ assignError }}</p>
+          </div>
+
+          <h3 class="rd-assign-subtitle">Назначенные диагностики</h3>
+          <div v-if="assignmentsLoading" class="rd-loading" style="min-height:80px"><div class="spinner"></div></div>
+          <div v-else-if="!assignments.length" class="rd-inline-empty">Пока нет назначений</div>
+          <table v-else class="rd-assign-table">
+            <thead>
+              <tr><th>Направление</th><th>Специалист</th><th>Дата</th><th>Статус</th><th></th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="a in assignments" :key="a.id">
+                <td>{{ a.direction?.name || '—' }}</td>
+                <td>{{ a.specialist?.fullName || '—' }}</td>
+                <td>{{ formatDate(a.date) }}</td>
+                <td><span :class="['rd-status-badge', a.published ? 'done' : 'pending']">{{ a.published ? 'Проведена' : 'Назначена' }}</span></td>
+                <td>
+                  <button v-if="!a.published" class="rd-cancel-btn" :disabled="cancelingId === a.id" @click="cancelAssignment(a)">
+                    {{ cancelingId === a.id ? '…' : 'Отменить' }}
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+
+          <template v-if="publishedAssignments.length">
+            <h3 class="rd-assign-subtitle" style="margin-top: 1.75rem;">Результаты проведённых диагностик</h3>
+            <div v-for="a in publishedAssignments" :key="'res-' + a.id" class="rd-result">
+              <div class="rd-result-head">
+                <span class="rd-result-dir">{{ a.direction?.name || '—' }}</span>
+                <span class="rd-result-meta">{{ a.specialist?.fullName || '—' }} · {{ formatDate(a.date) }}</span>
+              </div>
+              <div v-if="!resultBlocks(a).length" class="rd-result-empty">Результаты не заполнены</div>
+              <div v-else>
+                <div v-for="(b, i) in resultBlocks(a)" :key="i" class="rd-result-block">
+                  <div class="rd-result-block-title">{{ blockTitle(b) }}</div>
+                  <div v-if="b.specialists && b.specialists.length" class="rd-result-spec">
+                    Специалисты: {{ b.specialists.join(', ') }}
+                  </div>
+                  <p v-if="b.recs" class="rd-result-recs">{{ b.recs }}</p>
+                </div>
+              </div>
+            </div>
+          </template>
+        </div>
+      </div>
+
       <div class="rd-footer">
         <span>ID R-{{ recipientCode }}</span>
         <button class="btn-secondary" @click="goBack">← К списку</button>
@@ -143,11 +234,37 @@ const groupMembers = ref([]);
 const groupMembersLoading = ref(false);
 const activeTab = ref('overview');
 
+const allGroups = ref([]);
+const groupsLoading = ref(false);
+const selectedGroupId = ref(null);
+const savingGroup = ref(false);
+
+const directions = ref([]);
+const directionsLoading = ref(false);
+const specialists = ref([]);
+const specialistsLoading = ref(false);
+const assignments = ref([]);
+const assignmentsLoading = ref(false);
+const assigning = ref(false);
+const cancelingId = ref(null);
+const assignError = ref('');
+const assignForm = ref({ directionId: null, specialistId: null, date: '' });
+const todayStr = new Date().toISOString().slice(0, 10);
+const canAssign = computed(() =>
+  !!assignForm.value.directionId && !!assignForm.value.specialistId && !!assignForm.value.date
+);
+const publishedAssignments = computed(() => assignments.value.filter(a => a.published));
+
+const groupChanged = computed(
+  () => (selectedGroupId.value ?? null) !== (recipient.value?.groupId ?? null)
+);
+
 const tabs = [
   { id: 'overview', label: 'Обзор' },
   { id: 'documents', label: 'Документы' },
   { id: 'group', label: 'Группа' },
   { id: 'representative', label: 'Представитель' },
+  { id: 'diagnostics', label: 'Диагностики' },
 ];
 
 const doc = computed(() => recipient.value?.docs?.[0] || null);
@@ -194,6 +311,21 @@ function memberMeta(m) {
   return [a != null ? `${a} лет` : '', m.diagnosis || ''].filter(Boolean).join(' · ');
 }
 
+// Заполненные блоки результата диагностики (results.blocks из формы Diagnostics.vue).
+// Показываем только блоки с реальным содержимым (рекомендации или специалисты).
+function resultBlocks(a) {
+  const blocks = a?.results?.blocks;
+  if (!Array.isArray(blocks)) return [];
+  return blocks.filter(b =>
+    (b && typeof b.recs === 'string' && b.recs.trim()) ||
+    (b && Array.isArray(b.specialists) && b.specialists.length)
+  );
+}
+
+function blockTitle(b) {
+  return String(b?.sub || b?.direction || 'Блок').replace(/\s*\n\s*/g, ' ').trim();
+}
+
 const goBack = () => {
   pageStore.setPage('recipients', 'Реабилитанты', {});
 };
@@ -203,10 +335,42 @@ const loadRecipient = async () => {
   try {
     const { data } = await api.get(`/recipients/${recipientId}`);
     recipient.value = data;
+    selectedGroupId.value = data.groupId ?? null;
   } catch (err) {
     console.error('loadRecipient', err);
   } finally {
     loading.value = false;
+  }
+};
+
+const loadGroups = async () => {
+  if (allGroups.value.length || groupsLoading.value) return;
+  groupsLoading.value = true;
+  try {
+    const { data } = await api.get('/groups', { params: { limit: 200 } });
+    allGroups.value = Array.isArray(data?.data) ? data.data : [];
+  } catch (err) {
+    console.error('loadGroups', err);
+    allGroups.value = [];
+  } finally {
+    groupsLoading.value = false;
+  }
+};
+
+const saveGroup = async () => {
+  if (!groupChanged.value) return;
+  savingGroup.value = true;
+  try {
+    const { data } = await api.put(`/recipients/${recipientId}`, { groupId: selectedGroupId.value });
+    recipient.value = data;
+    selectedGroupId.value = data.groupId ?? null;
+    groupMembers.value = [];
+    await loadGroupMembers();
+  } catch (err) {
+    console.error('saveGroup', err);
+    alert('Не удалось сохранить группу');
+  } finally {
+    savingGroup.value = false;
   }
 };
 
@@ -224,8 +388,92 @@ const loadGroupMembers = async () => {
   }
 };
 
+const loadDiagnosticRefs = async () => {
+  if (!directions.value.length && !directionsLoading.value) {
+    directionsLoading.value = true;
+    try {
+      const { data } = await api.get('/lists/directions');
+      directions.value = Array.isArray(data) ? data : [];
+    } catch (err) {
+      console.error('loadDirections', err);
+      directions.value = [];
+    } finally {
+      directionsLoading.value = false;
+    }
+  }
+  if (!specialists.value.length && !specialistsLoading.value) {
+    specialistsLoading.value = true;
+    try {
+      const { data } = await api.get('/lists/curators');
+      specialists.value = Array.isArray(data) ? data : [];
+    } catch (err) {
+      console.error('loadSpecialists', err);
+      specialists.value = [];
+    } finally {
+      specialistsLoading.value = false;
+    }
+  }
+};
+
+const loadAssignments = async () => {
+  if (!recipientId) return;
+  assignmentsLoading.value = true;
+  try {
+    const { data } = await api.get('/diagnostics', { params: { recipientId, limit: 100 } });
+    assignments.value = Array.isArray(data?.data) ? data.data : [];
+  } catch (err) {
+    console.error('loadAssignments', err);
+    assignments.value = [];
+  } finally {
+    assignmentsLoading.value = false;
+  }
+};
+
+const createAssignment = async () => {
+  if (!canAssign.value || assigning.value) return;
+  assigning.value = true;
+  assignError.value = '';
+  try {
+    await api.post('/diagnostics', {
+      idRecipient: Number(recipientId),
+      idDirection: assignForm.value.directionId,
+      idSpecialist: assignForm.value.specialistId,
+      date: assignForm.value.date,
+      results: {},
+      published: false
+    });
+    assignForm.value = { directionId: null, specialistId: null, date: '' };
+    await loadAssignments();
+  } catch (err) {
+    console.error('createAssignment', err);
+    assignError.value = err?.response?.data?.message || 'Не удалось создать назначение';
+  } finally {
+    assigning.value = false;
+  }
+};
+
+const cancelAssignment = async (a) => {
+  if (cancelingId.value) return;
+  cancelingId.value = a.id;
+  try {
+    await api.delete(`/diagnostics/${a.id}`);
+    await loadAssignments();
+  } catch (err) {
+    console.error('cancelAssignment', err);
+    alert('Не удалось отменить назначение');
+  } finally {
+    cancelingId.value = null;
+  }
+};
+
 watch(activeTab, (tab) => {
-  if (tab === 'group' && !groupMembers.value.length && !groupMembersLoading.value) loadGroupMembers();
+  if (tab === 'group') {
+    loadGroups();
+    if (!groupMembers.value.length && !groupMembersLoading.value) loadGroupMembers();
+  } else if (tab === 'diagnostics') {
+    loadDiagnosticRefs();
+    loadAssignments();
+  }
 });
 
 onMounted(loadRecipient);
@@ -315,6 +563,54 @@ onMounted(loadRecipient);
 .rd-kv dd { margin: 0; font-size: 0.92rem; color: var(--text-primary); word-break: break-word; }
 
 .rd-inline-empty { text-align: center; padding: 1.5rem; color: var(--text-secondary); }
+
+.rd-group-select { margin-bottom: 1.25rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--border-light); }
+.rd-gs-label { display: block; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; color: var(--text-tertiary); margin-bottom: 0.5rem; }
+.rd-gs-row { display: flex; gap: 0.6rem; flex-wrap: wrap; }
+.rd-gs-input {
+  flex: 1 1 240px; min-width: 0;
+  padding: 0.55rem 0.75rem; font-size: 0.92rem;
+  border: 1px solid var(--border); border-radius: var(--radius-md);
+  background: var(--bg-surface); color: var(--text-primary); cursor: pointer;
+}
+.rd-gs-input:disabled { opacity: 0.6; cursor: default; }
+.btn-primary {
+  background: #4b5675; border: 1px solid #4b5675; color: #fff;
+  padding: 0.55rem 1.1rem; border-radius: var(--radius-md); cursor: pointer;
+  font-size: 0.9rem; font-weight: 600; white-space: nowrap;
+}
+.btn-primary:hover:not(:disabled) { background: #3c455e; }
+.btn-primary:disabled { opacity: 0.5; cursor: default; }
+
+.rd-assign { margin-bottom: 1.5rem; padding-bottom: 1.25rem; border-bottom: 1px solid var(--border-light); }
+.rd-assign-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1rem; align-items: end; }
+.rd-assign-field { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
+.rd-assign-field .rd-gs-input { flex: none; width: 100%; }
+.rd-assign-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; color: var(--text-tertiary); }
+.rd-assign-action { display: flex; align-items: flex-end; }
+.rd-assign-action .btn-primary { width: 100%; }
+.rd-assign-err { margin: 0.6rem 0 0; color: #c0392b; font-size: 0.85rem; }
+.rd-assign-subtitle { font-size: 0.95rem; font-weight: 600; margin: 0 0 0.75rem; color: var(--text-primary); }
+.rd-assign-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.rd-assign-table th { text-align: left; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-tertiary); font-weight: 600; padding: 0.5rem 0.6rem; border-bottom: 1px solid var(--border); }
+.rd-assign-table td { padding: 0.6rem; border-bottom: 1px solid var(--border-light); color: var(--text-primary); }
+.rd-status-badge { display: inline-block; font-size: 0.7rem; font-weight: 600; padding: 0.15rem 0.5rem; border-radius: 4px; }
+.rd-status-badge.pending { background: #fff3cd; color: #7a5b00; }
+.rd-status-badge.done { background: #d4edda; color: #14532d; }
+.rd-cancel-btn { background: transparent; border: 1px solid var(--border); color: var(--text-secondary); padding: 0.3rem 0.7rem; border-radius: var(--radius-md); cursor: pointer; font-size: 0.82rem; }
+.rd-cancel-btn:hover:not(:disabled) { border-color: #c0392b; color: #c0392b; }
+.rd-cancel-btn:disabled { opacity: 0.5; cursor: default; }
+.rd-result { border: 1px solid var(--border-light); border-radius: var(--radius-md); padding: 0.9rem 1rem; margin-bottom: 0.85rem; background: var(--bg-subtle, #fafbfc); }
+.rd-result-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 0.75rem; margin-bottom: 0.65rem; }
+.rd-result-dir { font-size: 0.95rem; font-weight: 600; color: var(--text-primary); }
+.rd-result-meta { font-size: 0.82rem; color: var(--text-tertiary); }
+.rd-result-empty { font-size: 0.85rem; color: var(--text-tertiary); font-style: italic; }
+.rd-result-block { padding: 0.55rem 0 0.1rem; }
+.rd-result-block + .rd-result-block { border-top: 1px solid var(--border-light); margin-top: 0.55rem; }
+.rd-result-block-title { font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.3rem; }
+.rd-result-spec { font-size: 0.82rem; color: var(--text-tertiary); margin-bottom: 0.3rem; }
+.rd-result-recs { margin: 0; font-size: 0.9rem; line-height: 1.5; color: var(--text-primary); white-space: pre-wrap; }
+@media (max-width: 640px) { .rd-assign-grid { grid-template-columns: 1fr; } }
 
 .rd-members { display: flex; flex-direction: column; }
 .rd-member { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0; border-bottom: 1px solid var(--border-light); }

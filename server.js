@@ -29,7 +29,7 @@ app.use(cors({
   credentials: true,
   origin: process.env.FRONTEND_URL || 'http://localhost:3000'
 }));
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '50mb' }));
 app.use(cookieParser());
 
 const limiter = rateLimit({

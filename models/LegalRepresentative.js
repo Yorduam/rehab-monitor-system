@@ -11,7 +11,7 @@ const LegalRepresentative = sequelize.define('LegalRepresentative', {
   passportSeries: { type: DataTypes.CHAR(4), allowNull: false },
   passportNumber: { type: DataTypes.CHAR(6), allowNull: false },
   passportIssuer: { type: DataTypes.STRING(255), allowNull: false },
-  passportIssuerDate: { type: DataTypes.DATEONLY, allowNull: false },
+  passportIssuerDate: { type: DataTypes.DATEONLY, allowNull: true },
   passportDeptCode: { type: DataTypes.CHAR(7), allowNull: false },
   passportReg: { type: DataTypes.STRING(255), allowNull: false }
 }, {

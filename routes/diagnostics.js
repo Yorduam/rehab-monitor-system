@@ -6,7 +6,7 @@ const router = express.Router();
 
 const resultInclude = [
   { model: Recipient, as: 'recipient', attributes: ['id', 'firstName', 'middleName', 'lastName'] },
-  { model: Direction, as: 'direction', attributes: ['id', 'name'] },
+  { model: Direction, as: 'direction', attributes: ['id', 'name', 'profileKey'] },
   { model: Specialist, as: 'specialist', attributes: ['id', 'fullName'] }
 ];
 
@@ -41,7 +41,7 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/', authMiddleware, roleMiddleware('admin', 'teacher'), async (req, res) => {
+router.post('/', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res) => {
   try {
     const { idRecipient, idDirection, idSpecialist, date, results, published } = req.body;
     const result = await ReResult.create({
@@ -60,7 +60,7 @@ router.post('/', authMiddleware, roleMiddleware('admin', 'teacher'), async (req,
   }
 });
 
-router.put('/:id', authMiddleware, roleMiddleware('admin', 'teacher'), async (req, res) => {
+router.put('/:id', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res) => {
   try {
     const result = await ReResult.findByPk(req.params.id);
     if (!result) return res.status(404).json({ message: 'Запись не найдена' });
@@ -81,7 +81,7 @@ router.put('/:id', authMiddleware, roleMiddleware('admin', 'teacher'), async (re
   }
 });
 
-router.delete('/:id', authMiddleware, roleMiddleware('admin'), async (req, res) => {
+router.delete('/:id', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res) => {
   try {
     const result = await ReResult.findByPk(req.params.id);
     if (!result) return res.status(404).json({ message: 'Запись не найдена' });

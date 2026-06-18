@@ -64,7 +64,7 @@ router.get('/crg-desc', authMiddleware, async (req, res) => {
 
 router.get('/directions', authMiddleware, async (req, res) => {
   try {
-    const items = await Direction.findAll({ attributes: ['id', 'name'] });
+    const items = await Direction.findAll({ attributes: ['id', 'name', 'profileKey'] });
     res.json(items);
   } catch (err) {
     console.error(err);

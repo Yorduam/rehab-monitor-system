@@ -11,7 +11,8 @@ const RecipientScanDoc = sequelize.define('RecipientScanDoc', {
   originalName: { type: DataTypes.STRING(255), allowNull: false },
   mimeType: { type: DataTypes.STRING(100), allowNull: false },
   sizeBytes: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
-  checksum_sha256: { type: DataTypes.CHAR(64), allowNull: false }
+  checksum_sha256: { type: DataTypes.CHAR(64), allowNull: false },
+  fileData: { type: DataTypes.BLOB('long'), allowNull: true }
 }, {
   tableName: 'RecipientScanDocs',
   timestamps: false

@@ -7,7 +7,7 @@ import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
 import {
   Recipient, ReGroup, Specialist, LegalRepresentative,
   Nozology, CRG, CRGDesc, User,
-  RecipientDoc, RecipientScanDoc, ReResult, CRGRecipientSec
+  RecipientDoc, RecipientScanDoc, ReResult, CRGRecipientSec, DocType
 } from '../models/index.js';
 
 const router = express.Router();
@@ -88,14 +88,11 @@ router.get('/:id', authMiddleware, async (req, res, next) => {
 
 const onlyDigits = (s) => (s || '').replace(/\D/g, '');
 
-router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher'), async (req, res, next) => {
+router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
   const { recipient = {}, representative = {}, doc = {}, nozologyClasses = [], crg = {}, groupId } = req.body;
 
   if (!recipient.firstName || !recipient.lastName) {
     return res.status(400).json({ message: 'Не заполнено ФИО реабилитанта' });
-  }
-  if (!groupId) {
-    return res.status(400).json({ message: 'Не выбрана группа' });
   }
 
   try {
@@ -155,7 +152,7 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher'), async
         status: recipient.status || 'draft',
         diagnosis: recipient.diagnosis || '',
         nozology: nozId,
-        groupId,
+        groupId: groupId || null,
         CRGMain: crgId
       }, { transaction: t });
 
@@ -206,7 +203,7 @@ router.post('/', authMiddleware, roleMiddleware('admin', 'teacher'), async (req,
   }
 });
 
-router.put('/:id', authMiddleware, roleMiddleware('admin', 'teacher'), async (req, res, next) => {
+router.put('/:id', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
   try {
     const recipient = await Recipient.findByPk(req.params.id);
     if (!recipient) return res.status(404).json({ message: 'Реабилитант не найден' });
@@ -236,6 +233,81 @@ router.delete('/:id', authMiddleware, roleMiddleware('admin', 'teacher'), async 
     await recipient.destroy();
 
     res.json({ message: 'Реабилитант удалён' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const ENTITY_TYPES = ['rehabilitant', 'representative'];
+
+router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
+  try {
+    const recipient = await Recipient.findByPk(req.params.id);
+    if (!recipient) return res.status(404).json({ message: 'Реабилитант не найден' });
+
+    const scans = Array.isArray(req.body.scans) ? req.body.scans : [];
+    if (!scans.length) return res.status(400).json({ message: 'Нет файлов для сохранения' });
+
+    const docTypes = await DocType.findAll();
+    const codeToId = new Map(docTypes.map((d) => [d.code, d.id]));
+
+    const created = [];
+    for (const scan of scans) {
+      const { docKey, entityType, originalName, mimeType, base64 } = scan;
+      if (!docKey || !base64) continue;
+
+      const docTypeId = codeToId.get(docKey);
+      if (!docTypeId) continue;
+
+      const buffer = Buffer.from(base64, 'base64');
+      const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
+      const et = ENTITY_TYPES.includes(entityType) ? entityType : 'rehabilitant';
+
+      const row = await RecipientScanDoc.create({
+        entityType: et,
+        recipId: recipient.id,
+        represId: recipient.representativeId,
+        docType: docTypeId,
+        storageKey: `db://${checksum}`,
+        originalName: originalName || `${docKey}.bin`,
+        mimeType: mimeType || 'application/octet-stream',
+        sizeBytes: buffer.length,
+        checksum_sha256: checksum,
+        fileData: buffer
+      });
+      created.push(row.id);
+    }
+
+    res.status(201).json({ saved: created.length, ids: created });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:id/scans', authMiddleware, async (req, res, next) => {
+  try {
+    const scans = await RecipientScanDoc.findAll({
+      where: { recipId: req.params.id },
+      attributes: { exclude: ['fileData'] },
+      include: [{ model: DocType, as: 'docTypeRef' }],
+      order: [['id', 'ASC']]
+    });
+    res.json(scans);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:id/scans/:scanId/file', authMiddleware, async (req, res, next) => {
+  try {
+    const scan = await RecipientScanDoc.findOne({
+      where: { id: req.params.scanId, recipId: req.params.id }
+    });
+    if (!scan || !scan.fileData) return res.status(404).json({ message: 'Файл не найден' });
+
+    res.setHeader('Content-Type', scan.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(scan.originalName)}"`);
+    res.send(scan.fileData);
   } catch (err) {
     next(err);
   }

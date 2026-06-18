@@ -7,7 +7,7 @@ const Recipient = sequelize.define('Recipient', {
   firstName: { type: DataTypes.STRING(50), allowNull: false },
   middleName: { type: DataTypes.STRING(50), allowNull: false },
   lastName: { type: DataTypes.STRING(50), allowNull: false },
-  birthDate: { type: DataTypes.DATEONLY, allowNull: false },
+  birthDate: { type: DataTypes.DATEONLY, allowNull: true },
   email: { type: DataTypes.STRING(50), allowNull: false, unique: true },
   telephone: { type: DataTypes.STRING(20), allowNull: false, unique: true },
 
@@ -27,7 +27,7 @@ const Recipient = sequelize.define('Recipient', {
   },
   diagnosis: { type: DataTypes.STRING(255), allowNull: false },
   nozology: { type: DataTypes.INTEGER, allowNull: false },
-  groupId: { type: DataTypes.INTEGER, allowNull: false },
+  groupId: { type: DataTypes.INTEGER, allowNull: true },
   CRGMain: { type: DataTypes.INTEGER, allowNull: false }
 }, {
   tableName: 'Recipients',

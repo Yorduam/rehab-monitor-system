@@ -1548,6 +1548,12 @@
     </div>
 
     <div class="save-bar" role="region" aria-label="Действия по диагностике">
+      <div class="save-bar-assign">
+        <label for="assignment-target" class="save-bar-assign-label">Сохранить в назначение</label>
+        <select id="assignment-target" class="save-bar-assign-select">
+          <option value="">— нет назначений —</option>
+        </select>
+      </div>
       <div class="save-bar-spacer"></div>
       <div class="save-bar-actions">
         <button type="button" class="btn btn-secondary" data-action="save-draft">
@@ -1644,7 +1650,8 @@ onMounted(() => {
       recipients: [...FALLBACK_RECIPIENTS],
       currentRecipient: FALLBACK_RECIPIENTS[0],
       completed: false,
-      lastReportData: null
+      lastReportData: null,
+      assignments: []
     };
     window.__diagnosticsRuntime = diagnosticsRuntime;
 
@@ -1759,6 +1766,7 @@ onMounted(() => {
       document.title = 'ERP-Р • Диагностика — ' + current.fullName;
       try { localStorage.setItem('diagnostics.selectedRecipient', JSON.stringify(current)); } catch (_) {}
       if (!opts.silent && typeof showToast === 'function') showToast('Выбран реабилитант: <strong>' + escapeHtml(current.fullName) + '</strong>');
+      loadAssignmentsForRecipient();
     }
 
     function escapeHtml(value) {
@@ -1782,6 +1790,71 @@ onMounted(() => {
       } catch (err) {
 
         console.warn('Не удалось загрузить реабилитантов из проекта, используется локальный список', err);
+      }
+    }
+
+    function assignmentLabel(a) {
+      const dir = a?.direction?.name || 'Направление не указано';
+      const spec = a?.specialist?.fullName || 'специалист не указан';
+      const date = a?.date ? formatDateRu(a.date) : '';
+      return [dir, spec, date].filter(Boolean).join(' · ');
+    }
+
+    async function loadAssignmentsForRecipient() {
+      const select = document.getElementById('assignment-target');
+      if (!select) return;
+      const recipientId = diagnosticsRuntime.currentRecipient?.id;
+      const prev = select.value;
+      diagnosticsRuntime.assignments = [];
+      if (!recipientId) {
+        select.innerHTML = '<option value="">— нет назначений —</option>';
+        if (typeof window.__applyAssignmentProfile === 'function') window.__applyAssignmentProfile();
+        return;
+      }
+      try {
+        const response = await api.get('/diagnostics', { params: { recipientId, limit: 100 } });
+        const rows = Array.isArray(response?.data?.data) ? response.data.data : [];
+        const pending = rows.filter(r => !r.published);
+        diagnosticsRuntime.assignments = pending;
+        if (!pending.length) {
+          select.innerHTML = '<option value="">— нет ожидающих назначений —</option>';
+          if (typeof window.__applyAssignmentProfile === 'function') window.__applyAssignmentProfile();
+          return;
+        }
+        const opts = ['<option value="">— выберите назначение —</option>'];
+        pending.forEach(a => {
+          opts.push('<option value="' + a.id + '">' + escapeHtml(assignmentLabel(a)) + '</option>');
+        });
+        select.innerHTML = opts.join('');
+        if (prev && pending.some(a => String(a.id) === String(prev))) select.value = prev;
+        else if (pending.length === 1) select.value = String(pending[0].id);
+        if (typeof window.__applyAssignmentProfile === 'function') window.__applyAssignmentProfile();
+      } catch (err) {
+        console.warn('Не удалось загрузить назначения реабилитанта', err);
+        select.innerHTML = '<option value="">— ошибка загрузки назначений —</option>';
+        if (typeof window.__applyAssignmentProfile === 'function') window.__applyAssignmentProfile();
+      }
+    }
+
+    async function persistResultToAssignment() {
+      const select = document.getElementById('assignment-target');
+      const assignmentId = select && select.value ? Number(select.value) : null;
+      if (!assignmentId) {
+        showToast('Результат не сохранён в БД: не выбрано назначение. Выберите назначение в нижней панели и завершите диагностику снова.', 5600);
+        return false;
+      }
+      try {
+        await api.put('/diagnostics/' + assignmentId, {
+          results: diagnosticsRuntime.lastReportData || collectReportData(),
+          published: true
+        });
+        showToast('Результаты сохранены в карточке реабилитанта. <strong>Назначение отмечено как проведённое.</strong>', 4600);
+        await loadAssignmentsForRecipient();
+        return true;
+      } catch (err) {
+        console.error('Не удалось сохранить результат диагностики', err);
+        showToast('Не удалось сохранить результат в БД. Попробуйте ещё раз.', 5200);
+        return false;
       }
     }
 
@@ -2706,6 +2779,18 @@ onMounted(() => {
         final: 'Сводное заключение'
       };
 
+      // Профиль специалиста (Direction.profileKey) → конкретный блок формы.
+      // sub === null означает, что у этапа нет подразделов (АФК — один блок).
+      const PROFILE_BLOCKS = {
+        psy:     { stage: 'psy', sub: 'psy' },
+        log:     { stage: 'psy', sub: 'log' },
+        izo:     { stage: 'soc', sub: 'izo' },
+        theatre: { stage: 'soc', sub: 'theatre' },
+        vocal:   { stage: 'soc', sub: 'vocal' },
+        afk:     { stage: 'afk', sub: null }
+      };
+      const ALL_STAGES = ['psy', 'afk', 'soc', 'final'];
+
       function q(selector, root = document) { return root.querySelector(selector); }
       function qa(selector, root = document) { return Array.from(root.querySelectorAll(selector)); }
       function text(el) { return normalizeSpaces(el?.textContent || ''); }
@@ -2827,7 +2912,7 @@ onMounted(() => {
       function validateStage(stageKey) {
         const card = q('.stage-card[data-stage="' + stageKey + '"]');
         if (!card) return { ok: false, reason: 'Этап не найден' };
-        const panels = qa(':scope > .stage-body > .subpanel', card);
+        const panels = qa(':scope > .stage-body > .subpanel', card).filter(p => !p.classList.contains('profile-hidden'));
         if (panels.length) {
           const emptyPanels = panels.filter(panel => !hasMeaningfulData(panel));
           if (emptyPanels.length) {
@@ -2844,7 +2929,7 @@ onMounted(() => {
         const card = q('.stage-card[data-stage="' + stageKey + '"]');
         if (!card || card.dataset.status === 'done') return;
 
-        qa(':scope > .stage-body > .subpanel', card).forEach(panel => {
+        qa(':scope > .stage-body > .subpanel', card).filter(panel => !panel.classList.contains('profile-hidden')).forEach(panel => {
           if (hasMeaningfulData(panel) && !panel.classList.contains('is-locked') && typeof window.__lockSubpanel === 'function') {
             window.__lockSubpanel(panel);
           }
@@ -2895,9 +2980,79 @@ onMounted(() => {
       }
       window.setDiagnosticCompleted = setDiagnosticCompleted;
 
+      // Профиль активного назначения (по выбранному пункту в #assignment-target).
+      function selectedAssignmentProfileKey() {
+        const select = document.getElementById('assignment-target');
+        const id = select && select.value ? String(select.value) : '';
+        if (!id) return '';
+        const list = diagnosticsRuntime.assignments || [];
+        const found = list.find(a => String(a.id) === id);
+        return found?.direction?.profileKey || '';
+      }
+
+      // Ограничивает форму одним блоком по профилю специалиста.
+      // Пустой profileKey снимает ограничение (показывает все этапы).
+      function applyProfileRestriction(profileKey) {
+        // Сброс предыдущего ограничения.
+        qa('.profile-hidden').forEach(el => el.classList.remove('profile-hidden'));
+        qa('#mobile-stage option').forEach(o => { o.hidden = false; });
+
+        const block = profileKey ? PROFILE_BLOCKS[profileKey] : null;
+        if (!block) return; // нет профиля → форма без ограничений
+
+        // Прячем все «чужие» этапы: карточки, плитки маршрута, боковую навигацию, мобильный список.
+        ALL_STAGES.forEach(stage => {
+          if (stage === block.stage) return;
+          q('.stage-card[data-stage="' + stage + '"]')?.classList.add('profile-hidden');
+          q('.stage-tile[data-stage="' + stage + '"]')?.classList.add('profile-hidden');
+          document.querySelector('.side-nav-item[href="#stage-' + stage + '"]')?.classList.add('profile-hidden');
+          const opt = document.querySelector('#mobile-stage option[value="#stage-' + stage + '"]');
+          if (opt) opt.hidden = true;
+        });
+
+        // Раскрываем целевой этап.
+        const card = q('.stage-card[data-stage="' + block.stage + '"]');
+        if (!card) return;
+        card.classList.remove('collapsed');
+        q(':scope > .stage-body', card)?.removeAttribute('hidden');
+        q(':scope > .stage-head-clickable', card)?.setAttribute('aria-expanded', 'true');
+
+        // Внутри этапа оставляем только нужный подраздел (если он есть).
+        if (block.sub) {
+          qa(':scope > .stage-body > .subpanel', card).forEach(panel => {
+            const key = panel.id.replace('subpanel-', '');
+            if (key === block.sub) {
+              panel.classList.add('active');
+              panel.classList.remove('profile-hidden');
+            } else {
+              panel.classList.remove('active');
+              panel.classList.add('profile-hidden');
+            }
+          });
+          qa('.subtab', card).forEach(tab => {
+            const key = tab.dataset.subtab;
+            if (key === block.sub) {
+              tab.classList.add('active');
+              tab.setAttribute('aria-selected', 'true');
+              tab.classList.remove('profile-hidden');
+            } else {
+              tab.classList.remove('active');
+              tab.setAttribute('aria-selected', 'false');
+              tab.classList.add('profile-hidden');
+            }
+          });
+        }
+      }
+      window.__applyProfileRestriction = applyProfileRestriction;
+      window.__applyAssignmentProfile = function () { applyProfileRestriction(selectedAssignmentProfileKey()); };
+
       function finishDiagnostic() {
+        const activeStages = stageOrder.filter(stage => {
+          const card = q('.stage-card[data-stage="' + stage + '"]');
+          return card && !card.classList.contains('profile-hidden');
+        });
         const problems = [];
-        stageOrder.forEach(stage => {
+        activeStages.forEach(stage => {
           const result = validateStage(stage);
           if (!result.ok) problems.push({ stage, reason: result.reason });
         });
@@ -2917,7 +3072,7 @@ onMounted(() => {
           return false;
         }
 
-        stageOrder.forEach(autoFinishStage);
+        activeStages.forEach(autoFinishStage);
         diagnosticsRuntime.lastReportData = collectReportData();
         setDiagnosticCompleted(true);
         try { localStorage.setItem('diagnostics.lastReportData', JSON.stringify(diagnosticsRuntime.lastReportData)); } catch (_) {}
@@ -3315,7 +3470,13 @@ onMounted(() => {
         showToast('PDF-отчёт сформирован и скачивается');
       }
 
-      q('[data-action="finish-diagnostic"]')?.addEventListener('click', finishDiagnostic);
+      q('[data-action="finish-diagnostic"]')?.addEventListener('click', async () => {
+        const ok = finishDiagnostic();
+        if (ok) await persistResultToAssignment();
+      });
+      q('#assignment-target')?.addEventListener('change', () => {
+        applyProfileRestriction(selectedAssignmentProfileKey());
+      });
       q('[data-action="download-pdf"]')?.addEventListener('click', downloadReportPdf);
       document.addEventListener('click', (e) => {
         if (e.target.closest('[data-action="edit-stage"], [data-action="edit-subblock"]')) setDiagnosticCompleted(false);
@@ -4765,6 +4926,8 @@ onMounted(() => {
     .diagnostics-page .stage-card + .stage-card{ margin-top: 1rem; }
 
     .diagnostics-page .stage-card.collapsed .stage-body{ display: none; }
+    /* Ограничение формы по профилю специалиста: скрытые блоки полностью убраны из потока. */
+    .diagnostics-page .profile-hidden{ display: none !important; }
     .diagnostics-page .stage-card .stage-body.is-collapsing{
       display: block !important;
       overflow: hidden;
@@ -5475,6 +5638,16 @@ onMounted(() => {
     }
     .diagnostics-page .save-bar-spacer{ flex: 1; }
     .diagnostics-page .save-bar-actions{ display: flex; gap: 0.5rem; }
+    .diagnostics-page .save-bar-assign{ display: flex; flex-direction: column; gap: 0.2rem; min-width: 0; }
+    .diagnostics-page .save-bar-assign-label{
+      font-size: 0.62rem; text-transform: uppercase; letter-spacing: 0.05em;
+      font-weight: 700; color: var(--ink-soft, #6b7280);
+    }
+    .diagnostics-page .save-bar-assign-select{
+      max-width: 22rem; padding: 0.4rem 0.6rem; font-size: 0.82rem;
+      border: 0.0625rem solid var(--line-strong); border-radius: 0.5rem;
+      background: var(--paper, #fff); color: inherit; cursor: pointer;
+    }
     .diagnostics-page .test-list{ display: grid; gap: 0.75rem; }
     .diagnostics-page .test-row{
       display: grid;
@@ -6079,6 +6252,8 @@ onMounted(() => {
       }
       .diagnostics-page .save-bar-actions{ flex: 1 1 100%; }
       .diagnostics-page .save-bar-actions .btn{ flex: 1; }
+      .diagnostics-page .save-bar-assign{ flex: 1 1 100%; }
+      .diagnostics-page .save-bar-assign-select{ max-width: none; width: 100%; }
     }
     @media (max-width: 30rem) {
       .diagnostics-page .topbar{ gap: 0.5rem; }
