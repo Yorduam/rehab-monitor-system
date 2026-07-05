@@ -1,8 +1,27 @@
 import express from 'express';
-import { authMiddleware } from '../middleware/auth.js';
+import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
 import { RecipientDoc, Recipient } from '../models/index.js';
 
 const router = express.Router();
+
+const recipientInclude = {
+  model: Recipient,
+  as: 'recipient',
+  attributes: ['id', 'firstName', 'middleName', 'lastName']
+};
+
+// Все документы по всем реабилитантам (для админа/учителя)
+router.get('/', authMiddleware, roleMiddleware('admin', 'teacher'), async (req, res, next) => {
+  try {
+    const docs = await RecipientDoc.findAll({
+      include: [recipientInclude],
+      order: [['id', 'DESC']]
+    });
+    res.json(docs);
+  } catch (err) {
+    next(err);
+  }
+});
 
 const DOC_FIELDS = [
   'recipientId', 'docType', 'docSeries', 'docNumber', 'docIssuer', 'docIssuerDate',

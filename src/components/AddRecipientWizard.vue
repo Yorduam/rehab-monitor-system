@@ -90,15 +90,15 @@
               <div class="rw-fg">
                 <div class="rw-f rw-c4">
                   <label class="rw-label" for="lr-last">Фамилия <span class="rw-req">*</span></label>
-                  <input id="lr-last" class="rw-input" type="text" v-model="f.lrLast" autocomplete="family-name" />
+                  <input id="lr-last" class="rw-input" type="text" :value="f.lrLast" @input="onMask('lrLast', $event, maskName)" autocomplete="family-name" placeholder="Иванов" maxlength="50" />
                 </div>
                 <div class="rw-f rw-c4">
                   <label class="rw-label" for="lr-first">Имя <span class="rw-req">*</span></label>
-                  <input id="lr-first" class="rw-input" type="text" v-model="f.lrFirst" autocomplete="given-name" />
+                  <input id="lr-first" class="rw-input" type="text" :value="f.lrFirst" @input="onMask('lrFirst', $event, maskName)" autocomplete="given-name" placeholder="Иван" maxlength="50" />
                 </div>
                 <div class="rw-f rw-c4">
                   <label class="rw-label" for="lr-mid">Отчество <span class="rw-opt">при наличии</span></label>
-                  <input id="lr-mid" class="rw-input" type="text" v-model="f.lrMid" autocomplete="additional-name" />
+                  <input id="lr-mid" class="rw-input" type="text" :value="f.lrMid" @input="onMask('lrMid', $event, maskName)" autocomplete="additional-name" placeholder="Иванович" maxlength="50" />
                 </div>
                 <div class="rw-f rw-c6">
                   <label class="rw-label" for="lr-rel">Кем приходится реабилитанту <span class="rw-req">*</span></label>
@@ -110,7 +110,7 @@
                 </div>
                 <div class="rw-f rw-c6">
                   <label class="rw-label" for="lr-phone">Телефон <span class="rw-req">*</span></label>
-                  <input id="lr-phone" class="rw-input" type="tel" v-model="f.lrPhone" placeholder="+7 (___) ___-__-__" />
+                  <input id="lr-phone" class="rw-input" type="tel" inputmode="tel" :value="f.lrPhone" @input="onMask('lrPhone', $event, maskPhone)" maxlength="18" placeholder="+7 (___) ___-__-__" />
                 </div>
               </div>
 
@@ -118,23 +118,23 @@
               <div class="rw-fg">
                 <div class="rw-f rw-c3">
                   <label class="rw-label" for="lp-ser">Серия <span class="rw-req">*</span></label>
-                  <input id="lp-ser" class="rw-input" type="text" inputmode="numeric" maxlength="4" placeholder="0000" v-model="f.lrPassSeries" />
+                  <input id="lp-ser" class="rw-input" type="text" inputmode="numeric" maxlength="4" placeholder="0000" :value="f.lrPassSeries" @input="onMask('lrPassSeries', $event, v => onlyDigits(v, 4))" />
                 </div>
                 <div class="rw-f rw-c3">
                   <label class="rw-label" for="lp-num">Номер <span class="rw-req">*</span></label>
-                  <input id="lp-num" class="rw-input" type="text" inputmode="numeric" maxlength="6" placeholder="000000" v-model="f.lrPassNum" />
+                  <input id="lp-num" class="rw-input" type="text" inputmode="numeric" maxlength="6" placeholder="000000" :value="f.lrPassNum" @input="onMask('lrPassNum', $event, v => onlyDigits(v, 6))" />
                 </div>
                 <div class="rw-f rw-c3">
                   <label class="rw-label" for="lp-dt">Дата выдачи <span class="rw-req">*</span></label>
-                  <input id="lp-dt" class="rw-input" type="date" v-model="f.lrPassDate" />
+                  <input id="lp-dt" class="rw-input" type="date" v-model="f.lrPassDate" :max="today" />
                 </div>
                 <div class="rw-f rw-c3">
                   <label class="rw-label" for="lp-code">Код подразделения <span class="rw-req">*</span></label>
-                  <input id="lp-code" class="rw-input" type="text" inputmode="numeric" maxlength="7" placeholder="000-000" v-model="f.lrPassCode" />
+                  <input id="lp-code" class="rw-input" type="text" inputmode="numeric" maxlength="7" placeholder="000-000" :value="f.lrPassCode" @input="onMask('lrPassCode', $event, maskDeptCode)" />
                 </div>
                 <div class="rw-f rw-c12">
                   <label class="rw-label" for="lp-iss">Кем выдан <span class="rw-req">*</span></label>
-                  <input id="lp-iss" class="rw-input" type="text" placeholder="Наименование органа, выдавшего паспорт" v-model="f.lrPassIssuer" />
+                  <input id="lp-iss" class="rw-input" type="text" placeholder="Наименование органа, выдавшего паспорт" :value="f.lrPassIssuer" @input="onMask('lrPassIssuer', $event, v => maskText(v, 255))" maxlength="255" />
                 </div>
               </div>
 
@@ -142,7 +142,7 @@
               <div class="rw-fg">
                 <div class="rw-f rw-c12">
                   <label class="rw-label" for="lr-addr">Адрес регистрации представителя <span class="rw-req">*</span></label>
-                  <input id="lr-addr" class="rw-input" type="text" placeholder="Регион, город, улица, дом, квартира" v-model="f.lrAddress" />
+                  <input id="lr-addr" class="rw-input" type="text" placeholder="Регион, город, улица, дом, квартира" :value="f.lrAddress" @input="onMask('lrAddress', $event, v => maskText(v, 500))" maxlength="500" />
                 </div>
               </div>
 
@@ -167,19 +167,19 @@
               <div class="rw-fg">
                 <div class="rw-f rw-c4">
                   <label class="rw-label" for="r-last">Фамилия <span class="rw-req">*</span></label>
-                  <input id="r-last" class="rw-input" type="text" v-model="f.rLast" />
+                  <input id="r-last" class="rw-input" type="text" :value="f.rLast" @input="onMask('rLast', $event, maskName)" placeholder="Иванов" maxlength="50" />
                 </div>
                 <div class="rw-f rw-c4">
                   <label class="rw-label" for="r-first">Имя <span class="rw-req">*</span></label>
-                  <input id="r-first" class="rw-input" type="text" v-model="f.rFirst" />
+                  <input id="r-first" class="rw-input" type="text" :value="f.rFirst" @input="onMask('rFirst', $event, maskName)" placeholder="Иван" maxlength="50" />
                 </div>
                 <div class="rw-f rw-c4">
                   <label class="rw-label" for="r-mid">Отчество <span class="rw-opt">при наличии</span></label>
-                  <input id="r-mid" class="rw-input" type="text" v-model="f.rMid" />
+                  <input id="r-mid" class="rw-input" type="text" :value="f.rMid" @input="onMask('rMid', $event, maskName)" placeholder="Иванович" maxlength="50" />
                 </div>
                 <div class="rw-f rw-c4">
                   <label class="rw-label" for="r-birth">Дата рождения <span class="rw-req">*</span></label>
-                  <input id="r-birth" class="rw-input" type="date" v-model="f.rBirth" />
+                  <input id="r-birth" class="rw-input" type="date" v-model="f.rBirth" :max="today" />
                   <span class="rw-field-help">Возраст рассчитается автоматически</span>
                 </div>
               </div>
@@ -198,15 +198,15 @@
                 </div>
                 <div class="rw-f rw-c6">
                   <label class="rw-label" for="r-snils">СНИЛС <span class="rw-req">*</span></label>
-                  <input id="r-snils" class="rw-input" type="text" inputmode="numeric" maxlength="14" placeholder="000-000-000 00" v-model="f.rSnils" />
+                  <input id="r-snils" class="rw-input" type="text" inputmode="numeric" maxlength="14" placeholder="000-000-000 00" :value="f.rSnils" @input="onMask('rSnils', $event, maskSnils)" />
                 </div>
                 <div class="rw-f rw-c3">
                   <label class="rw-label" for="r-mse-date">Дата выдачи МСЭ</label>
-                  <input id="r-mse-date" class="rw-input" type="date" v-model="f.rMseDate" />
+                  <input id="r-mse-date" class="rw-input" type="date" v-model="f.rMseDate" :max="today" />
                 </div>
                 <div class="rw-f rw-c3">
                   <label class="rw-label" for="r-mse-until">Дата действия МСЭ</label>
-                  <input id="r-mse-until" class="rw-input" type="date" v-model="f.rMseUntil" />
+                  <input id="r-mse-until" class="rw-input" type="date" v-model="f.rMseUntil" :min="f.rMseDate || undefined" />
                 </div>
 
                 <div class="rw-f rw-c12">
@@ -313,7 +313,7 @@
                 </div>
                 <div class="rw-f rw-c12">
                   <label class="rw-label" for="r-diagnosis">Диагноз <span class="rw-opt">свободный ввод</span></label>
-                  <textarea id="r-diagnosis" rows="2" v-model="f.rDiagnosis" placeholder="Основной диагноз и сопутствующие (при наличии)"></textarea>
+                  <textarea id="r-diagnosis" rows="2" v-model="f.rDiagnosis" maxlength="255" placeholder="Основной диагноз и сопутствующие (при наличии)"></textarea>
                 </div>
               </div>
 
@@ -330,15 +330,15 @@
                 </div>
                 <div class="rw-f rw-c3">
                   <label class="rw-label" for="rd-ser">Серия <span class="rw-req">*</span></label>
-                  <input id="rd-ser" class="rw-input" type="text" :placeholder="f.rDocType === 'birth' ? 'IV-АБ' : '0000'" v-model="f.rDocSeries" />
+                  <input id="rd-ser" class="rw-input" type="text" :placeholder="f.rDocType === 'birth' ? 'IV-АБ' : '0000'" :value="f.rDocSeries" @input="onDocSeries($event)" :inputmode="f.rDocType === 'birth' ? 'text' : 'numeric'" :maxlength="f.rDocType === 'birth' ? 12 : 4" />
                 </div>
                 <div class="rw-f rw-c3">
                   <label class="rw-label" for="rd-num">Номер <span class="rw-req">*</span></label>
-                  <input id="rd-num" class="rw-input" type="text" inputmode="numeric" placeholder="000000" v-model="f.rDocNum" />
+                  <input id="rd-num" class="rw-input" type="text" inputmode="numeric" maxlength="6" placeholder="000000" :value="f.rDocNum" @input="onMask('rDocNum', $event, v => onlyDigits(v, 6))" />
                 </div>
                 <div class="rw-f rw-c3">
                   <label class="rw-label" for="rd-dt">Дата выдачи <span class="rw-req">*</span></label>
-                  <input id="rd-dt" class="rw-input" type="date" v-model="f.rDocDate" />
+                  <input id="rd-dt" class="rw-input" type="date" v-model="f.rDocDate" :max="today" />
                 </div>
                 <div class="rw-f rw-c3">
                   <label class="rw-label" for="rd-rel">Кем приходится представителю</label>
@@ -349,7 +349,7 @@
                 </div>
                 <div class="rw-f rw-c12">
                   <label class="rw-label" for="rd-iss">Кем выдан <span class="rw-req">*</span></label>
-                  <input id="rd-iss" class="rw-input" type="text" placeholder="Наименование органа ЗАГС / органа, выдавшего паспорт" v-model="f.rDocIssuer" />
+                  <input id="rd-iss" class="rw-input" type="text" placeholder="Наименование органа ЗАГС / органа, выдавшего паспорт" :value="f.rDocIssuer" @input="onMask('rDocIssuer', $event, v => maskText(v, 255))" maxlength="255" />
                 </div>
               </div>
 
@@ -364,7 +364,7 @@
                 </div>
                 <div class="rw-f rw-c8">
                   <label class="rw-label" for="r-reg">Адрес регистрации <span class="rw-req">*</span></label>
-                  <input id="r-reg" class="rw-input" type="text" placeholder="Город, район, улица, дом, квартира" v-model="f.rAddrReg" />
+                  <input id="r-reg" class="rw-input" type="text" placeholder="Город, район, улица, дом, квартира" :value="f.rAddrReg" @input="onMask('rAddrReg', $event, v => maskText(v, 500))" maxlength="500" />
                 </div>
               </div>
 
@@ -389,7 +389,7 @@
                 </div>
                 <div class="rw-f rw-c8">
                   <label class="rw-label" for="r-fact">Адрес фактического места проживания <span class="rw-req">*</span></label>
-                  <input id="r-fact" class="rw-input" type="text" placeholder="Город, район, улица, дом, квартира" v-model="f.rAddrFact" />
+                  <input id="r-fact" class="rw-input" type="text" placeholder="Город, район, улица, дом, квартира" :value="f.rAddrFact" @input="onMask('rAddrFact', $event, v => maskText(v, 500))" maxlength="500" />
                 </div>
               </div>
 
@@ -397,7 +397,7 @@
               <div class="rw-fg">
                 <div class="rw-f rw-c12">
                   <label class="rw-label" for="r-edu">Наименование учреждения</label>
-                  <input id="r-edu" class="rw-input" type="text" placeholder="Например: ГБОУ «Школа № 1234», корпус 2" v-model="f.rEduName" />
+                  <input id="r-edu" class="rw-input" type="text" placeholder="Например: ГБОУ «Школа № 1234», корпус 2" :value="f.rEduName" @input="onMask('rEduName', $event, v => maskText(v, 255))" maxlength="255" />
                 </div>
               </div>
 
@@ -408,7 +408,7 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:0.9375rem;height:0.9375rem;flex:0 0 0.9375rem"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
                     Сенсорные особенности, триггеры и сигналы поддержки
                   </label>
-                  <textarea id="r-special" rows="5" v-model="f.rSpecial" placeholder="Например: Возможны эпизоды агрессии при перегрузке средой. Чувствительность к громким звукам. Резкая смена активности без подготовки вызывает тревогу…"></textarea>
+                  <textarea id="r-special" rows="5" v-model="f.rSpecial" maxlength="2000" placeholder="Например: Возможны эпизоды агрессии при перегрузке средой. Чувствительность к громким звукам. Резкая смена активности без подготовки вызывает тревогу…"></textarea>
                   <span class="rw-field-help">Описание видно всем специалистам, работающим с реабилитантом. Указывайте поведенческие триггеры и проверенные способы поддержки.</span>
                 </div>
               </div>
@@ -599,6 +599,7 @@ const emit = defineEmits(['close', 'saved']);
 
 const step = ref(1);
 const saving = ref(false);
+const today = new Date().toISOString().slice(0, 10);
 const docsGenerated = ref(false);
 const nosologyOpen = ref(false);
 const crgGroupOpen = ref(false);
@@ -849,6 +850,73 @@ const genDocsList = [
 const displayName = computed(() =>
   [f.value.rLast, f.value.rFirst, f.value.rMid].filter(Boolean).join(' ')
 );
+
+// ── Маски и нормализация ввода ──────────────────────────────
+const onlyDigits = (s, max) => s.replace(/\D/g, '').slice(0, max);
+
+// ФИО: только кириллица, дефис и пробел; каждое слово с заглавной
+function maskName(v) {
+  const s = v
+    .replace(/[^А-Яа-яЁё\- ]/g, '')
+    .replace(/^[\s-]+/, '')
+    .replace(/\s{2,}/g, ' ')
+    .replace(/-{2,}/g, '-');
+  return s.replace(/(^|[\s-])([а-яё])/g, (_, sep, ch) => sep + ch.toUpperCase());
+}
+
+// Телефон: +7 (XXX) XXX-XX-XX
+function maskPhone(v) {
+  let d = v.replace(/\D/g, '');
+  if (d.startsWith('8')) d = '7' + d.slice(1);
+  if (d.startsWith('7')) d = d.slice(1);
+  d = d.slice(0, 10);
+  if (!d) return '';
+  let out = '+7 (' + d.slice(0, 3);
+  if (d.length >= 3) out += ')';
+  if (d.length > 3)  out += ' ' + d.slice(3, 6);
+  if (d.length > 6)  out += '-' + d.slice(6, 8);
+  if (d.length > 8)  out += '-' + d.slice(8, 10);
+  return out;
+}
+
+// СНИЛС: XXX-XXX-XXX YY
+function maskSnils(v) {
+  const d = v.replace(/\D/g, '').slice(0, 11);
+  let out = d.slice(0, 3);
+  if (d.length > 3) out += '-' + d.slice(3, 6);
+  if (d.length > 6) out += '-' + d.slice(6, 9);
+  if (d.length > 9) out += ' ' + d.slice(9, 11);
+  return out;
+}
+
+// Код подразделения: XXX-XXX
+function maskDeptCode(v) {
+  const d = v.replace(/\D/g, '').slice(0, 6);
+  return d.length > 3 ? d.slice(0, 3) + '-' + d.slice(3) : d;
+}
+
+// Серия свидетельства о рождении: римские + «-» + кириллица (IV-АБ)
+function maskBirthSeries(v) {
+  return v.toUpperCase().replace(/[^IVXLCА-ЯЁ\- ]/g, '').slice(0, 12);
+}
+
+// Свободный текст: без ведущих пробелов, без двойных пробелов, с ограничением длины
+function maskText(v, max) {
+  return v.replace(/^\s+/, '').replace(/\s{2,}/g, ' ').slice(0, max);
+}
+
+// Универсальный обработчик @input: применяет маску к модели и DOM
+function onMask(field, e, fn) {
+  const masked = fn(e.target.value);
+  f.value[field] = masked;
+  if (e.target.value !== masked) e.target.value = masked;
+}
+
+// Серия документа реабилитанта зависит от типа документа
+function onDocSeries(e) {
+  const fn = f.value.rDocType === 'birth' ? maskBirthSeries : (v) => onlyDigits(v, 4);
+  onMask('rDocSeries', e, fn);
+}
 
 const onFile = (key, e) => {
   const file = e.target.files[0];

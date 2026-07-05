@@ -628,8 +628,8 @@ onUnmounted(() => {
 
 <style scoped>
 .erp-r-teacher {
-  --t-font-serif: 'Fraunces', Georgia, 'Times New Roman', serif;
-  --t-font-sans:  system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --t-font-serif: 'Lora', Georgia, 'Times New Roman', serif;
+  --t-font-sans:  'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --t-canvas:       #F7F4ED;
   --t-paper:        #FFFFFF;
   --t-paper-soft:   #F2ECDF;
@@ -1158,23 +1158,23 @@ onUnmounted(() => {
 .toolbar { display: flex; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
 .search {
   display: flex; align-items: center; gap: 0.5rem;
-  background: var(--bg-surface); border: 1px solid var(--border);
+  background: #FFFFFF; border: 1px solid #D6CFBE;
   border-radius: var(--radius-md); padding: 0.3rem 0.7rem;
   flex: 1; max-width: 300px;
 }
 .search input { border: none; background: none; outline: none; width: 100%; }
 .filter-group { display: flex; align-items: center; gap: 0.5rem; }
-.filter-group label { font-size: .85rem; font-weight: 500; color: var(--text-secondary); }
+.filter-group label { font-size: .85rem; font-weight: 500; color: #4F564A; }
 .styled-select {
-  padding: .5rem .75rem; border: 1px solid var(--border);
-  border-radius: var(--radius-md); background: var(--bg-surface);
-  color: var(--text-primary); font-size: .9rem; cursor: pointer;
+  padding: .5rem .75rem; border: 1px solid #D6CFBE;
+  border-radius: var(--radius-md); background: #FFFFFF;
+  color: #131713; font-size: .9rem; cursor: pointer;
 }
 .items-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; }
 @media (max-width: 900px) { .items-grid { grid-template-columns: repeat(2,1fr); } }
 @media (max-width: 640px) { .items-grid { grid-template-columns: 1fr; } }
 .item-card {
-  background: var(--bg-surface); border: 1px solid var(--border);
+  background: #FFFFFF; border: 1px solid #E4DECF;
   border-radius: var(--radius-lg); padding: 1rem;
   position: relative; cursor: pointer; transition: all .2s;
   display: flex; flex-direction: column; gap: .75rem;
@@ -1202,25 +1202,25 @@ onUnmounted(() => {
 .avatar { width: 48px; height: 48px; border-radius: 50%; object-fit: cover; }
 .card-info { display: flex; flex-direction: column; gap: .2rem; }
 .name { font-weight: 700; font-size: 1rem; margin: 0; }
-.sub { font-size: .75rem; color: var(--text-secondary); }
+.sub { font-size: .75rem; color: #4F564A; }
 .tags { display: flex; flex-wrap: wrap; gap: .3rem; margin-top: .2rem; }
 .badge-blue, .badge-gray {
   font-size: .7rem; padding: .2rem .6rem; border-radius: 40px;
   font-weight: 500; display: inline-block; white-space: nowrap;
 }
-.badge-blue { background: var(--accent-soft); color: var(--accent-text); }
-.badge-gray { background: var(--bg-surface-sunken); color: var(--text-secondary); }
+.badge-blue { background: #EEF4E2; color: #2F4A2F; }
+.badge-gray { background: #F3EEE4; color: #4F564A; }
 .card-right {
   display: flex; flex-direction: row; justify-content: flex-end;
   gap: .75rem; margin-top: .25rem;
-  border-top: 1px solid var(--border-light); padding-top: .75rem;
+  border-top: 1px solid #EFEADC; padding-top: .75rem;
 }
 .widget-status, .widget-attendance {
   display: flex; align-items: center; gap: .3rem;
-  background: var(--bg-surface-sunken); border-radius: 40px; padding: .2rem .6rem;
+  background: #F3EEE4; border-radius: 40px; padding: .2rem .6rem;
 }
-.widget-status svg, .widget-attendance svg { width: 20px; height: 20px; stroke: var(--accent); }
-.widget-value { font-size: .75rem; font-weight: 600; color: var(--text-primary); }
+.widget-status svg, .widget-attendance svg { width: 20px; height: 20px; stroke: #3F6E3F; }
+.widget-value { font-size: .75rem; font-weight: 600; color: #131713; }
 .aggression-badge {
   position: absolute; bottom: -4px; right: -4px;
   width: 20px; height: 20px; border-radius: 50%;
@@ -1262,11 +1262,13 @@ onUnmounted(() => {
   background: var(--bg-surface); color: var(--text-primary);
 }
 .btn-primary {
-  background: #4b5675; color: white; border: none;
+  background: #2F4A2F; color: #F4F8EC; border: 1px solid #2F4A2F;
   padding: .5rem 1rem; border-radius: var(--radius-md); cursor: pointer;
+  font-weight: 600; transition: background .15s ease, border-color .15s ease;
 }
+.btn-primary:hover { background: #24391F; border-color: #24391F; transform: none; }
 .btn-secondary {
-  background: var(--bg-surface); border: 1px solid var(--border);
+  background: #FFFFFF; border: 1px solid #D6CFBE; color: #131713;
   padding: .5rem 1rem; border-radius: var(--radius-md); cursor: pointer;
 }
 </style>

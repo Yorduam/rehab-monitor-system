@@ -30,6 +30,8 @@
           <thead>
             <tr>
               <th>ID</th>
+              <th>Фамилия</th>
+              <th>Имя</th>
               <th>Email</th>
               <th>Роль</th>
               <th>Действия</th>
@@ -38,6 +40,8 @@
           <tbody>
             <tr v-for="user in paginatedUsers" :key="user.id">
               <td>{{ user.id }}</td>
+              <td>{{ user.lastName || '—' }}</td>
+              <td>{{ user.firstName || '—' }}</td>
               <td>{{ user.email }}</td>
               <td>
                 <select v-model="user.role" @change="updateRole(user)" :disabled="user.id === authStore.user?.id">
@@ -48,8 +52,11 @@
                 </select>
                </td>
               <td>
-                <button class="btn-ghost-sm" @click="resetPassword(user)">Сброс пароля</button>
-                <button class="btn-ghost-sm" @click="deleteUser(user.id)" v-if="user.id !== authStore.user?.id">🗑</button>
+                <div class="row-actions">
+                  <button class="btn-ghost-sm" @click="openEditModal(user)">Изменить</button>
+                  <button class="btn-ghost-sm" @click="resetPassword(user)">Сброс пароля</button>
+                  <button class="btn-ghost-sm btn-ghost-danger" @click="deleteUser(user.id)" v-if="user.id !== authStore.user?.id" title="Удалить">🗑</button>
+                </div>
                </td>
              </tr>
           </tbody>
@@ -67,10 +74,62 @@
 
     <Modal v-if="addModalVisible" title="Добавить пользователя" @close="addModalVisible = false">
       <form @submit.prevent="createUser">
+        <div class="form-row">
+          <div class="form-group"><label>Фамилия</label><input v-model="newUser.lastName" type="text"></div>
+          <div class="form-group"><label>Имя</label><input v-model="newUser.firstName" type="text"></div>
+        </div>
         <div class="form-group"><label>Email</label><input v-model="newUser.email" type="email" required></div>
-        <div class="form-group"><label>Пароль</label><input v-model="newUser.password" type="password" required></div>
+        <div class="form-group">
+          <label>Пароль</label>
+          <div class="password-field">
+            <input v-model="newUser.password" :type="showPassword ? 'text' : 'password'" required>
+            <button type="button" class="password-toggle" @click="showPassword = !showPassword" :aria-label="showPassword ? 'Скрыть пароль' : 'Показать пароль'">
+              <svg v-if="!showPassword" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z" /><circle cx="12" cy="12" r="3" />
+              </svg>
+              <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24" /><line x1="1" y1="1" x2="23" y2="23" />
+              </svg>
+            </button>
+          </div>
+        </div>
         <div class="form-group"><label>Роль</label><select v-model="newUser.role"><option value="admin">Администратор</option><option value="teacher">Преподаватель</option><option value="employee">Сотрудник</option><option value="recipient">Реципиент</option></select></div>
+        <div class="form-group" v-if="newUser.role === 'teacher'">
+          <label>Проф. ориентированность</label>
+          <select v-model="newUser.directionId">
+            <option :value="null" disabled>— выберите направление —</option>
+            <option v-for="dir in directions" :key="dir.id" :value="dir.id">{{ directionLabel(dir) }}</option>
+          </select>
+        </div>
         <div class="modal-buttons"><button type="button" class="btn-secondary" @click="addModalVisible = false">Отмена</button><button type="submit" class="btn-primary">Создать</button></div>
+      </form>
+    </Modal>
+
+    <Modal v-if="editModalVisible" title="Редактировать пользователя" @close="editModalVisible = false">
+      <form @submit.prevent="saveUser">
+        <div class="form-row">
+          <div class="form-group"><label>Фамилия</label><input v-model="editUser.lastName" type="text"></div>
+          <div class="form-group"><label>Имя</label><input v-model="editUser.firstName" type="text"></div>
+        </div>
+        <div class="form-group"><label>Email</label><input v-model="editUser.email" type="email" required></div>
+        <div class="form-group">
+          <label>Роль</label>
+          <select v-model="editUser.role" :disabled="editUser.id === authStore.user?.id">
+            <option value="admin">Администратор</option>
+            <option value="teacher">Преподаватель</option>
+            <option value="employee">Сотрудник</option>
+            <option value="recipient">Реципиент</option>
+          </select>
+          <small v-if="editUser.id === authStore.user?.id" class="form-hint">Нельзя изменить свою собственную роль.</small>
+        </div>
+        <div class="form-group" v-if="editUser.role === 'teacher'">
+          <label>Проф. ориентированность</label>
+          <select v-model="editUser.directionId">
+            <option :value="null" disabled>— выберите направление —</option>
+            <option v-for="dir in directions" :key="dir.id" :value="dir.id">{{ directionLabel(dir) }}</option>
+          </select>
+        </div>
+        <div class="modal-buttons"><button type="button" class="btn-secondary" @click="editModalVisible = false">Отмена</button><button type="submit" class="btn-primary">Сохранить</button></div>
       </form>
     </Modal>
 
@@ -96,11 +155,27 @@ const users = ref([]);
 const page = ref(1);
 const limit = ref(10);
 const addModalVisible = ref(false);
+const showPassword = ref(false);
+const editModalVisible = ref(false);
+const editUser = ref({ id: null, email: '', role: 'recipient', lastName: '', firstName: '', directionId: null });
 const passwordModalVisible = ref(false);
 const selectedUser = ref(null);
 const newPassword = ref('');
 const confirmPassword = ref('');
-const newUser = ref({ email: '', password: '', role: 'recipient' });
+const newUser = ref({ email: '', password: '', role: 'recipient', lastName: '', firstName: '', directionId: null });
+const directions = ref([]);
+
+// Понятные подписи для направлений (по profileKey), с запасным вариантом на name из БД.
+const PROFILE_LABELS = {
+  psy: 'Психолог',
+  log: 'Логопед',
+  afk: 'АФК',
+  izo: 'ИЗО',
+  vocal: 'Вокал',
+  instrument: 'Инструменты',
+  theatre: 'Театр'
+};
+const directionLabel = (dir) => PROFILE_LABELS[dir.profileKey] || dir.name;
 
 const paginatedUsers = computed(() => {
   const start = (page.value - 1) * limit.value;
@@ -133,20 +208,65 @@ const deleteUser = async (id) => {
     await loadUsers();
   }
 };
+const loadDirections = async () => {
+  const { data } = await api.get('/lists/directions');
+  directions.value = data;
+};
 const openAddModal = () => {
-  newUser.value = { email: '', password: '', role: 'recipient' };
+  newUser.value = { email: '', password: '', role: 'recipient', lastName: '', firstName: '', directionId: null };
+  showPassword.value = false;
   addModalVisible.value = true;
 };
+const openEditModal = (user) => {
+  editUser.value = {
+    id: user.id,
+    email: user.email || '',
+    role: user.role || 'recipient',
+    lastName: user.lastName || '',
+    firstName: user.firstName || '',
+    directionId: user.directionId ?? null
+  };
+  editModalVisible.value = true;
+};
+const saveUser = async () => {
+  const u = editUser.value;
+  const payload = {
+    email: u.email,
+    firstName: u.firstName,
+    lastName: u.lastName,
+    directionId: u.role === 'teacher' ? u.directionId : null
+  };
+  // Свою собственную роль менять нельзя (защита от самоблокировки админа).
+  if (u.id !== authStore.user?.id) payload.role = u.role;
+  try {
+    await api.put(`/users/${u.id}`, payload);
+    await loadUsers();
+    editModalVisible.value = false;
+  } catch (err) {
+    const msg = err.response?.data?.message || 'Не удалось сохранить изменения';
+    alert(msg);
+  }
+};
 const createUser = async () => {
-  await api.post('/auth/register', { ...newUser.value, agreedToTerms: true });
-  await loadUsers();
-  addModalVisible.value = false;
+  const payload = { ...newUser.value };
+  // Проф. ориентированность отправляем только для преподавателя.
+  if (payload.role !== 'teacher') payload.directionId = null;
+  try {
+    // Отдельный админский эндпоинт: не выдаёт токен, не подменяет сессию администратора.
+    await api.post('/users', payload);
+    await loadUsers();
+    addModalVisible.value = false;
+  } catch (err) {
+    const msg = err.response?.data?.message || 'Не удалось создать пользователя';
+    alert(msg);
+  }
 };
 const changePage = (newPage) => { page.value = newPage; };
 const changeLimit = (newLimit) => { limit.value = newLimit; page.value = 1; };
 onMounted(() => {
   document.documentElement.style.setProperty('--bg-app', '#F7F4ED');
   loadUsers();
+  loadDirections();
 });
 onUnmounted(() => {
   document.documentElement.style.removeProperty('--bg-app');
@@ -183,6 +303,8 @@ onUnmounted(() => {
 .table-container { overflow-x: auto; max-height: 60vh; overflow-y: auto; }
 .data-table { width: 100%; border-collapse: collapse; }
 .data-table th, .data-table td { padding: 0.8rem 0.9rem; text-align: left; border-bottom: 1px solid #EFEADC; }
+/* Разделительные полосы между столбцами */
+.data-table th:not(:last-child), .data-table td:not(:last-child) { border-right: 1px solid #EFEADC; }
 .data-table th {
   background: #F3EEE4; font-weight: 600; font-size: 0.72rem;
   text-transform: uppercase; letter-spacing: 0.06em; color: #6E7368;
@@ -190,6 +312,12 @@ onUnmounted(() => {
 .data-table td { font-size: 0.92rem; color: #1a211a; }
 .data-table tbody tr:hover { background: #F7F4ED; }
 .data-table tbody tr:last-child td { border-bottom: none; }
+
+/* Действия в строке */
+.row-actions { display: flex; align-items: center; gap: 0.15rem; flex-wrap: wrap; }
+.btn-ghost-danger { color: #B0533F; }
+.btn-ghost-danger:hover { background: #FAE9E0; }
+.form-hint { display: block; margin-top: 0.3rem; font-size: 0.75rem; color: #6E7368; }
 
 select {
   padding: 0.4rem 0.55rem; border-radius: 0.6rem; border: 1px solid #E4DECF;
@@ -223,6 +351,8 @@ select:disabled { background: #F3EEE4; color: #6E7368; cursor: not-allowed; }
 
 /* Forms */
 .modal-buttons { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; }
+.form-row { display: flex; gap: 0.75rem; }
+.form-row .form-group { flex: 1; }
 .form-group { margin-bottom: 1rem; }
 .form-group label { display: block; margin-bottom: 0.3rem; font-size: 0.8rem; font-weight: 600; color: #4F564A; }
 .form-group input, .form-group select {
@@ -233,4 +363,16 @@ select:disabled { background: #F3EEE4; color: #6E7368; cursor: not-allowed; }
 .form-group input:focus, .form-group select:focus {
   outline: none; border-color: #5F7E45; box-shadow: 0 0 0 3px rgba(95, 126, 69, 0.18);
 }
+
+/* Password field with show/hide toggle */
+.password-field { position: relative; }
+.password-field input { padding-right: 2.6rem; }
+.password-toggle {
+  position: absolute; top: 50%; right: 0.35rem; transform: translateY(-50%);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2rem; height: 2rem; padding: 0; border: none; background: none;
+  color: #6E7368; cursor: pointer; border-radius: 0.5rem; transition: color 0.15s, background 0.15s;
+}
+.password-toggle:hover { color: #2F4A2F; background: #EEF4E2; }
+.password-toggle svg { width: 18px; height: 18px; }
 </style>

@@ -7,14 +7,23 @@ const router = express.Router();
 
 router.post('/register', async (req, res, next) => {
   try {
-    const { email, password, role, agreedToTerms } = req.body;
+    const { email, password, role, agreedToTerms, firstName, lastName, directionId } = req.body;
     if (!agreedToTerms) {
       return res.status(400).json({ message: 'Необходимо принять пользовательское соглашение' });
     }
     const existing = await User.findOne({ where: { email } });
     if (existing) return res.status(400).json({ message: 'Email already exists' });
     const hash = await bcrypt.hash(password, 10);
-    const user = await User.create({ email, passwordHash: hash, role: role || 'recipient' });
+    const finalRole = role || 'recipient';
+    const user = await User.create({
+      email,
+      passwordHash: hash,
+      role: finalRole,
+      firstName: firstName || null,
+      lastName: lastName || null,
+      // Проф. ориентированность актуальна только для преподавателя.
+      directionId: finalRole === 'teacher' && directionId ? directionId : null
+    });
     const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
     res.cookie('token', token, {
       httpOnly: true,

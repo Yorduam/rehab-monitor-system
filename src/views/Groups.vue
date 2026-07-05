@@ -1,5 +1,11 @@
 <template>
-  <div>
+  <div class="groups-page">
+    <header class="g-header">
+      <div>
+        <h1 class="g-title">Группы</h1>
+        <p class="g-sub">Учебные группы и закреплённые кураторы.</p>
+      </div>
+    </header>
     <div class="toolbar">
       <div class="search-field">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -102,7 +108,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import api from '../api'
 import { fullName, recipientAge } from '../utils/recipient'
 import Modal from '../components/Modal.vue'
@@ -228,12 +234,27 @@ const deleteGroup = async (id) => {
 }
 
 onMounted(async () => {
+  document.documentElement.style.setProperty('--bg-app', '#F7F4ED')
   await loadCurators()
   loadGroups()
+})
+onUnmounted(() => {
+  document.documentElement.style.removeProperty('--bg-app')
 })
 </script>
 
 <style scoped>
+/* ---- Warm paper theme (matches Реабилитанты / Дашборд) ---- */
+.groups-page { font-family: 'Inter', system-ui, sans-serif; color: #131713; }
+
+/* Header */
+.g-header { margin-bottom: 1.5rem; }
+.g-title {
+  font-family: 'Lora', Georgia, serif; font-weight: 600;
+  font-size: 1.9rem; line-height: 1.15; color: #0F140F; margin: 0;
+}
+.g-sub { color: #4F564A; font-size: 0.95rem; margin: 0.35rem 0 0; }
+
 .group-details {
   display: flex;
   flex-direction: column;
@@ -247,7 +268,7 @@ onMounted(async () => {
 .detail-label {
   width: 100px;
   font-weight: 600;
-  color: var(--text-secondary);
+  color: #4F564A;
 }
 .detail-value {
   flex: 1;
@@ -265,8 +286,8 @@ onMounted(async () => {
   align-items: center;
   gap: 0.75rem;
   padding: 0.5rem;
-  background: var(--bg-surface-sunken);
-  border-radius: var(--radius-md);
+  background: #F3EEE4;
+  border-radius: 0.65rem;
 }
 .participant-avatar {
   width: 36px;
@@ -282,11 +303,11 @@ onMounted(async () => {
 }
 .participant-meta {
   font-size: 0.7rem;
-  color: var(--text-tertiary);
+  color: #6E7368;
 }
 .loading-small, .empty-small {
   font-size: 0.8rem;
-  color: var(--text-secondary);
+  color: #4F564A;
   text-align: center;
   padding: 1rem;
 }
@@ -301,18 +322,22 @@ onMounted(async () => {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 0.3rem 0.7rem;
+  background: #FFFFFF;
+  border: 1px solid #D6CFBE;
+  border-radius: 0.7rem;
+  padding: 0.4rem 0.75rem;
   flex: 1;
-  max-width: 300px;
+  max-width: 320px;
+  color: #6E7368;
 }
+.search-field:focus-within { border-color: #5F7E45; box-shadow: 0 0 0 3px rgba(95,126,69,0.18); }
 .search-field input {
   border: none;
   background: none;
   outline: none;
   width: 100%;
+  color: #131713;
+  font-family: inherit;
 }
 .items-grid {
   display: grid;
@@ -320,16 +345,18 @@ onMounted(async () => {
   gap: 1rem;
 }
 .item-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
-  padding: 1rem;
+  background: #FFFFFF;
+  border: 1px solid #E4DECF;
+  border-radius: 1rem;
+  padding: 1.1rem;
   position: relative;
-  transition: all 0.2s;
+  cursor: pointer;
+  transition: box-shadow 0.18s, transform 0.18s, border-color 0.18s;
 }
 .item-card:hover {
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 .25rem .875rem rgba(17,34,17,.08);
   transform: translateY(-2px);
+  border-color: #D6CFBE;
 }
 .actions {
   position: absolute;
@@ -347,7 +374,9 @@ onMounted(async () => {
   font-size: 0.9rem;
   cursor: pointer;
   padding: 0.25rem;
+  border-radius: 0.4rem;
 }
+.actions button:hover { background: #F3EEE4; }
 .top {
   display: flex;
   gap: 0.75rem;
@@ -355,10 +384,11 @@ onMounted(async () => {
 }
 .name {
   font-weight: 700;
+  color: #131713;
 }
 .sub {
   font-size: 0.8rem;
-  color: var(--text-secondary);
+  color: #4F564A;
 }
 .tags {
   display: flex;
@@ -366,30 +396,30 @@ onMounted(async () => {
   gap: 0.4rem;
 }
 .badge {
-  font-size: 0.7rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 20px;
+  font-size: 0.72rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
   font-weight: 500;
 }
 .badge-blue {
-  background: #d4e6ff;
-  color: #1a3a6b;
+  background: #EEF4E2;
+  color: #2F4A2F;
 }
 .badge-gray {
-  background: #e9f0fa;
-  color: #2c4c7c;
+  background: #F3EEE4;
+  color: #4F564A;
 }
 .loading-state,
 .empty-state {
   text-align: center;
   padding: 2rem;
-  color: var(--text-secondary);
+  color: #4F564A;
 }
 .spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid rgba(75, 86, 117, 0.2);
-  border-top-color: #4b5675;
+  border: 4px solid rgba(95, 126, 69, 0.2);
+  border-top-color: #3F6E3F;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   margin: 0 auto 1rem;
@@ -402,17 +432,25 @@ onMounted(async () => {
 }
 .form-label {
   display: block;
-  margin-bottom: 0.25rem;
+  margin-bottom: 0.3rem;
   font-size: 0.8rem;
   font-weight: 600;
+  color: #4F564A;
 }
 .form-input {
   width: 100%;
-  padding: 0.5rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  color: var(--text-primary);
+  padding: 0.55rem 0.65rem;
+  border: 1px solid #E4DECF;
+  border-radius: 0.65rem;
+  background: #FFFFFF;
+  color: #131713;
+  font-family: inherit;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.form-input:focus {
+  outline: none;
+  border-color: #5F7E45;
+  box-shadow: 0 0 0 3px rgba(95, 126, 69, 0.18);
 }
 .modal-footer {
   display: flex;
@@ -421,18 +459,28 @@ onMounted(async () => {
   margin-top: 1.5rem;
 }
 .btn-primary {
-  background: #4b5675;
-  color: white;
-  border: none;
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius-md);
+  display: inline-flex; align-items: center; gap: 0.45rem;
+  background: #2F4A2F;
+  color: #F4F8EC;
+  border: 1px solid #2F4A2F;
+  padding: 0.55rem 1.1rem;
+  border-radius: 0.7rem;
+  font-weight: 600;
   cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s, border-color 0.15s;
 }
+.btn-primary:hover { background: #24391F; border-color: #24391F; }
 .btn-secondary {
-  background: transparent;
-  border: 1px solid var(--border);
-  padding: 0.5rem 1rem;
-  border-radius: var(--radius-md);
+  background: #F3EEE4;
+  border: 1px solid #E4DECF;
+  color: #131713;
+  padding: 0.55rem 1.1rem;
+  border-radius: 0.7rem;
+  font-weight: 600;
   cursor: pointer;
+  font-family: inherit;
+  transition: background 0.15s;
 }
+.btn-secondary:hover { background: #EBE4D5; }
 </style>

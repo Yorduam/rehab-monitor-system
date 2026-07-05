@@ -7,7 +7,7 @@
       <div class="hero-sticky-sentinel" aria-hidden="true"></div>
 
       <section class="hero" aria-labelledby="hero-name">
-        <div class="hero-avatar" aria-hidden="true">МП</div>
+        <div class="hero-avatar" aria-hidden="true">—</div>
         <div class="hero-identity">
           <div class="hero-eyebrow">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
@@ -15,7 +15,13 @@
             </svg>
             Первичная диагностика · 4 этапа
           </div>
-          <h1 class="hero-name" id="hero-name" tabindex="0" title="Дважды кликните, чтобы выбрать другого реабилитанта">Мария Петрова</h1>
+          <div class="hero-name-row">
+            <h1 class="hero-name" id="hero-name" tabindex="0" title="Дважды кликните, чтобы выбрать другого реабилитанта">Загрузка…</h1>
+            <button type="button" class="hero-switch" id="recipient-switch-btn" title="Выбрать другого реабилитанта">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+              Сменить
+            </button>
+          </div>
           <div class="hero-meta">
             <span>R-000184</span>
             <span class="sep-dot" aria-hidden="true"></span>
@@ -1636,7 +1642,7 @@ function handleMobileStageChange(event) {
 }
 
 onMounted(() => {
-  document.title = 'ERP-Р • Диагностика — Мария Петрова'
+  document.title = 'ERP-Р • Диагностика'
 
     // Тёплый кремовый фон на всю страницу (как в Дашборде) + поднимаем
     // плавающую кнопку «Помощник ERP» над нижней панелью действий
@@ -1783,6 +1789,15 @@ onMounted(() => {
         .replace(/'/g, '&#039;');
     }
 
+    function getSavedRecipientId() {
+      try {
+        const saved = JSON.parse(localStorage.getItem('diagnostics.selectedRecipient') || 'null');
+        return saved?.id ?? null;
+      } catch (_) {
+        return null;
+      }
+    }
+
     async function loadRecipientsFromProject() {
       try {
         const response = await api.get('/recipients', { params: { limit: 300 } });
@@ -1790,6 +1805,18 @@ onMounted(() => {
         const rows = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
         if (rows.length) {
           diagnosticsRuntime.recipients = rows.map((row, idx) => normalizeRecipient(row, idx));
+          // Выбираем сохранённого реабилитанта, если он есть в реальном списке,
+          // иначе — первого реального (а не «жёстко зашитую» Марию).
+          const savedId = getSavedRecipientId();
+          const match = savedId != null
+            ? diagnosticsRuntime.recipients.find(r => String(r.id) === String(savedId))
+            : null;
+          updateRecipientUI(match || diagnosticsRuntime.recipients[0], { silent: true });
+          renderRecipientList();
+        } else if (!getSavedRecipientId()) {
+          // База пуста и ничего не сохранено — показываем локальный список,
+          // чтобы страница оставалась рабочей.
+          updateRecipientUI(FALLBACK_RECIPIENTS[0], { silent: true });
           renderRecipientList();
         }
       } catch (err) {
@@ -1961,12 +1988,15 @@ onMounted(() => {
 
     (function initRecipientSwitcher() {
       ensureRecipientModal();
-      try {
-        const saved = JSON.parse(localStorage.getItem('diagnostics.selectedRecipient') || 'null');
-        if (saved?.fullName) updateRecipientUI(saved, { silent: true });
-        else updateRecipientUI(FALLBACK_RECIPIENTS[0], { silent: true });
-      } catch (_) {
-        updateRecipientUI(FALLBACK_RECIPIENTS[0], { silent: true });
+      // Стартовый placeholder на время загрузки — без «жёстко зашитой» Марии.
+      // Реальный реабилитант выбирается в loadRecipientsFromProject() после
+      // получения списка из базы.
+      let savedRecipient = null;
+      try { savedRecipient = JSON.parse(localStorage.getItem('diagnostics.selectedRecipient') || 'null'); } catch (_) {}
+      if (savedRecipient?.fullName) {
+        updateRecipientUI(savedRecipient, { silent: true });
+      } else {
+        updateRecipientUI({ id: '', fullName: 'Загрузка…', diagnosis: '', groupName: '', code: '', age: '' }, { silent: true });
       }
       loadRecipientsFromProject();
 
@@ -1978,6 +2008,9 @@ onMounted(() => {
           if (e.key === 'Enter') openRecipientModal();
         });
       }
+
+      const switchBtn = document.getElementById('recipient-switch-btn');
+      if (switchBtn) switchBtn.addEventListener('click', openRecipientModal);
 
       const modal = document.getElementById('recipient-modal');
       modal?.querySelectorAll('[data-recipient-close]').forEach(btn => btn.addEventListener('click', closeRecipientModal));
@@ -4675,6 +4708,35 @@ onUnmounted(() => {
       color: var(--ink-strong);
       margin-bottom: 0.375rem;
     }
+    .diagnostics-page .hero-name-row{
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    .diagnostics-page .hero-switch{
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.375rem 0.75rem;
+      margin-bottom: 0.375rem;
+      font-family: var(--font-sans);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--sage-700);
+      background: var(--sage-50);
+      border: 1px solid var(--sage-100);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    .diagnostics-page .hero-switch svg{ width: 0.875rem; height: 0.875rem; }
+    .diagnostics-page .hero-switch:hover{
+      background: var(--sage-100);
+      border-color: var(--sage-400);
+      color: var(--sage-800);
+    }
+    .diagnostics-page .hero.is-stuck .hero-switch{ display: none; }
     .diagnostics-page .hero-meta{
       font-size: 0.875rem;
       color: var(--ink-muted);

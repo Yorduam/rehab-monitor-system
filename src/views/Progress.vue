@@ -1,5 +1,11 @@
 <template>
-  <div>
+  <div class="progress-page">
+    <header class="p-header">
+      <div>
+        <h1 class="p-title">Прогресс</h1>
+        <p class="p-sub">Динамика показателей реабилитантов.</p>
+      </div>
+    </header>
     <div class="toolbar">
       <div class="search">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -46,7 +52,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import api from '../api';
 import { fullName, recipientAge } from '../utils/recipient';
 import Pagination from '../components/Pagination.vue';
@@ -118,15 +124,15 @@ const renderRadar = () => {
     ];
     const targetScores = [4, 3, 3, 4];
     const isDark = document.body.classList.contains('dark');
-    const textColor = isDark ? '#9bb4c9' : '#2c4c6e';
-    const gridColor = isDark ? '#2d4255' : '#cbdde6';
+    const textColor = isDark ? '#9bb4c9' : '#4F564A';
+    const gridColor = isDark ? '#2d4255' : '#E4DECF';
     chart = new Chart(ctx, {
       type: 'radar',
       data: {
         labels,
         datasets: [
-          { label: 'Текущий уровень', data: scores, borderColor: '#1a5d8f', backgroundColor: 'rgba(26,93,143,0.2)', pointBackgroundColor: '#1a5d8f', borderWidth: 2 },
-          { label: 'Целевой уровень', data: targetScores, borderColor: '#94a3b8', backgroundColor: 'rgba(148,163,184,0.1)', borderDash: [5,5], pointBackgroundColor: '#94a3b8', borderWidth: 2 }
+          { label: 'Текущий уровень', data: scores, borderColor: '#3F6E3F', backgroundColor: 'rgba(63,110,63,0.2)', pointBackgroundColor: '#3F6E3F', borderWidth: 2 },
+          { label: 'Целевой уровень', data: targetScores, borderColor: '#B97718', backgroundColor: 'rgba(185,119,24,0.12)', borderDash: [5,5], pointBackgroundColor: '#B97718', borderWidth: 2 }
         ]
       },
       options: { responsive: true, scales: { r: { beginAtZero: true, max: 5, ticks: { stepSize: 1, color: textColor }, grid: { color: gridColor }, pointLabels: { color: textColor } } }, plugins: { legend: { labels: { color: textColor, usePointStyle: true } } } }
@@ -136,116 +142,145 @@ const renderRadar = () => {
 
 const observer = new MutationObserver(() => { if (selectedRecipient.value) renderRadar(); });
 observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
-onMounted(loadRecipients);
+onMounted(() => {
+  document.documentElement.style.setProperty('--bg-app', '#F7F4ED');
+  loadRecipients();
+});
+onUnmounted(() => {
+  document.documentElement.style.removeProperty('--bg-app');
+  observer.disconnect();
+  if (chart) { chart.destroy(); chart = null; }
+});
 </script>
 
 
 <style scoped>
+/* ---- Warm paper theme (matches Реабилитанты / Дашборд) ---- */
+.progress-page { font-family: 'Inter', system-ui, sans-serif; color: #131713; }
+
+.p-header { margin-bottom: 1.5rem; }
+.p-title {
+  font-family: 'Lora', Georgia, serif; font-weight: 600;
+  font-size: 1.9rem; line-height: 1.15; color: #0F140F; margin: 0;
+}
+.p-sub { color: #4F564A; font-size: 0.95rem; margin: 0.35rem 0 0; }
+
 .toolbar {
   display: flex;
   gap: 1rem;
   margin-bottom: 1rem;
   flex-wrap: wrap;
 }
-.search-field {
+.search {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 0.3rem 0.7rem;
+  background: #FFFFFF;
+  border: 1px solid #D6CFBE;
+  border-radius: 0.7rem;
+  padding: 0.4rem 0.75rem;
   flex: 1;
-  max-width: 300px;
+  max-width: 320px;
+  color: #6E7368;
 }
-.search-field input {
+.search:focus-within { border-color: #5F7E45; box-shadow: 0 0 0 3px rgba(95,126,69,0.18); }
+.search input {
   border: none;
   background: none;
   outline: none;
   width: 100%;
+  color: #131713;
+  font-family: inherit;
 }
 .styled-select {
   padding: 0.5rem 0.75rem;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--bg-surface);
-  color: var(--text-primary);
+  border: 1px solid #D6CFBE;
+  border-radius: 0.7rem;
+  background: #FFFFFF;
+  color: #131713;
   font-size: 0.9rem;
+  font-family: inherit;
   cursor: pointer;
+  transition: border-color 0.15s, box-shadow 0.15s;
 }
+.styled-select:focus { outline: none; border-color: #5F7E45; box-shadow: 0 0 0 3px rgba(95,126,69,0.18); }
 .items-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
   gap: 1rem;
 }
 .item-card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #FFFFFF;
+  border: 1px solid #E4DECF;
+  border-radius: 1rem;
   padding: 1rem;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: box-shadow 0.18s, transform 0.18s, border-color 0.18s;
 }
 .item-card:hover {
-  box-shadow: var(--shadow-md);
+  box-shadow: 0 .25rem .875rem rgba(17,34,17,.08);
   transform: translateY(-2px);
+  border-color: #D6CFBE;
 }
 .item-card.active {
-  border-color: #4b5675;
-  box-shadow: 0 0 0 2px rgba(75, 86, 117, 0.2);
+  border-color: #3F6E3F;
+  box-shadow: 0 0 0 2px rgba(63, 110, 63, 0.25);
 }
-.top {
-  display: flex;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-}
+.info { min-width: 0; }
 .avatar {
   width: 48px;
   height: 48px;
   border-radius: 50%;
   object-fit: cover;
+  flex: 0 0 48px;
 }
 .name {
   font-weight: 700;
+  color: #131713;
 }
 .sub {
   font-size: 0.8rem;
-  color: var(--text-secondary);
+  color: #4F564A;
 }
 .tags {
   display: flex;
   flex-wrap: wrap;
   gap: 0.4rem;
+  margin-top: 0.35rem;
 }
-.badge {
-  font-size: 0.7rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 20px;
+.badge-blue, .badge-gray, .badge-green {
+  font-size: 0.72rem;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
   font-weight: 500;
+  display: inline-block;
 }
 .badge-blue {
-  background: #d4e6ff;
-  color: #1a3a6b;
+  background: #EEF4E2;
+  color: #2F4A2F;
 }
 .badge-gray {
-  background: #e9f0fa;
-  color: #2c4c7c;
+  background: #F3EEE4;
+  color: #4F564A;
 }
 .badge-green {
-  background: #cce5ff;
-  color: #0a2f5a;
+  background: #E0EBD1;
+  color: #234623;
 }
 .loading-state,
 .empty-state {
   text-align: center;
   padding: 2rem;
-  color: var(--text-secondary);
+  color: #4F564A;
 }
 .spinner {
   width: 40px;
   height: 40px;
-  border: 4px solid rgba(75, 86, 117, 0.2);
-  border-top-color: #4b5675;
+  border: 4px solid rgba(95, 126, 69, 0.2);
+  border-top-color: #3F6E3F;
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   margin: 0 auto 1rem;
@@ -255,18 +290,20 @@ onMounted(loadRecipients);
   margin-top: 2rem;
 }
 .card {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-lg);
+  background: #FFFFFF;
+  border: 1px solid #E4DECF;
+  border-radius: 1.125rem;
   overflow: hidden;
 }
 .card-header {
-  padding: 1rem 1.5rem;
-  border-bottom: 1px solid var(--border);
+  padding: 1rem 1.35rem;
+  border-bottom: 1px solid #EFEADC;
 }
 .card-title {
-  font-weight: 700;
-  font-size: 1.1rem;
+  font-family: 'Lora', Georgia, serif;
+  font-weight: 600;
+  font-size: 1.05rem;
+  color: #0F140F;
 }
 .card-body {
   padding: 1.5rem;
