@@ -29,7 +29,7 @@
           </div>
           <div class="info-card">
             <span class="label">Куратор</span>
-            <span class="value">{{ recipient.group?.curator?.fullName || 'Не назначен' }}</span>
+            <span class="value">{{ recipient.group?.curatorUser?.fullName || 'Не назначен' }}</span>
           </div>
           <div class="info-card">
             <span class="label">Диагноз</span>

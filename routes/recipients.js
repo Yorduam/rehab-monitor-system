@@ -5,9 +5,10 @@ import crypto from 'crypto';
 import sequelize from '../config/database.js';
 import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
 import {
-  Recipient, ReGroup, Specialist, LegalRepresentative,
+  Recipient, ReGroup, LegalRepresentative,
   Nozology, CRG, CRGDesc, User,
-  RecipientDoc, RecipientScanDoc, ReResult, CRGRecipientSec, DocType
+  RecipientDoc, RecipientScanDoc, ReResult, CRGRecipientSec, DocType,
+  ScheduleEvent
 } from '../models/index.js';
 
 const router = express.Router();
@@ -15,7 +16,7 @@ const router = express.Router();
 const groupInclude = {
   model: ReGroup,
   as: 'group',
-  include: [{ model: Specialist, as: 'curatorRef', attributes: ['id', 'fullName'] }]
+  include: [{ model: User, as: 'curatorUser', attributes: ['id', 'firstName', 'lastName', 'email', 'fullName'] }]
 };
 const listInclude = [groupInclude];
 const detailInclude = [
@@ -42,6 +43,81 @@ function pickFields(body) {
   return out;
 }
 
+const fmtDate = (d) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+// Дополняет список реабилитантов вычисляемыми сигналами для карточек:
+//  - ближайшее занятие в горизонте недели (attendsToday / attendsTomorrow / nextClassDate)
+//  - истечение справки МСЭ (docExpiring / docExpiryDate) — жёлтый флаг
+//  - «особые отметки» из документов (attentionNote) — красный флаг
+// teacherUserId (необязательно): если задан, буллеты «Сегодня/Завтра/На неделе»
+// считаются только по занятиям этого преподавателя (для роли teacher — куратора).
+async function enrichRecipients(rows, teacherUserId = null) {
+  const ids = rows.map((r) => r.id);
+  if (!ids.length) return [];
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const tomorrow = new Date(today); tomorrow.setDate(today.getDate() + 1);
+  const weekEnd = new Date(today); weekEnd.setDate(today.getDate() + 7);
+  const soon = new Date(today); soon.setDate(today.getDate() + 30);
+  const todayStr = fmtDate(today);
+  const tomorrowStr = fmtDate(tomorrow);
+  const weekEndStr = fmtDate(weekEnd);
+  const soonStr = fmtDate(soon);
+
+  // Ближайшее (минимальное) занятие каждого реабилитанта в пределах недели.
+  const nextByRecipient = new Map();
+  const eventWhere = {
+    recipientId: { [Op.in]: ids },
+    status: { [Op.ne]: 'cancelled' },
+    date: { [Op.between]: [todayStr, weekEndStr] }
+  };
+  if (teacherUserId) eventWhere.specialistUserId = teacherUserId;
+  const events = await ScheduleEvent.findAll({
+    where: eventWhere,
+    attributes: ['recipientId', 'date'],
+    order: [['date', 'ASC']]
+  });
+  for (const ev of events) {
+    const d = String(ev.date);
+    const prev = nextByRecipient.get(ev.recipientId);
+    if (!prev || d < prev) nextByRecipient.set(ev.recipientId, d);
+  }
+
+  // Документы: ближайшая дата окончания справки МСЭ + непустые «особые отметки».
+  const docByRecipient = new Map();
+  const docs = await RecipientDoc.findAll({
+    where: { recipientId: { [Op.in]: ids } },
+    attributes: ['recipientId', 'mseValidDate', 'specialNote']
+  });
+  for (const doc of docs) {
+    const cur = docByRecipient.get(doc.recipientId) || { mseValidDate: null, specialNote: '' };
+    if (doc.mseValidDate) {
+      const v = String(doc.mseValidDate);
+      if (!cur.mseValidDate || v < cur.mseValidDate) cur.mseValidDate = v;
+    }
+    if (!cur.specialNote && doc.specialNote && String(doc.specialNote).trim()) {
+      cur.specialNote = String(doc.specialNote).trim();
+    }
+    docByRecipient.set(doc.recipientId, cur);
+  }
+
+  return rows.map((r) => {
+    const json = r.toJSON();
+    const nextClassDate = nextByRecipient.get(r.id) || null;
+    const doc = docByRecipient.get(r.id) || { mseValidDate: null, specialNote: '' };
+    json.attendsToday = nextClassDate === todayStr;
+    json.attendsTomorrow = nextClassDate === tomorrowStr;
+    json.attendsThisWeek = !!nextClassDate;
+    json.nextClassDate = nextClassDate;
+    json.docExpiring = !!doc.mseValidDate && doc.mseValidDate <= soonStr;
+    json.docExpiryDate = doc.mseValidDate || null;
+    json.attentionNote = doc.specialNote || null;
+    return json;
+  });
+}
+
 router.get('/', authMiddleware, async (req, res, next) => {
   try {
     const page = parseInt(req.query.page) || 1;
@@ -62,6 +138,25 @@ router.get('/', authMiddleware, async (req, res, next) => {
     if (diagnosis && diagnosis !== 'all') where.diagnosis = diagnosis;
     if (groupId) where.groupId = groupId;
 
+    // Преподаватель (куратор) видит только тех реабилитантов, которые записаны
+    // конкретно к нему — то есть у кого есть занятие с этим специалистом
+    // (ScheduleEvent.specialistUserId = его userId).
+    const teacherUserId = req.user.role === 'teacher' ? req.user.id : null;
+    if (teacherUserId) {
+      const myEvents = await ScheduleEvent.findAll({
+        where: { specialistUserId: teacherUserId, status: { [Op.ne]: 'cancelled' } },
+        attributes: ['recipientId']
+      });
+      const myRecipientIds = [...new Set(
+        myEvents.map((e) => e.recipientId).filter((v) => v != null)
+      )];
+      // Если у преподавателя нет записанных реабилитантов — отдаём пустой список.
+      if (!myRecipientIds.length) {
+        return res.json({ data: [], total: 0, page, limit, totalPages: 0 });
+      }
+      where.id = where.id ? { [Op.and]: [where.id, { [Op.in]: myRecipientIds }] } : { [Op.in]: myRecipientIds };
+    }
+
     const { count, rows } = await Recipient.findAndCountAll({
       where,
       limit,
@@ -70,7 +165,9 @@ router.get('/', authMiddleware, async (req, res, next) => {
       order: [['id', 'DESC']]
     });
 
-    res.json({ data: rows, total: count, page, limit, totalPages: Math.ceil(count / limit) });
+    const data = await enrichRecipients(rows, teacherUserId);
+
+    res.json({ data, total: count, page, limit, totalPages: Math.ceil(count / limit) });
   } catch (err) {
     next(err);
   }

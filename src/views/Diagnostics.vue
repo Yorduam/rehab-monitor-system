@@ -2,7 +2,34 @@
   <div class="diagnostics-page">
     <a class="skip-link" href="#stages-flow">Перейти к этапам диагностики</a>
 
-    <div class="content">
+    <!-- Преподаватель (куратор) видит только заполнение карточки по своей
+         области — переключатель режимов и вкладка назначения ему недоступны. -->
+    <div v-if="!isTeacher" class="diag-modebar" role="tablist" aria-label="Режим вкладки диагностики">
+      <button
+        type="button"
+        class="diag-mode-btn"
+        role="tab"
+        :aria-selected="diagMode === 'card'"
+        :class="{ active: diagMode === 'card' }"
+        @click="diagMode = 'card'"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
+        Карточка диагностики
+      </button>
+      <button
+        type="button"
+        class="diag-mode-btn"
+        role="tab"
+        :aria-selected="diagMode === 'assign'"
+        :class="{ active: diagMode === 'assign' }"
+        @click="diagMode = 'assign'"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+        Назначение на диагностику
+      </button>
+    </div>
+
+    <div class="content" v-show="diagMode === 'card'">
 
       <div class="hero-sticky-sentinel" aria-hidden="true"></div>
 
@@ -1553,7 +1580,76 @@
 
     </div>
 
-    <div class="save-bar" role="region" aria-label="Действия по диагностике">
+    <!-- ===================== РЕЖИМ: НАЗНАЧЕНИЕ НА ДИАГНОСТИКУ ===================== -->
+    <div class="diag-assign-view" v-show="diagMode === 'assign'">
+      <div class="da-head">
+        <h1 class="da-title">Назначение на диагностику</h1>
+        <p class="da-sub">Выберите реабилитанта, направление и специалиста, затем назначьте диагностику. Это единственное место в системе, где создаются назначения.</p>
+      </div>
+
+      <div class="da-card">
+        <div class="da-grid">
+          <label class="da-field">
+            <span class="da-key">Реабилитант</span>
+            <select v-model.number="assignForm.recipientId" class="da-input" :disabled="refsLoading || assigning">
+              <option :value="null" disabled>{{ refsLoading ? 'Загрузка…' : 'Выберите реабилитанта' }}</option>
+              <option v-for="r in assignRecipients" :key="r.id" :value="r.id">{{ recipientOptionLabel(r) }}</option>
+            </select>
+          </label>
+          <label class="da-field">
+            <span class="da-key">Направление</span>
+            <select v-model.number="assignForm.directionId" class="da-input" :disabled="refsLoading || assigning">
+              <option :value="null" disabled>{{ refsLoading ? 'Загрузка…' : 'Выберите направление' }}</option>
+              <option v-for="d in directions" :key="d.id" :value="d.id">{{ d.name }}</option>
+            </select>
+          </label>
+          <label class="da-field">
+            <span class="da-key">Специалист</span>
+            <select v-model.number="assignForm.specialistId" class="da-input" :disabled="refsLoading || assigning">
+              <option :value="null" disabled>{{ refsLoading ? 'Загрузка…' : 'Выберите специалиста' }}</option>
+              <option v-for="s in specialists" :key="s.id" :value="s.id">{{ s.fullName }}{{ s.cabinet ? ' · каб. ' + s.cabinet : '' }}</option>
+            </select>
+          </label>
+          <label class="da-field">
+            <span class="da-key">Дата</span>
+            <input type="date" v-model="assignForm.date" :min="todayStr" class="da-input" :disabled="assigning" />
+          </label>
+          <div class="da-action">
+            <button type="button" class="btn btn-primary" :disabled="!canAssign || assigning" @click="createAssignment">
+              {{ assigning ? 'Назначение…' : 'Назначить' }}
+            </button>
+          </div>
+        </div>
+        <p v-if="assignError" class="da-error">{{ assignError }}</p>
+      </div>
+
+      <div class="da-card">
+        <h2 class="da-subtitle">Назначенные диагностики</h2>
+        <div v-if="!assignForm.recipientId" class="da-empty">Выберите реабилитанта, чтобы увидеть назначения.</div>
+        <div v-else-if="assignmentsLoading" class="da-empty">Загрузка…</div>
+        <div v-else-if="!assignments.length" class="da-empty">Пока нет назначений.</div>
+        <table v-else class="da-table">
+          <thead>
+            <tr><th>Направление</th><th>Специалист</th><th>Дата</th><th>Статус</th><th></th></tr>
+          </thead>
+          <tbody>
+            <tr v-for="a in assignments" :key="a.id">
+              <td>{{ a.direction?.name || '—' }}</td>
+              <td>{{ a.specialist?.fullName || '—' }}</td>
+              <td>{{ formatAssignDate(a.date) }}</td>
+              <td><span class="da-status" :class="a.published ? 'done' : 'planned'">{{ a.published ? 'Проведена' : 'Назначена' }}</span></td>
+              <td>
+                <button v-if="!a.published" type="button" class="da-cancel" :disabled="cancelingId === a.id" @click="cancelAssignment(a)">
+                  {{ cancelingId === a.id ? '…' : 'Отменить' }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="save-bar" role="region" aria-label="Действия по диагностике" v-show="diagMode === 'card'">
       <div class="save-bar-assign">
         <label for="assignment-target" class="save-bar-assign-label">Сохранить в назначение</label>
         <select id="assignment-target" class="save-bar-assign-select">
@@ -1633,16 +1729,194 @@
 </template>
 
 <script setup>
-import { onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import api from '../api'
+import { fullName } from '../utils/recipient'
+import { usePageStore } from '../stores/page'
+import { useAuthStore } from '../stores/auth'
+
+const pageStore = usePageStore()
+const authStore = useAuthStore()
+
+// Роль-специфика: преподаватель (куратор) заполняет диагностику только по
+// своей проф. области. Ему недоступны переключатель режимов и назначение.
+const isTeacher = computed(() => authStore.isTeacher)
+// profileKey проф. ориентации преподавателя (psy/log/izo/theatre/vocal/afk).
+const teacherProfileKey = ref('')
+
+/* =====================================================================
+   Переключатель режимов вкладки «Диагностика»:
+     • 'card'   — полная карточка диагностики реабилитанта (маршрут, этапы);
+     • 'assign' — назначение на диагностику (единственное место в системе,
+                  где создаётся назначение — из карточки реабилитанта оно убрано).
+   ===================================================================== */
+const diagMode = ref('card')
+
+const assignRecipients = ref([])
+const directions = ref([])
+const specialists = ref([])
+const refsLoaded = ref(false)
+const refsLoading = ref(false)
+
+const assignments = ref([])
+const assignmentsLoading = ref(false)
+
+const assignForm = ref({ recipientId: null, directionId: null, specialistId: null, date: '' })
+const assigning = ref(false)
+const assignError = ref('')
+const cancelingId = ref(null)
+
+const todayStr = computed(() => new Date().toISOString().slice(0, 10))
+const canAssign = computed(() =>
+  !!assignForm.value.recipientId &&
+  !!assignForm.value.directionId &&
+  !!assignForm.value.specialistId &&
+  !!assignForm.value.date
+)
+const publishedAssignments = computed(() => assignments.value.filter((a) => a.published))
+
+function formatAssignDate(value) {
+  if (!value) return '—'
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return String(value)
+  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+async function loadAssignRefs() {
+  if (refsLoaded.value || refsLoading.value) return
+  refsLoading.value = true
+  try {
+    const [recRes, dirRes, specRes] = await Promise.all([
+      api.get('/recipients', { params: { page: 1, limit: 500 } }),
+      api.get('/lists/directions'),
+      api.get('/lists/curators')
+    ])
+    assignRecipients.value = recRes.data?.data || []
+    directions.value = Array.isArray(dirRes.data) ? dirRes.data : []
+    specialists.value = Array.isArray(specRes.data) ? specRes.data : []
+    refsLoaded.value = true
+  } catch (err) {
+    console.error('loadAssignRefs', err)
+  } finally {
+    refsLoading.value = false
+  }
+}
+
+async function loadRecipientAssignments() {
+  const rid = assignForm.value.recipientId
+  if (!rid) { assignments.value = []; return }
+  assignmentsLoading.value = true
+  try {
+    const { data } = await api.get('/diagnostics', { params: { recipientId: rid, limit: 100 } })
+    assignments.value = Array.isArray(data?.data) ? data.data : []
+  } catch (err) {
+    console.error('loadRecipientAssignments', err)
+    assignments.value = []
+  } finally {
+    assignmentsLoading.value = false
+  }
+}
+
+async function createAssignment() {
+  if (!canAssign.value || assigning.value) return
+  assigning.value = true
+  assignError.value = ''
+  try {
+    await api.post('/diagnostics', {
+      idRecipient: Number(assignForm.value.recipientId),
+      idDirection: assignForm.value.directionId,
+      idSpecialist: assignForm.value.specialistId,
+      date: assignForm.value.date,
+      results: {},
+      published: false
+    })
+    assignForm.value = {
+      recipientId: assignForm.value.recipientId,
+      directionId: null, specialistId: null, date: ''
+    }
+    await loadRecipientAssignments()
+  } catch (err) {
+    console.error('createAssignment', err)
+    assignError.value = err?.response?.data?.message || 'Не удалось создать назначение'
+  } finally {
+    assigning.value = false
+  }
+}
+
+async function cancelAssignment(a) {
+  if (cancelingId.value) return
+  cancelingId.value = a.id
+  try {
+    await api.delete(`/diagnostics/${a.id}`)
+    await loadRecipientAssignments()
+  } catch (err) {
+    console.error('cancelAssignment', err)
+    alert('Не удалось отменить назначение')
+  } finally {
+    cancelingId.value = null
+  }
+}
+
+function recipientOptionLabel(r) {
+  const name = fullName(r)
+  return r.diagnosis ? `${name} · ${r.diagnosis}` : name
+}
+
+watch(diagMode, (mode) => {
+  if (mode === 'assign') loadAssignRefs()
+})
+watch(() => assignForm.value.recipientId, () => { loadRecipientAssignments() })
 
 function handleMobileStageChange(event) {
   const value = event?.target?.value
   if (value) document.querySelector(value)?.scrollIntoView({ behavior: 'smooth' })
 }
 
+// Жёстко ограничивает карточку диагностики областью преподавателя (куратора).
+// Определяем profileKey по его directionId (проф. ориентация) и включаем
+// глобальную привязку, которую учитывает applyProfileRestriction в рантайме.
+async function lockTeacherProfile() {
+  try {
+    const directionId = authStore.user?.directionId
+    if (!directionId) return // область не задана — оставляем как есть
+    const { data } = await api.get('/lists/directions')
+    const dir = Array.isArray(data) ? data.find((d) => d.id === directionId) : null
+    const key = dir?.profileKey || ''
+    if (!key) return
+    teacherProfileKey.value = key
+    window.__forcedProfileKey = key
+    // Рантаж уже построил DOM (fetch резолвится после синхронной части onMounted).
+    const apply = () => {
+      if (typeof window.__applyProfileRestriction === 'function') {
+        window.__applyProfileRestriction(key)
+      } else {
+        setTimeout(apply, 50)
+      }
+    }
+    apply()
+  } catch (err) {
+    console.warn('Не удалось ограничить диагностику областью преподавателя', err)
+  }
+}
+
 onMounted(() => {
   document.title = 'ERP-Р • Диагностика'
+
+  // Сбрасываем возможную «залипшую» жёсткую привязку профиля от прошлой
+  // сессии (например, если до этого страницу открывал преподаватель).
+  window.__forcedProfileKey = '';
+
+  // Если на вкладку «Диагностика» перешли с запросом назначения
+  // (из поповера после создания реабилитанта или из карточки реабилитанта) —
+  // сразу открываем режим «Назначение на диагностику».
+  // Преподавателю назначение недоступно — для него всегда карточка.
+  if (pageStore.params?.mode === 'assign' && !authStore.isTeacher) {
+    diagMode.value = 'assign'
+  }
+  if (authStore.isTeacher) {
+    diagMode.value = 'card';
+    lockTeacherProfile();
+  }
 
     // Тёплый кремовый фон на всю страницу (как в Дашборде) + поднимаем
     // плавающую кнопку «Помощник ERP» над нижней панелью действий
@@ -1846,7 +2120,11 @@ onMounted(() => {
       try {
         const response = await api.get('/diagnostics', { params: { recipientId, limit: 100 } });
         const rows = Array.isArray(response?.data?.data) ? response.data.data : [];
-        const pending = rows.filter(r => !r.published);
+        let pending = rows.filter(r => !r.published);
+        // Преподаватель сохраняет результат только в назначения своей области.
+        if (window.__forcedProfileKey) {
+          pending = pending.filter(r => !r.direction || r.direction.profileKey === window.__forcedProfileKey);
+        }
         diagnosticsRuntime.assignments = pending;
         if (!pending.length) {
           select.innerHTML = '<option value="">— нет ожидающих назначений —</option>';
@@ -3031,6 +3309,10 @@ onMounted(() => {
       // Ограничивает форму одним блоком по профилю специалиста.
       // Пустой profileKey снимает ограничение (показывает все этапы).
       function applyProfileRestriction(profileKey) {
+        // Жёсткая привязка к области преподавателя (куратора): что бы ни
+        // выбрали в назначении, форма всегда ограничена его профилем.
+        if (window.__forcedProfileKey) profileKey = window.__forcedProfileKey;
+
         // Сброс предыдущего ограничения.
         qa('.profile-hidden').forEach(el => el.classList.remove('profile-hidden'));
         qa('#mobile-stage option').forEach(o => { o.hidden = false; });
@@ -3996,6 +4278,8 @@ onMounted(() => {
 onUnmounted(() => {
   document.documentElement.style.removeProperty('--bg-app');
   document.documentElement.style.removeProperty('--fab-offset');
+  // Снимаем жёсткую привязку профиля, чтобы она не «протекла» на другую роль.
+  window.__forcedProfileKey = '';
 });
 
 </script>
@@ -4584,6 +4868,127 @@ onUnmounted(() => {
     }
     .diagnostics-page .icon-btn:hover{ background: var(--paper); color: var(--ink); }
     .diagnostics-page .icon-btn svg{ width: 1.0625rem; height: 1.0625rem; }
+    /* ===== Переключатель режимов (карточка / назначение) ===== */
+    .diagnostics-page .diag-modebar{
+      max-width: 87.5rem;
+      width: 100%;
+      margin: 0 auto;
+      padding: 1.25rem 2rem 0;
+      display: flex;
+      gap: 0.5rem;
+    }
+    .diagnostics-page .diag-mode-btn{
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.6rem 1.1rem;
+      font-family: var(--font-sans);
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--ink-muted);
+      background: var(--paper);
+      border: 0.0625rem solid var(--line);
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
+    }
+    .diagnostics-page .diag-mode-btn svg{ width: 1.05rem; height: 1.05rem; }
+    .diagnostics-page .diag-mode-btn:hover{ border-color: var(--line-strong); background: var(--paper-soft); }
+    .diagnostics-page .diag-mode-btn.active{
+      color: #F4F8EC;
+      background: var(--sage-700);
+      border-color: var(--sage-700);
+      box-shadow: 0 0.25rem 0.75rem rgba(47, 74, 47, 0.22);
+    }
+
+    /* ===== Режим «Назначение на диагностику» ===== */
+    .diagnostics-page .diag-assign-view{
+      max-width: 62rem;
+      width: 100%;
+      margin: 0 auto;
+      padding: 1.5rem 2rem 6rem;
+      animation: pageIn 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+    }
+    .diagnostics-page .da-head{ margin-bottom: 1.25rem; }
+    .diagnostics-page .da-title{
+      font-family: var(--font-serif);
+      font-weight: 600;
+      font-size: 1.6rem;
+      color: var(--ink-strong);
+      margin: 0;
+    }
+    .diagnostics-page .da-sub{ color: var(--ink-muted); font-size: 0.92rem; margin: 0.35rem 0 0; max-width: 44rem; }
+    .diagnostics-page .da-card{
+      background: var(--paper);
+      border: 0.0625rem solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+      padding: 1.25rem 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+    .diagnostics-page .da-grid{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr));
+      gap: 1rem;
+      align-items: end;
+    }
+    .diagnostics-page .da-field{ display: flex; flex-direction: column; gap: 0.35rem; min-width: 0; }
+    .diagnostics-page .da-key{ font-size: 0.78rem; font-weight: 600; color: var(--ink-muted); }
+    .diagnostics-page .da-input{
+      width: 100%;
+      padding: 0.55rem 0.65rem;
+      border: 0.0625rem solid var(--line);
+      border-radius: var(--radius-md);
+      background: var(--paper);
+      color: var(--ink);
+      font-family: inherit;
+      font-size: 0.9rem;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .diagnostics-page .da-input:focus{ outline: none; border-color: var(--sage-500); box-shadow: 0 0 0 0.1875rem rgba(95, 126, 69, 0.18); }
+    .diagnostics-page .da-action{ display: flex; }
+    .diagnostics-page .da-action .btn{ width: 100%; justify-content: center; }
+    .diagnostics-page .da-error{ margin: 0.75rem 0 0; color: var(--rose-500); font-size: 0.82rem; }
+    .diagnostics-page .da-subtitle{
+      font-family: var(--font-serif);
+      font-weight: 600;
+      font-size: 1.1rem;
+      color: var(--ink-strong);
+      margin: 0 0 0.85rem;
+    }
+    .diagnostics-page .da-empty{ color: var(--ink-subtle); font-size: 0.88rem; padding: 0.5rem 0; }
+    .diagnostics-page .da-table{ width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+    .diagnostics-page .da-table th{
+      text-align: left;
+      font-weight: 600;
+      color: var(--ink-subtle);
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.03em;
+      padding: 0.4rem 0.6rem;
+      border-bottom: 0.0625rem solid var(--line);
+    }
+    .diagnostics-page .da-table td{ padding: 0.55rem 0.6rem; border-bottom: 0.0625rem solid var(--line-soft); color: var(--ink); }
+    .diagnostics-page .da-status{ display: inline-block; padding: 0.15rem 0.55rem; border-radius: 999px; font-size: 0.74rem; font-weight: 600; }
+    .diagnostics-page .da-status.planned{ background: var(--amber-50); color: var(--amber-700); }
+    .diagnostics-page .da-status.done{ background: var(--sage-50); color: var(--sage-700); }
+    .diagnostics-page .da-cancel{
+      background: none;
+      border: 0.0625rem solid var(--line);
+      border-radius: var(--radius-sm);
+      padding: 0.3rem 0.7rem;
+      font-size: 0.8rem;
+      color: var(--rose-500);
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    .diagnostics-page .da-cancel:hover:not(:disabled){ background: var(--rose-50); border-color: var(--rose-100); }
+    .diagnostics-page .da-cancel:disabled{ opacity: 0.5; cursor: default; }
+    @media (max-width: 40rem){
+      .diagnostics-page .diag-modebar{ padding: 1rem 1rem 0; flex-wrap: wrap; }
+      .diagnostics-page .diag-assign-view{ padding: 1rem 1rem 6rem; }
+    }
+
     .diagnostics-page .content{
       padding: 1.5rem 2rem 8rem;
       max-width: 87.5rem;

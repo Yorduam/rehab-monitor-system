@@ -28,7 +28,7 @@
         <img :src="r.photo || defaultPhoto" class="avatar" />
         <div class="info">
           <div class="name">{{ fullName(r) }}</div>
-          <div class="sub">{{ recipientAge(r) != null ? recipientAge(r) + ' лет · ' : '' }}{{ r.group?.curatorRef?.fullName || '—' }}</div>
+          <div class="sub">{{ recipientAge(r) != null ? recipientAge(r) + ' лет · ' : '' }}{{ r.group?.curatorUser?.fullName || '—' }}</div>
           <div class="tags">
             <span class="badge-blue">{{ r.diagnosis }}</span>
             <span class="badge-gray">{{ r.group?.groupName || '—' }}</span>

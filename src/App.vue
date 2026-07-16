@@ -43,6 +43,7 @@ import AdminDashboard from './views/AdminDashboard.vue';
 import EmployeeDashboard from './views/EmployeeDashboard.vue';
 import EmployeeDocuments from './views/EmployeeDocuments.vue';
 import RecipientDetails from './views/RecipientDetails.vue';
+import Schedule from './views/Schedule.vue';
 
 const authStore = useAuthStore();
 const pageStore = usePageStore();
@@ -55,6 +56,7 @@ const componentMap = {
   diagnostics: Diagnostics,
   progress: Progress,
   documents: Documents,
+  schedule: Schedule,
   'admin-users': AdminUsers,
   'recipient-details': RecipientDetails
 };

@@ -1,5 +1,6 @@
 <template>
-  <div class="rw-overlay">
+  <div class="rw-overlay" @click.self="$emit('close')">
+   <div class="rw-modal" role="dialog" aria-modal="true" aria-label="Добавление реабилитанта">
 
     <div class="rw-topbar">
       <div class="rw-topbar-inner">
@@ -45,21 +46,30 @@
             <li v-for="(s, i) in steps" :key="i">
               <button
                 class="rw-step-btn"
-                :class="{ 'is-done': step > i+1, 'is-current': step === i+1 }"
+                :class="{ 'is-done': stepProgress[i].complete && step !== i+1, 'is-current': step === i+1 }"
                 type="button"
                 :aria-current="step === i+1 ? 'step' : undefined"
-                @click="step > i+1 && (step = i+1)"
+                @click="step = i+1"
               >
                 <div class="rw-step-line">
                   <span class="rw-step-num">
-                    <svg v-if="step > i+1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                    <svg v-if="stepProgress[i].complete && step !== i+1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                     <template v-else>{{ i+1 }}</template>
                   </span>
                   <span v-if="i < steps.length - 1" class="rw-step-bar" aria-hidden="true"></span>
                 </div>
                 <div class="rw-step-info">
                   <div class="rw-step-label">{{ s.label }}</div>
-                  <div class="rw-step-meta">Шаг {{ i+1 }} из {{ steps.length }}</div>
+                  <div class="rw-step-meta">
+                    <template v-if="stepProgress[i].complete">
+                      <svg class="rw-step-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      Заполнено полностью
+                    </template>
+                    <template v-else>{{ stepProgress[i].done }} из {{ stepProgress[i].total }} полей</template>
+                  </div>
+                  <div class="rw-step-progress" aria-hidden="true">
+                    <div class="rw-step-progress-fill" :class="{ 'is-full': stepProgress[i].complete }" :style="{ width: stepProgress[i].pct + '%' }"></div>
+                  </div>
                 </div>
               </button>
             </li>
@@ -67,9 +77,9 @@
           <div class="rw-stepper-mobile" aria-hidden="true">
             <div>
               <span class="rw-smp-label">{{ steps[step-1].label }}</span>
-              &nbsp;· шаг {{ step }} из {{ steps.length }}
+              &nbsp;· заполнено {{ overallProgress.pct }}%
             </div>
-            <div class="rw-smp-bar"><div class="rw-smp-fill" :style="{ width: (step / steps.length * 100) + '%' }"></div></div>
+            <div class="rw-smp-bar"><div class="rw-smp-fill" :style="{ width: overallProgress.pct + '%' }"></div></div>
           </div>
         </nav>
 
@@ -562,11 +572,11 @@
         <div class="rw-sb-info">
           <strong>{{ displayName || 'Новый реабилитант' }}</strong>
           <span class="rw-sb-sep">·</span>
-          <span class="rw-sb-count">{{ step }}&nbsp;/&nbsp;{{ steps.length }} шагов</span>
+          <span class="rw-sb-count">заполнено {{ overallProgress.done }}&nbsp;из&nbsp;{{ overallProgress.total }} полей</span>
         </div>
         <div class="rw-sb-progress">
-          <div class="rw-sbp-track"><div class="rw-sbp-fill" :style="{ width: (step / steps.length * 100) + '%' }"></div></div>
-          <span>{{ Math.round(step / steps.length * 100) }}%</span>
+          <div class="rw-sbp-track"><div class="rw-sbp-fill" :class="{ 'is-full': overallProgress.pct === 100 }" :style="{ width: overallProgress.pct + '%' }"></div></div>
+          <span class="rw-sbp-pct">{{ overallProgress.pct }}%</span>
         </div>
         <div class="rw-sb-actions">
           <button v-if="step > 1" class="rw-btn rw-btn-secondary" type="button" @click="step--">
@@ -585,6 +595,7 @@
       </div>
     </div>
 
+   </div>
   </div>
 </template>
 
@@ -851,6 +862,74 @@ const displayName = computed(() =>
   [f.value.rLast, f.value.rFirst, f.value.rMid].filter(Boolean).join(' ')
 );
 
+// ── Реальный расчёт заполненности карточки ─────────────────
+// Процент считается по факту заполнения обязательных полей,
+// а НЕ по номеру открытого шага. Просто перелистнуть страницу
+// больше нельзя — нужно действительно вносить данные.
+const isFilled = (v) => (typeof v === 'string' ? v.trim().length > 0 : !!v);
+
+const requiredChecks = computed(() => {
+  const v = f.value;
+
+  // Шаг 1 — законный представитель
+  const step1 = [
+    isFilled(v.lrLast),
+    isFilled(v.lrFirst),
+    isFilled(v.lrRelation),
+    v.lrPhone.length === 18,           // +7 (XXX) XXX-XX-XX
+    v.lrPassSeries.length === 4,
+    v.lrPassNum.length === 6,
+    isFilled(v.lrPassDate),
+    v.lrPassCode.length === 7,         // XXX-XXX
+    isFilled(v.lrPassIssuer),
+    isFilled(v.lrAddress),
+  ];
+
+  // Шаг 2 — данные реабилитанта
+  const step2 = [
+    isFilled(v.rLast),
+    isFilled(v.rFirst),
+    isFilled(v.rBirth),
+    isFilled(v.rInvalidity),
+    v.rSnils.length === 14,            // XXX-XXX-XXX YY
+    isFilled(v.rCrg),
+    v.rNosology.length > 0,
+    v.rDocType === 'birth' ? isFilled(v.rDocSeries) : v.rDocSeries.length === 4,
+    v.rDocNum.length === 6,
+    isFilled(v.rDocDate),
+    isFilled(v.rDocIssuer),
+    isFilled(v.rAddrReg),
+  ];
+  // Фактический адрес обязателен только если он не совпадает с пропиской
+  if (!v.rAddrSame) step2.push(isFilled(v.rAddrFact));
+
+  // Шаг 3 — документы
+  const reqTileKeys = tiles.filter(t => t.req).map(t => t.k);
+  const step3 = [
+    ...reqTileKeys.map(k => !!uploads.value[k]),
+    docsGenerated.value,
+    !!signedUploads.value['signed-pdn'],
+    !!signedUploads.value['signed-photo'],
+    !!signedUploads.value['signed-diag'],
+    v.consentConfirmed,
+  ];
+
+  return [step1, step2, step3];
+});
+
+const stepProgress = computed(() => requiredChecks.value.map((list) => {
+  const total = list.length;
+  const done = list.filter(Boolean).length;
+  return { done, total, pct: total ? Math.round((done / total) * 100) : 100, complete: done === total };
+}));
+
+const overallProgress = computed(() => {
+  const all = requiredChecks.value.flat();
+  const total = all.length;
+  const done = all.filter(Boolean).length;
+  return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
+});
+
 // ── Маски и нормализация ввода ──────────────────────────────
 const onlyDigits = (s, max) => s.replace(/\D/g, '').slice(0, max);
 
@@ -1013,7 +1092,7 @@ const save = async () => {
       }
     }
 
-    emit('saved');
+    emit('saved', createdRecipient);
     emit('close');
   } catch (err) {
     console.error(err);
@@ -1102,12 +1181,35 @@ onUnmounted(() => {
   position: fixed;
   inset: 0;
   z-index: 500;
-  background: var(--rw-canvas);
+  background: rgba(15, 20, 15, .55);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   display: flex;
-  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 2.5rem 2rem;
   font-family: var(--rw-sans);
   color: var(--rw-ink);
   -webkit-font-smoothing: antialiased;
+  animation: rwOverlayIn 0.25s ease;
+}
+@keyframes rwOverlayIn { from { opacity: 0; } to { opacity: 1; } }
+.rw-modal {
+  width: 100%;
+  max-width: 76rem;
+  max-height: 92vh;
+  background: var(--rw-canvas);
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius-lg);
+  box-shadow: 0 2rem 5rem rgba(15, 20, 15, .35), 0 .5rem 1.5rem rgba(15, 20, 15, .2);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  animation: rwModalIn 0.32s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes rwModalIn {
+  from { opacity: 0; transform: translateY(1rem) scale(.985); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
 }
 .rw-topbar {
   flex: 0 0 auto;
@@ -1117,7 +1219,7 @@ onUnmounted(() => {
   z-index: 40;
 }
 .rw-topbar-inner {
-  max-width: 56rem;
+  max-width: none;
   margin: 0 auto;
   padding: 0 2rem;
   height: 3.5rem;
@@ -1177,9 +1279,9 @@ onUnmounted(() => {
 .rw-close-btn svg { width: 1.125rem; height: 1.125rem; }
 .rw-scroll { flex: 1 1 auto; overflow-y: auto; }
 .rw-content {
-  max-width: 56rem;
+  max-width: none;
   margin: 0 auto;
-  padding: 1.5rem 2rem 6rem;
+  padding: 1.5rem 2rem 2rem;
 }
 .rw-page-head {
   display: flex;
@@ -1251,8 +1353,6 @@ onUnmounted(() => {
   transition: background 0.15s;
 }
 .rw-step-btn:hover:not(.is-current) { background: var(--rw-paper-soft); }
-.rw-step-btn:not(.is-done):not(.is-current) { cursor: default; }
-.rw-step-btn:not(.is-done):not(.is-current):hover { background: transparent; }
 .rw-step-line {
   display: flex;
   align-items: center;
@@ -1290,8 +1390,28 @@ onUnmounted(() => {
   letter-spacing: -0.005em;
   line-height: 1.25;
 }
-.rw-step-meta { font-size: 0.8125rem; color: var(--rw-ink-muted); margin-top: 0.125rem; }
+.rw-step-meta {
+  font-size: 0.8125rem; color: var(--rw-ink-muted); margin-top: 0.125rem;
+  display: inline-flex; align-items: center; gap: 0.25rem;
+}
+.rw-step-check { width: 0.8125rem; height: 0.8125rem; flex: 0 0 0.8125rem; color: var(--rw-sage-500); }
+.rw-step-progress {
+  height: 0.25rem;
+  background: var(--rw-line-soft);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 0.4375rem;
+  max-width: 12rem;
+}
+.rw-step-progress-fill {
+  height: 100%;
+  background: var(--rw-amber-500);
+  border-radius: 999px;
+  transition: width 0.35s cubic-bezier(0.2,0.7,0.2,1), background 0.2s;
+}
+.rw-step-progress-fill.is-full { background: var(--rw-sage-500); }
 .rw-step-btn.is-done .rw-step-label   { color: var(--rw-ink-strong); }
+.rw-step-btn.is-done .rw-step-meta    { color: var(--rw-sage-700); }
 .rw-step-btn.is-current .rw-step-label { color: var(--rw-ink-strong); font-weight: 600; }
 .rw-step-btn.is-current .rw-step-meta  { color: var(--rw-sage-700); font-weight: 500; }
 .rw-stepper-mobile { display: none; padding: 0.25rem 0 0; font-size: 0.875rem; color: var(--rw-ink-muted); }
@@ -1770,7 +1890,7 @@ onUnmounted(() => {
   box-shadow: 0 -4px 12px rgba(30,47,30,.04);
 }
 .rw-sb-inner {
-  max-width: 56rem; margin: 0 auto;
+  max-width: none; margin: 0 auto;
   padding: 0.75rem 2rem;
   display: flex; align-items: center; gap: 1rem;
   flex-wrap: wrap;
@@ -1792,7 +1912,9 @@ onUnmounted(() => {
   width: 8rem; height: 0.375rem;
   background: var(--rw-line-soft); border-radius: 999px; overflow: hidden;
 }
-.rw-sbp-fill { height: 100%; background: var(--rw-sage-500); border-radius: 999px; transition: width 0.3s; }
+.rw-sbp-fill { height: 100%; background: var(--rw-amber-500); border-radius: 999px; transition: width 0.35s cubic-bezier(0.2,0.7,0.2,1), background 0.25s; }
+.rw-sbp-fill.is-full { background: var(--rw-sage-500); }
+.rw-sbp-pct { font-variant-numeric: tabular-nums; min-width: 2.5rem; text-align: right; }
 .rw-sb-actions { display: inline-flex; gap: 0.5rem; }
 @media (max-width: 56rem) {
   .rw-topbar-inner,
@@ -1804,6 +1926,8 @@ onUnmounted(() => {
   .rw-gen-docs { grid-template-columns: 1fr; }
 }
 @media (max-width: 40rem) {
+  .rw-overlay { padding: 0; }
+  .rw-modal { max-width: none; max-height: 100vh; height: 100%; border-radius: 0; border: none; }
   .rw-stepper-list { display: none; }
   .rw-stepper-mobile { display: block; }
   .rw-topbar-inner,

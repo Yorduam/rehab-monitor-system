@@ -1,7 +1,7 @@
 import express from 'express';
 import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
 import {
-  User, Recipient, ReGroup, Specialist, Direction, Nozology,
+  User, Recipient, ReGroup, Direction, Nozology,
   ReResult, RecipientDoc
 } from '../models/index.js';
 
@@ -11,13 +11,17 @@ function recipientFullName(r) {
   return [r.lastName, r.firstName, r.middleName].filter(Boolean).join(' ') || 'Без имени';
 }
 
+// Имя куратора/специалиста берём из учётной записи (User).
+const userFullName = (u) =>
+  u ? ([u.lastName, u.firstName].filter(Boolean).join(' ').trim() || u.email) : null;
+
 router.get('/admin-stats', authMiddleware, roleMiddleware('admin'), async (req, res, next) => {
   try {
     const [
-      usersCount, recipientsCount, groupsCount, specialistsCount,
+      usersCount, recipientsCount, groupsCount,
       resultsCount, docsCount, directionsCount, nozologyCount
     ] = await Promise.all([
-      User.count(), Recipient.count(), ReGroup.count(), Specialist.count(),
+      User.count(), Recipient.count(), ReGroup.count(),
       ReResult.count(), RecipientDoc.count(), Direction.count(), Nozology.count()
     ]);
 
@@ -38,7 +42,6 @@ router.get('/admin-stats', authMiddleware, roleMiddleware('admin'), async (req, 
         { key: 'users',       label: 'Пользователи', value: usersCount },
         { key: 'recipients',  label: 'Реабилитанты', value: recipientsCount },
         { key: 'groups',      label: 'Группы',       value: groupsCount },
-        { key: 'specialists', label: 'Специалисты',  value: specialistsCount },
         { key: 'results',     label: 'Результаты',   value: resultsCount },
         { key: 'documents',   label: 'Документы',    value: docsCount },
         { key: 'directions',  label: 'Направления',  value: directionsCount },
@@ -94,7 +97,7 @@ router.get('/missing-docs', authMiddleware, async (req, res, next) => {
         model: ReGroup,
         as: 'group',
         attributes: ['id', 'groupName'],
-        include: [{ model: Specialist, as: 'curatorRef', attributes: ['fullName'] }]
+        include: [{ model: User, as: 'curatorUser', attributes: ['firstName', 'lastName', 'email'] }]
       }],
       order: [['id', 'DESC']]
     });
@@ -111,7 +114,7 @@ router.get('/missing-docs', authMiddleware, async (req, res, next) => {
       id: r.id,
       fullName: recipientFullName(r),
       groupName: r.group?.groupName || '—',
-      curator: r.group?.curatorRef?.fullName || '—',
+      curator: userFullName(r.group?.curatorUser) || '—',
       docCount: countMap[r.id] || 0
     }));
 
@@ -135,7 +138,7 @@ router.get('/diagnostics', authMiddleware, async (req, res, next) => {
       include: [
         { model: Recipient, as: 'recipient', attributes: ['id', 'firstName', 'middleName', 'lastName'] },
         { model: Direction, as: 'direction', attributes: ['id', 'name'] },
-        { model: Specialist, as: 'specialist', attributes: ['id', 'fullName'] }
+        { model: User, as: 'specialist', attributes: ['id', 'firstName', 'lastName', 'email'] }
       ],
       order: [['date', 'DESC']]
     });
@@ -147,7 +150,7 @@ router.get('/diagnostics', authMiddleware, async (req, res, next) => {
       results: r.results,
       recipientName: r.recipient ? recipientFullName(r.recipient) : 'Неизвестно',
       direction: r.direction?.name || '—',
-      specialist: r.specialist?.fullName || '—'
+      specialist: userFullName(r.specialist) || '—'
     }));
 
     if (search) {

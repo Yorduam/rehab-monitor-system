@@ -22,7 +22,7 @@ router.get('/', authMiddleware, roleMiddleware('admin'), async (req, res) => {
 // поэтому сессия администратора не подменяется на нового пользователя.
 router.post('/', authMiddleware, roleMiddleware('admin'), async (req, res) => {
   try {
-    const { email, password, role, firstName, lastName, directionId } = req.body
+    const { email, password, role, firstName, lastName, directionId, phone, cabinet } = req.body
     if (!email || !password) {
       return res.status(400).json({ message: 'Email и пароль обязательны' })
     }
@@ -36,6 +36,8 @@ router.post('/', authMiddleware, roleMiddleware('admin'), async (req, res) => {
       role: finalRole,
       firstName: firstName || null,
       lastName: lastName || null,
+      phone: phone || null,
+      cabinet: cabinet || null,
       // Проф. ориентированность актуальна только для преподавателя.
       directionId: finalRole === 'teacher' && directionId ? directionId : null
     })
@@ -67,12 +69,14 @@ router.put('/:id', authMiddleware, async (req, res) => {
     }
     const user = await User.findByPk(req.params.id)
     if (!user) return res.status(404).json({ message: 'Пользователь не найден' })
-    const { email, role, password, firstName, lastName, directionId } = req.body
+    const { email, role, password, firstName, lastName, directionId, phone, cabinet } = req.body
     if (email) user.email = email
     if (role && req.user.role === 'admin') user.role = role
     if (password) user.passwordHash = await bcrypt.hash(password, 10)
     if (firstName !== undefined) user.firstName = firstName || null
     if (lastName !== undefined) user.lastName = lastName || null
+    if (phone !== undefined) user.phone = phone || null
+    if (cabinet !== undefined) user.cabinet = cabinet || null
     if (directionId !== undefined) user.directionId = directionId || null
     // Проф. ориентированность имеет смысл только для преподавателя.
     if (user.role !== 'teacher') user.directionId = null

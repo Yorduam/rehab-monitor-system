@@ -33,6 +33,8 @@
               <th>Фамилия</th>
               <th>Имя</th>
               <th>Email</th>
+              <th>Телефон</th>
+              <th>Кабинет</th>
               <th>Роль</th>
               <th>Действия</th>
             </tr>
@@ -43,6 +45,8 @@
               <td>{{ user.lastName || '—' }}</td>
               <td>{{ user.firstName || '—' }}</td>
               <td>{{ user.email }}</td>
+              <td>{{ user.phone || '—' }}</td>
+              <td>{{ user.cabinet || '—' }}</td>
               <td>
                 <select v-model="user.role" @change="updateRole(user)" :disabled="user.id === authStore.user?.id">
                   <option value="admin">Администратор</option>
@@ -78,6 +82,10 @@
           <div class="form-group"><label>Фамилия</label><input v-model="newUser.lastName" type="text"></div>
           <div class="form-group"><label>Имя</label><input v-model="newUser.firstName" type="text"></div>
         </div>
+        <div class="form-row">
+          <div class="form-group"><label>Телефон</label><input v-model="newUser.phone" type="tel" placeholder="+7 900 000-00-00"></div>
+          <div class="form-group"><label>Кабинет</label><input v-model="newUser.cabinet" type="text" placeholder="напр. 204"></div>
+        </div>
         <div class="form-group"><label>Email</label><input v-model="newUser.email" type="email" required></div>
         <div class="form-group">
           <label>Пароль</label>
@@ -110,6 +118,10 @@
         <div class="form-row">
           <div class="form-group"><label>Фамилия</label><input v-model="editUser.lastName" type="text"></div>
           <div class="form-group"><label>Имя</label><input v-model="editUser.firstName" type="text"></div>
+        </div>
+        <div class="form-row">
+          <div class="form-group"><label>Телефон</label><input v-model="editUser.phone" type="tel" placeholder="+7 900 000-00-00"></div>
+          <div class="form-group"><label>Кабинет</label><input v-model="editUser.cabinet" type="text" placeholder="напр. 204"></div>
         </div>
         <div class="form-group"><label>Email</label><input v-model="editUser.email" type="email" required></div>
         <div class="form-group">
@@ -157,12 +169,12 @@ const limit = ref(10);
 const addModalVisible = ref(false);
 const showPassword = ref(false);
 const editModalVisible = ref(false);
-const editUser = ref({ id: null, email: '', role: 'recipient', lastName: '', firstName: '', directionId: null });
+const editUser = ref({ id: null, email: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null });
 const passwordModalVisible = ref(false);
 const selectedUser = ref(null);
 const newPassword = ref('');
 const confirmPassword = ref('');
-const newUser = ref({ email: '', password: '', role: 'recipient', lastName: '', firstName: '', directionId: null });
+const newUser = ref({ email: '', password: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null });
 const directions = ref([]);
 
 // Понятные подписи для направлений (по profileKey), с запасным вариантом на name из БД.
@@ -213,7 +225,7 @@ const loadDirections = async () => {
   directions.value = data;
 };
 const openAddModal = () => {
-  newUser.value = { email: '', password: '', role: 'recipient', lastName: '', firstName: '', directionId: null };
+  newUser.value = { email: '', password: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null };
   showPassword.value = false;
   addModalVisible.value = true;
 };
@@ -224,6 +236,8 @@ const openEditModal = (user) => {
     role: user.role || 'recipient',
     lastName: user.lastName || '',
     firstName: user.firstName || '',
+    phone: user.phone || '',
+    cabinet: user.cabinet || '',
     directionId: user.directionId ?? null
   };
   editModalVisible.value = true;
@@ -234,6 +248,8 @@ const saveUser = async () => {
     email: u.email,
     firstName: u.firstName,
     lastName: u.lastName,
+    phone: u.phone,
+    cabinet: u.cabinet,
     directionId: u.role === 'teacher' ? u.directionId : null
   };
   // Свою собственную роль менять нельзя (защита от самоблокировки админа).

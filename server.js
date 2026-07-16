@@ -20,6 +20,7 @@ import usersRoutes from './routes/users.js';
 import documentsRoutes from './routes/documents.js';
 import listsRoutes from './routes/lists.js';
 import dashboardRoutes from './routes/dashboard.js';
+import scheduleRoutes from './routes/schedule.js';
 
 dotenv.config();
 const app = express();
@@ -50,6 +51,7 @@ app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/documents', documentsRoutes);
 app.use('/api/v1/lists', listsRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
+app.use('/api/v1/schedule', scheduleRoutes);
 
 app.get('/api/search', async (req, res, next) => {
   try {

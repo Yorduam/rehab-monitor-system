@@ -2,18 +2,30 @@
 import express from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import {
-  Specialist, ReGroup, Nozology, CRG, CRGDesc,
+  User, ReGroup, Nozology, CRG, CRGDesc,
   Direction, DocType, LegalRepresentative
 } from '../models/index.js';
 
 const router = express.Router();
 
+const userFullName = (u) =>
+  [u.lastName, u.firstName].filter(Boolean).join(' ').trim() || u.email;
+
+// Кураторы / специалисты — это учётные записи преподавателей (роль teacher).
+// Отдельной справочной таблицы «Специалисты» больше нет.
 router.get('/curators', authMiddleware, async (req, res) => {
   try {
-    const specialists = await Specialist.findAll({
-      attributes: ['id', 'fullName', 'cabinet', 'telephone']
+    const teachers = await User.findAll({
+      where: { role: 'teacher' },
+      attributes: ['id', 'firstName', 'lastName', 'email', 'cabinet', 'phone'],
+      order: [['lastName', 'ASC'], ['firstName', 'ASC']]
     });
-    res.json(specialists);
+    res.json(teachers.map((u) => ({
+      id: u.id,
+      fullName: userFullName(u),
+      cabinet: u.cabinet || '',
+      telephone: u.phone || ''
+    })));
   } catch (err) {
     console.error(err);
     res.status(500).json({ message: 'Ошибка сервера' });

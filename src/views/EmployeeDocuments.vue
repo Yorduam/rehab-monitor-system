@@ -86,7 +86,7 @@
             <div class="ed-rows">
               <div class="ed-row"><span>Дата рождения</span><b>{{ formatDate(detail.birthDate) }}</b></div>
               <div class="ed-row"><span>Группа</span><b>{{ detail.group?.groupName || '—' }}</b></div>
-              <div class="ed-row"><span>Куратор</span><b>{{ detail.group?.curatorRef?.fullName || '—' }}</b></div>
+              <div class="ed-row"><span>Куратор</span><b>{{ detail.group?.curatorUser?.fullName || '—' }}</b></div>
               <div class="ed-row"><span>Статус</span><b>{{ statusLabel(detail.status) }}</b></div>
               <div class="ed-row"><span>Группа инвалидности</span><b>{{ detail.disableGroup || '—' }}</b></div>
             </div>
@@ -245,7 +245,7 @@ const buildHtml = () => {
     <table class="kv">
       <tr><td>Дата рождения</td><th>${esc(formatDate(d.birthDate))}</th></tr>
       <tr><td>Группа</td><th>${esc(d.group?.groupName)}</th></tr>
-      <tr><td>Куратор</td><th>${esc(d.group?.curatorRef?.fullName)}</th></tr>
+      <tr><td>Куратор</td><th>${esc(d.group?.curatorUser?.fullName)}</th></tr>
       <tr><td>Статус</td><th>${esc(statusLabel(d.status))}</th></tr>
       <tr><td>Группа инвалидности</td><th>${esc(d.disableGroup)}</th></tr>
       <tr><td>Эл. почта</td><th>${esc(d.email)}</th></tr>

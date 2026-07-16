@@ -72,7 +72,15 @@
                 class="stage-step"
                 :class="{ done: i < stageIndex, current: i === stageIndex }">
               <span class="step-num">{{ String(i + 1).padStart(2, '0') }}</span>
-              <span class="step-name">{{ name }}</span>
+              <button v-if="name === 'Диагностика'"
+                      type="button"
+                      class="step-name step-name-link"
+                      @click="goToDiagnosticAssign"
+                      title="Перейти к назначению на диагностику">
+                {{ name }}
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              </button>
+              <span v-else class="step-name">{{ name }}</span>
             </li>
           </ol>
         </div>
@@ -308,43 +316,19 @@
       <!-- PANEL: ДИАГНОСТИКИ -->
       <div v-else-if="activeTab === 'diagnostics'" class="tabpanel">
         <section class="card">
-          <div class="card-head"><h2 class="card-title">Назначение на диагностику</h2></div>
+          <div class="card-head"><h2 class="card-title">Диагностики</h2></div>
           <div class="card-body">
-            <div class="rd-assign">
-              <div class="rd-assign-grid">
-                <label class="rd-assign-field">
-                  <span class="kv-key">Направление</span>
-                  <select v-model.number="assignForm.directionId" class="rd-input" :disabled="directionsLoading || assigning">
-                    <option :value="null" disabled>{{ directionsLoading ? 'Загрузка…' : 'Выберите направление' }}</option>
-                    <option v-for="d in directions" :key="d.id" :value="d.id">{{ d.name }}</option>
-                  </select>
-                </label>
-                <label class="rd-assign-field">
-                  <span class="kv-key">Психолог / специалист</span>
-                  <select v-model.number="assignForm.specialistId" class="rd-input" :disabled="specialistsLoading || assigning">
-                    <option :value="null" disabled>{{ specialistsLoading ? 'Загрузка…' : 'Выберите специалиста' }}</option>
-                    <option v-for="s in specialists" :key="s.id" :value="s.id">{{ s.fullName }}{{ s.cabinet ? ' · каб. ' + s.cabinet : '' }}</option>
-                  </select>
-                </label>
-                <label class="rd-assign-field">
-                  <span class="kv-key">Дата</span>
-                  <input type="date" v-model="assignForm.date" :min="todayStr" class="rd-input" :disabled="assigning" />
-                </label>
-                <div class="rd-assign-action">
-                  <button class="btn btn-primary" :disabled="!canAssign || assigning" @click="createAssignment">
-                    {{ assigning ? 'Назначение…' : 'Назначить' }}
-                  </button>
-                </div>
-              </div>
-              <p v-if="assignError" class="rd-assign-err">{{ assignError }}</p>
-            </div>
+            <p class="rd-assign-moved">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              Назначение на диагностику выполняется на вкладке «Диагностика» → «Назначение на диагностику».
+            </p>
 
             <h3 class="rd-subtitle">Назначенные диагностики</h3>
             <div v-if="assignmentsLoading" class="rd-loading" style="min-height:80px"><div class="spinner"></div></div>
             <div v-else-if="!assignments.length" class="rd-inline-empty">Пока нет назначений</div>
             <table v-else class="rd-table">
               <thead>
-                <tr><th>Направление</th><th>Специалист</th><th>Дата</th><th>Статус</th><th></th></tr>
+                <tr><th>Направление</th><th>Специалист</th><th>Дата</th><th>Статус</th></tr>
               </thead>
               <tbody>
                 <tr v-for="a in assignments" :key="a.id">
@@ -352,11 +336,6 @@
                   <td>{{ a.specialist?.fullName || '—' }}</td>
                   <td>{{ formatDate(a.date) }}</td>
                   <td><span class="doc-status" :class="a.published ? 'sage' : 'amber'">{{ a.published ? 'Проведена' : 'Назначена' }}</span></td>
-                  <td>
-                    <button v-if="!a.published" class="rd-cancel-btn" :disabled="cancelingId === a.id" @click="cancelAssignment(a)">
-                      {{ cancelingId === a.id ? '…' : 'Отменить' }}
-                    </button>
-                  </td>
                 </tr>
               </tbody>
             </table>
@@ -453,7 +432,7 @@ const stageIndex = computed(() => {
 const doc = computed(() => recipient.value?.docs?.[0] || null);
 const age = computed(() => recipientAge(recipient.value));
 const groupName = computed(() => recipient.value?.group?.groupName || '');
-const curatorName = computed(() => recipient.value?.group?.curatorRef?.fullName || '');
+const curatorName = computed(() => recipient.value?.group?.curatorUser?.fullName || '');
 const photoUrl = computed(() => {
   const p = recipient.value?.photo;
   return p && /^(https?:|data:)/.test(p) ? p : '';
@@ -529,6 +508,12 @@ function blockTitle(b) {
 
 const goBack = () => {
   pageStore.setPage('recipients', 'Реабилитанты', {});
+};
+
+// Клик по пункту «Диагностика» в маршруте реабилитанта →
+// вкладка «Диагностика» → «Назначение на диагностику».
+const goToDiagnosticAssign = () => {
+  pageStore.setPage('diagnostics', 'Диагностика', { mode: 'assign' });
 };
 
 const loadRecipient = async () => {
@@ -672,7 +657,6 @@ watch(activeTab, (tab) => {
     loadGroups();
     if (!groupMembers.value.length && !groupMembersLoading.value) loadGroupMembers();
   } else if (tab === 'diagnostics') {
-    loadDiagnosticRefs();
     loadAssignments();
   }
 });
@@ -862,6 +846,26 @@ onMounted(loadRecipient);
 .stage-step .step-name { font-size: 0.9375rem; color: var(--ink-muted); line-height: 1.3; }
 .stage-step.current .step-name { color: var(--ink-strong); font-weight: 600; }
 .stage-step.done .step-name { color: var(--ink); }
+.step-name-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0;
+  border: none;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  color: var(--sage-700, #5a6e3f);
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 0.15rem;
+  text-decoration-thickness: 0.08em;
+  transition: color 0.12s;
+}
+.step-name-link svg { flex: none; opacity: 0.75; }
+.step-name-link:hover { color: var(--sage-900, #3f4d2b); }
+.stage-step.current .step-name-link { color: var(--sage-900, #3f4d2b); }
 
 /* ===== MINI STATS ===== */
 .mini-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; padding: 1rem 2rem 1.5rem; }
@@ -971,6 +975,19 @@ onMounted(loadRecipient);
 .rd-assign-action { display: flex; align-items: flex-end; }
 .rd-assign-action .btn { width: 100%; }
 .rd-assign-err { margin: 0.6rem 0 0; color: var(--rose-500); font-size: 0.875rem; }
+.rd-assign-moved {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 0 0 1.5rem;
+  padding: 0.75rem 1rem;
+  background: var(--blue-50);
+  border: 0.0625rem solid var(--blue-100);
+  border-radius: var(--radius-md);
+  color: var(--blue-700);
+  font-size: 0.875rem;
+}
+.rd-assign-moved svg { width: 1.1rem; height: 1.1rem; flex: 0 0 auto; }
 .rd-subtitle { font-size: 1rem; font-weight: 600; margin: 0 0 0.75rem; color: var(--ink-strong); }
 
 .rd-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
