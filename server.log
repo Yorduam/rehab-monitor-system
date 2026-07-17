@@ -4378,3 +4378,1227 @@ Server running on port 5000
       }
     }
     [35mresponseTime[39m: 8
+[2026-07-16 19:03:23.759 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "1f887630-f51f-43af-827e-536fc566cdca",
+      "method": "GET",
+      "url": "/api/v1/auth/me",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"aa-UrvyWIbvtkzwhICUlxtLjLqyF4A\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61729
+    }
+    [35mres[39m: {
+      "statusCode": 200,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "21",
+        "date": "Thu, 16 Jul 2026 16:03:23 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "content-type": "application/json; charset=utf-8",
+        "content-length": "212",
+        "etag": "W/\"d4-kBMWDeHFrdTzKoSK8L3dB9MVy7E\""
+      }
+    }
+    [35mresponseTime[39m: 5
+[2026-07-16 19:03:23.775 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "ab309865-ea63-46d1-a7fd-8844be69f70a",
+      "method": "GET",
+      "url": "/api/v1/recipients?page=1&limit=1",
+      "query": {
+        "page": "1",
+        "limit": "1"
+      },
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"37-edr3tI0vV9BrRwihZN4gGQLsIZk\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61731
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "20",
+        "date": "Thu, 16 Jul 2026 16:03:23 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"37-edr3tI0vV9BrRwihZN4gGQLsIZk\""
+      }
+    }
+    [35mresponseTime[39m: 4
+[2026-07-16 19:03:23.806 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "a3f02d7d-40af-4706-9eab-661bd0bc2f11",
+      "method": "GET",
+      "url": "/api/v1/recipients?page=1&limit=1",
+      "query": {
+        "page": "1",
+        "limit": "1"
+      },
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"37-edr3tI0vV9BrRwihZN4gGQLsIZk\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61734
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "17",
+        "date": "Thu, 16 Jul 2026 16:03:23 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"37-edr3tI0vV9BrRwihZN4gGQLsIZk\""
+      }
+    }
+    [35mresponseTime[39m: 23
+[2026-07-16 19:03:23.808 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "f404213e-6764-4202-aa3d-6ab856ef7839",
+      "method": "GET",
+      "url": "/api/v1/dashboard/diagnostics?page=1&limit=10",
+      "query": {
+        "page": "1",
+        "limit": "10"
+      },
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"123-lvTiCAzANIH1y5kQgk6wwBTr7Mw\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61735
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "16",
+        "date": "Thu, 16 Jul 2026 16:03:23 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"123-lvTiCAzANIH1y5kQgk6wwBTr7Mw\""
+      }
+    }
+    [35mresponseTime[39m: 22
+[2026-07-16 19:03:23.810 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "94f064b3-41a1-4809-a237-ba84c3f553d6",
+      "method": "GET",
+      "url": "/api/v1/dashboard/missing-docs",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"160-XZ64iG2dnpA0KvLy78KyTCHHRyo\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61733
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "18",
+        "date": "Thu, 16 Jul 2026 16:03:23 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"160-XZ64iG2dnpA0KvLy78KyTCHHRyo\""
+      }
+    }
+    [35mresponseTime[39m: 29
+[2026-07-16 19:03:23.817 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "fd22a182-3fdb-40b8-97a5-f4572d16375b",
+      "method": "GET",
+      "url": "/api/v1/dashboard/stats",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"8f-6FMQjy0j/OqADCcjLv8yFANwBN4\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61732
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "19",
+        "date": "Thu, 16 Jul 2026 16:03:23 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"8f-6FMQjy0j/OqADCcjLv8yFANwBN4\""
+      }
+    }
+    [35mresponseTime[39m: 38
+[2026-07-16 19:03:25.076 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "a82885a0-6e8c-44a8-8a87-aa3d933cf1c8",
+      "method": "GET",
+      "url": "/api/v1/recipients?page=1&limit=15",
+      "query": {
+        "page": "1",
+        "limit": "15"
+      },
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"38-4FUF0FaRKmfJx/Y5csu09YQD0dc\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61746
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "15",
+        "date": "Thu, 16 Jul 2026 16:03:25 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"38-4FUF0FaRKmfJx/Y5csu09YQD0dc\""
+      }
+    }
+    [35mresponseTime[39m: 9
+[2026-07-16 19:03:25.077 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "5f0ec20f-c385-49ef-96fb-a59da6f97c33",
+      "method": "GET",
+      "url": "/api/v1/groups",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"e4-V6rT+6l3oHRWaN+zrpovy/C74l8\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61747
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "14",
+        "date": "Thu, 16 Jul 2026 16:03:25 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"e4-V6rT+6l3oHRWaN+zrpovy/C74l8\""
+      }
+    }
+    [35mresponseTime[39m: 8
+[2026-07-16 19:03:28.123 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "d9805919-8398-41a8-91d3-e49c15fb5bcf",
+      "method": "GET",
+      "url": "/api/v1/lists/curators",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"64-WgMUW9D+GNNE/hZkX5/K6FobkIU\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61755
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "13",
+        "date": "Thu, 16 Jul 2026 16:03:28 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"64-WgMUW9D+GNNE/hZkX5/K6FobkIU\""
+      }
+    }
+    [35mresponseTime[39m: 4
+[2026-07-16 19:03:28.134 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "e3a68d99-0158-4b44-9d03-10229a142f3b",
+      "method": "GET",
+      "url": "/api/v1/groups?page=1&limit=15",
+      "query": {
+        "page": "1",
+        "limit": "15"
+      },
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"e4-V6rT+6l3oHRWaN+zrpovy/C74l8\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61758
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "12",
+        "date": "Thu, 16 Jul 2026 16:03:28 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"e4-V6rT+6l3oHRWaN+zrpovy/C74l8\""
+      }
+    }
+    [35mresponseTime[39m: 7
+[2026-07-16 19:03:29.105 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "e8aea05f-a75b-4ece-8235-4d56d78e7df9",
+      "method": "GET",
+      "url": "/api/v1/groups/10/recipients",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"2-l9Fw4VUO7kr8CvBlt4zaMCqXZ0w\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61761
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "11",
+        "date": "Thu, 16 Jul 2026 16:03:29 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"2-l9Fw4VUO7kr8CvBlt4zaMCqXZ0w\""
+      }
+    }
+    [35mresponseTime[39m: 4
+[2026-07-16 19:03:29.111 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "d335082d-1e3a-4a94-a901-1c6c88258bc7",
+      "method": "GET",
+      "url": "/api/v1/recipients?page=1&limit=500",
+      "query": {
+        "page": "1",
+        "limit": "500"
+      },
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"39-neK9oB/2aQlYUEr4XZpvv9vWdVo\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61764
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "10",
+        "date": "Thu, 16 Jul 2026 16:03:29 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"39-neK9oB/2aQlYUEr4XZpvv9vWdVo\""
+      }
+    }
+    [35mresponseTime[39m: 2
+[2026-07-16 19:03:36.066 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "50dab1a3-2d84-41a0-8b42-4cf3abac9684",
+      "method": "GET",
+      "url": "/api/v1/lists/directions",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"219-ztr0J+E3zf98evXaUGHQF2g79GY\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61775
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "9",
+        "date": "Thu, 16 Jul 2026 16:03:36 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"219-ztr0J+E3zf98evXaUGHQF2g79GY\""
+      }
+    }
+    [35mresponseTime[39m: 23
+[2026-07-16 19:03:36.067 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "dbce331e-39d1-4642-8d02-51a6761e7c1f",
+      "method": "GET",
+      "url": "/api/v1/diagnostics?recipientId=10&limit=100",
+      "query": {
+        "recipientId": "10",
+        "limit": "100"
+      },
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"39-XkVbnacRJJ9vqoaJ5iEHWYVpnLE\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61778
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "8",
+        "date": "Thu, 16 Jul 2026 16:03:36 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"39-XkVbnacRJJ9vqoaJ5iEHWYVpnLE\""
+      }
+    }
+    [35mresponseTime[39m: 21
+[2026-07-16 19:03:36.068 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "21200901-c76b-4f5b-b5d5-46c3e520b687",
+      "method": "GET",
+      "url": "/api/v1/recipients?limit=300",
+      "query": {
+        "limit": "300"
+      },
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"39-p61tlFqUdihfCWozkLYdP1XZxv4\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61779
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "7",
+        "date": "Thu, 16 Jul 2026 16:03:36 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"39-p61tlFqUdihfCWozkLYdP1XZxv4\""
+      }
+    }
+    [35mresponseTime[39m: 20
+[2026-07-16 19:03:57.044 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "b371aa87-086f-43ea-9fac-d3c4026c2ddb",
+      "method": "GET",
+      "url": "/api/v1/recipients?page=1&limit=15",
+      "query": {
+        "page": "1",
+        "limit": "15"
+      },
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"38-4FUF0FaRKmfJx/Y5csu09YQD0dc\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61799
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "6",
+        "date": "Thu, 16 Jul 2026 16:03:57 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"38-4FUF0FaRKmfJx/Y5csu09YQD0dc\""
+      }
+    }
+    [35mresponseTime[39m: 13
+[2026-07-16 19:03:57.046 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "d5b78b8b-609f-455f-9bb3-3b6847e81837",
+      "method": "GET",
+      "url": "/api/v1/groups",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"e4-V6rT+6l3oHRWaN+zrpovy/C74l8\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61800
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "5",
+        "date": "Thu, 16 Jul 2026 16:03:57 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"e4-V6rT+6l3oHRWaN+zrpovy/C74l8\""
+      }
+    }
+    [35mresponseTime[39m: 13
+[2026-07-16 19:04:00.552 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "99eaf379-b085-4835-b0ab-944093ef5164",
+      "method": "GET",
+      "url": "/api/v1/lists/directions",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"219-ztr0J+E3zf98evXaUGHQF2g79GY\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61814
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "4",
+        "date": "Thu, 16 Jul 2026 16:04:00 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"219-ztr0J+E3zf98evXaUGHQF2g79GY\""
+      }
+    }
+    [35mresponseTime[39m: 20
+[2026-07-16 19:04:00.553 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "c25165e0-5052-4532-9404-47e2135aa0a5",
+      "method": "GET",
+      "url": "/api/v1/diagnostics?recipientId=10&limit=100",
+      "query": {
+        "recipientId": "10",
+        "limit": "100"
+      },
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"39-XkVbnacRJJ9vqoaJ5iEHWYVpnLE\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61815
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "3",
+        "date": "Thu, 16 Jul 2026 16:04:00 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"39-XkVbnacRJJ9vqoaJ5iEHWYVpnLE\""
+      }
+    }
+    [35mresponseTime[39m: 18
+[2026-07-16 19:04:00.553 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "e069ebd1-1316-4939-957d-5d3679474690",
+      "method": "GET",
+      "url": "/api/v1/recipients?limit=300",
+      "query": {
+        "limit": "300"
+      },
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"39-p61tlFqUdihfCWozkLYdP1XZxv4\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61816
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "2",
+        "date": "Thu, 16 Jul 2026 16:04:00 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"39-p61tlFqUdihfCWozkLYdP1XZxv4\""
+      }
+    }
+    [35mresponseTime[39m: 16
+[2026-07-16 19:04:14.595 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "a059fc9c-78d2-4f3a-9e87-b609382e16fa",
+      "method": "GET",
+      "url": "/api/v1/recipients?page=1&limit=15",
+      "query": {
+        "page": "1",
+        "limit": "15"
+      },
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"38-4FUF0FaRKmfJx/Y5csu09YQD0dc\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61834
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "0",
+        "date": "Thu, 16 Jul 2026 16:04:14 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"38-4FUF0FaRKmfJx/Y5csu09YQD0dc\""
+      }
+    }
+    [35mresponseTime[39m: 12
+[2026-07-16 19:04:14.596 +0300] [32mINFO[39m: [36mrequest completed[39m
+    [35mhost[39m: "NIKITA-PC"
+    [35mreq[39m: {
+      "id": "5f5db458-0fc6-4a40-8f3a-634a0b1891ef",
+      "method": "GET",
+      "url": "/api/v1/groups",
+      "query": {},
+      "params": {},
+      "headers": {
+        "host": "localhost:5000",
+        "connection": "close",
+        "sec-ch-ua-platform": "\"Windows\"",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Code/1.127.0 Chrome/148.0.7778.97 Electron/42.2.0 Safari/537.36",
+        "accept": "application/json, text/plain, */*",
+        "sec-ch-ua": "\"Not/A)Brand\";v=\"99\", \"Chromium\";v=\"148\"",
+        "sec-ch-ua-mobile": "?0",
+        "sec-fetch-site": "same-origin",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-dest": "empty",
+        "referer": "http://localhost:3000/",
+        "accept-encoding": "gzip, deflate, br, zstd",
+        "accept-language": "ru",
+        "cookie": "token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MTksInJvbGUiOiJ0ZWFjaGVyIiwiaWF0IjoxNzg0MjE3NzQ5LCJleHAiOjE3ODQzMDQxNDl9.jHQ8dkAm6P0f8GzkMtCk_tBlwMzZF8wNUGSAle2XOhQ",
+        "if-none-match": "W/\"e4-V6rT+6l3oHRWaN+zrpovy/C74l8\""
+      },
+      "remoteAddress": "::ffff:127.0.0.1",
+      "remotePort": 61833
+    }
+    [35mres[39m: {
+      "statusCode": 304,
+      "headers": {
+        "content-security-policy": "default-src 'self';base-uri 'self';font-src 'self' https: data:;form-action 'self';frame-ancestors 'self';img-src 'self' data:;object-src 'none';script-src 'self';script-src-attr 'none';style-src 'self' https: 'unsafe-inline';upgrade-insecure-requests",
+        "cross-origin-opener-policy": "same-origin",
+        "cross-origin-resource-policy": "same-origin",
+        "origin-agent-cluster": "?1",
+        "referrer-policy": "no-referrer",
+        "strict-transport-security": "max-age=31536000; includeSubDomains",
+        "x-content-type-options": "nosniff",
+        "x-dns-prefetch-control": "off",
+        "x-download-options": "noopen",
+        "x-frame-options": "SAMEORIGIN",
+        "x-permitted-cross-domain-policies": "none",
+        "x-xss-protection": "0",
+        "access-control-allow-origin": "http://localhost:5173",
+        "vary": "Origin",
+        "access-control-allow-credentials": "true",
+        "x-ratelimit-limit": "100",
+        "x-ratelimit-remaining": "1",
+        "date": "Thu, 16 Jul 2026 16:04:14 GMT",
+        "x-ratelimit-reset": "1784218335",
+        "etag": "W/\"e4-V6rT+6l3oHRWaN+zrpovy/C74l8\""
+      }
+    }
+    [35mresponseTime[39m: 15
