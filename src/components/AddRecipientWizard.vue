@@ -1,5 +1,5 @@
 <template>
-  <div class="rw-overlay" @click.self="$emit('close')">
+  <div class="rw-overlay">
    <div class="rw-modal" role="dialog" aria-modal="true" aria-label="Добавление реабилитанта">
 
     <div class="rw-topbar">
@@ -14,6 +14,10 @@
             <span class="rw-save-dot"></span>
             Черновик сохранён
           </span>
+          <button class="rw-clear-btn" type="button" @click="clearDraft" title="Очистить все поля черновика">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+            Очистить черновик
+          </button>
           <button class="rw-close-btn" @click="$emit('close')" aria-label="Закрыть">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
           </button>
@@ -56,7 +60,7 @@
                     <svg v-if="stepProgress[i].complete && step !== i+1" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
                     <template v-else>{{ i+1 }}</template>
                   </span>
-                  <span v-if="i < steps.length - 1" class="rw-step-bar" aria-hidden="true"></span>
+                  <span class="rw-step-bar" aria-hidden="true"></span>
                 </div>
                 <div class="rw-step-info">
                   <div class="rw-step-label">{{ s.label }}</div>
@@ -72,6 +76,16 @@
                   </div>
                 </div>
               </button>
+            </li>
+            <li class="rw-step-finish" :class="{ 'is-reached': allComplete }">
+              <div class="rw-finish-line">
+                <span class="rw-finish-flag" :class="{ 'is-reached': allComplete }" :title="allComplete ? 'Все этапы заполнены — можно создавать карточку' : 'Завершение добавления реабилитанта'">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </span>
+              </div>
+              <div class="rw-finish-cap" :class="{ 'is-reached': allComplete }">
+                {{ allComplete ? 'Готово' : 'Завершение' }}
+              </div>
             </li>
           </ol>
           <div class="rw-stepper-mobile" aria-hidden="true">
@@ -723,7 +737,7 @@ const removeNosology = (k) => {
   if (idx >= 0) f.value.rNosology.splice(idx, 1);
 };
 
-const f = ref({
+const makeEmptyForm = () => ({
 
   lrLast: '', lrFirst: '', lrMid: '',
   lrRelation: '', lrPhone: '',
@@ -758,6 +772,9 @@ const f = ref({
 
   groupId: null,
 });
+
+const DRAFT_KEY = 'addRecipientDraft';
+const f = ref(makeEmptyForm());
 
 const crgAge = computed(() => {
   if (!f.value.rBirth) return null;
@@ -930,6 +947,37 @@ const overallProgress = computed(() => {
   return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
 });
 
+// Все три этапа заполнены полностью → загорается финишная отметка «дороги».
+const allComplete = computed(() => stepProgress.value.every((s) => s.complete));
+
+// ── Черновик: данные не теряются при случайном закрытии вкладки ──
+const loadDraft = () => {
+  try {
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return;
+    const saved = JSON.parse(raw);
+    if (saved && typeof saved === 'object') {
+      f.value = { ...makeEmptyForm(), ...saved };
+    }
+  } catch (e) { /* повреждённый черновик — игнорируем */ }
+};
+const saveDraft = () => {
+  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(f.value)); } catch (e) {}
+};
+const clearDraft = () => {
+  if (!confirm('Очистить черновик? Все введённые данные будут удалены безвозвратно.')) return;
+  f.value = makeEmptyForm();
+  uploads.value = {};
+  signedUploads.value = {};
+  docsGenerated.value = false;
+  step.value = 1;
+  try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+};
+
+// Загружаем сохранённый черновик до подписки, чтобы не перезаписать его пустой формой.
+loadDraft();
+watch(f, saveDraft, { deep: true });
+
 // ── Маски и нормализация ввода ──────────────────────────────
 const onlyDigits = (s, max) => s.replace(/\D/g, '').slice(0, max);
 
@@ -1092,6 +1140,7 @@ const save = async () => {
       }
     }
 
+    try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
     emit('saved', createdRecipient);
     emit('close');
   } catch (err) {
@@ -1277,6 +1326,28 @@ onUnmounted(() => {
 }
 .rw-close-btn:hover { background: var(--rw-paper-soft); color: var(--rw-ink-strong); }
 .rw-close-btn svg { width: 1.125rem; height: 1.125rem; }
+.rw-clear-btn {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  height: 2.25rem; padding: 0 0.75rem;
+  border-radius: 0.5rem;
+  background: none;
+  border: 1px solid var(--rw-line);
+  color: var(--rw-ink-muted);
+  font-size: 0.8125rem; font-weight: 500; font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.rw-clear-btn:hover {
+  background: var(--rw-rose-50, #F8E2D7);
+  color: var(--rw-rose-700, #6B2519);
+  border-color: var(--rw-rose-100, #EDCABE);
+}
+.rw-clear-btn svg { width: 1rem; height: 1rem; }
+@media (max-width: 720px) {
+  .rw-clear-btn { padding: 0 0.5rem; }
+  .rw-clear-btn span, .rw-clear-btn { font-size: 0.75rem; }
+}
 .rw-scroll { flex: 1 1 auto; overflow-y: auto; }
 .rw-content {
   max-width: none;
@@ -1334,11 +1405,51 @@ onUnmounted(() => {
 .rw-stepper-list {
   list-style: none;
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(3, 1fr) auto;
   gap: 0.25rem;
   align-items: start;
   margin: 0; padding: 0;
 }
+/* Финишный узел «дороги» — линия из 3-го шага ведёт к галочке завершения */
+.rw-step-finish {
+  display: grid;
+  grid-template-rows: auto auto;
+  gap: 0.5rem;
+  padding: 0.5rem 0.25rem;
+}
+.rw-finish-line {
+  display: flex;
+  align-items: center;
+  height: 1.75rem;
+}
+.rw-finish-flag {
+  width: 1.75rem; height: 1.75rem;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  flex: 0 0 1.75rem;
+  background: var(--rw-paper-soft);
+  color: var(--rw-ink-subtle);
+  border: 1px dashed var(--rw-line-strong);
+  transition: background 0.2s, color 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.rw-finish-flag svg { width: 0.9375rem; height: 0.9375rem; }
+.rw-finish-flag.is-reached {
+  background: var(--rw-sage-500);
+  color: #fff;
+  border-style: solid;
+  border-color: var(--rw-sage-500);
+  box-shadow: 0 0 0 0.1875rem var(--rw-sage-50);
+}
+.rw-finish-cap {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--rw-ink-muted);
+  text-align: left;
+  padding-left: 0.125rem;
+  white-space: nowrap;
+  transition: color 0.2s;
+}
+.rw-finish-cap.is-reached { color: var(--rw-sage-700); }
 .rw-step-btn {
   display: grid;
   grid-template-rows: auto auto;

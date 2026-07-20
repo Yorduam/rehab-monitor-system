@@ -28,6 +28,7 @@
             <div class="t-search-input" :class="{ 'focused': searchFocused }">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
               <input
+                ref="searchInputRef"
                 id="t-search"
                 type="search"
                 v-model="search"
@@ -241,7 +242,14 @@
                 ></a>
 
                 <div class="t-rcard-body">
-                  <div class="t-rcard-photo">
+                  <div
+                    class="t-rcard-photo"
+                    :class="{ 'has-zoom': hasPhoto(r) }"
+                    @mouseenter="hasPhoto(r) && (zoomPhotoId = r.id)"
+                    @mouseleave="zoomPhotoId = null"
+                    @click.stop="openDetails(r.id)"
+                    :title="hasPhoto(r) ? 'Посмотреть фото' : ''"
+                  >
                     <img
                       v-if="hasPhoto(r)"
                       :src="r.photo"
@@ -249,33 +257,33 @@
                       @error="onPhotoError(r)"
                     />
                     <div v-else class="t-rcard-photo-fallback" :class="avatarClass(r)" aria-hidden="true">{{ initials(r) }}</div>
+                  </div>
 
-                    <div v-if="recipientFlags(r).length" class="t-rcard-flags">
-                      <span
-                        v-for="flag in recipientFlags(r)"
-                        :key="flag.kind"
-                        class="t-flag"
-                        :class="[`t-flag-${flag.kind}`, { 'is-tapped': isFlagTipOpen(r, flag.kind) }]"
-                        tabindex="0"
-                        role="button"
-                        :aria-label="flag.text ? `${flag.label}. ${flag.text}` : flag.label"
-                        @click.stop="toggleFlagTip(r, flag.kind)"
-                        @keydown.enter.prevent="toggleFlagTip(r, flag.kind)"
-                      >
-                        <svg v-if="flag.kind === 'rose'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
-                          <path d="M12 9v4M12 17h.01"/>
-                          <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
-                        </svg>
-                        <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
-                          <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
-                          <path d="M14 2v6h6M12 12v4M12 18h.01"/>
-                        </svg>
-                        <span class="t-flag-tooltip" role="tooltip">
-                          <strong>{{ flag.label }}</strong>
-                          <template v-if="flag.text"><br>{{ flag.text }}</template>
-                        </span>
+                  <div v-if="recipientFlags(r).length && activeDropdown !== r.id" class="t-rcard-flags">
+                    <span
+                      v-for="flag in recipientFlags(r)"
+                      :key="flag.kind"
+                      class="t-flag"
+                      :class="[`t-flag-${flag.kind}`, { 'is-tapped': isFlagTipOpen(r, flag.kind) }]"
+                      tabindex="0"
+                      role="button"
+                      :aria-label="flag.text ? `${flag.label}. ${flag.text}` : flag.label"
+                      @click.stop="toggleFlagTip(r, flag.kind)"
+                      @keydown.enter.prevent="toggleFlagTip(r, flag.kind)"
+                    >
+                      <svg v-if="flag.kind === 'rose'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
+                        <path d="M12 9v4M12 17h.01"/>
+                        <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                      </svg>
+                      <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true">
+                        <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
+                        <path d="M14 2v6h6M12 12v4M12 18h.01"/>
+                      </svg>
+                      <span class="t-flag-tooltip" role="tooltip">
+                        <strong>{{ flag.label }}</strong>
+                        <template v-if="flag.text"><br>{{ flag.text }}</template>
                       </span>
-                    </div>
+                    </span>
                   </div>
 
                   <div class="t-rcard-main">
@@ -288,7 +296,7 @@
                     <div class="t-rcard-tags">
                       <span v-if="r.diagnosis" class="t-tag t-tag-blue">{{ r.diagnosis }}</span>
                       <span v-if="r.group?.groupName" class="t-tag t-tag-sage">{{ r.group.groupName }}</span>
-                      <span class="t-tag t-tag-neutral">{{ statusLabel(r.status) }}</span>
+                      <span v-if="r.status && r.status !== 'draft'" class="t-tag t-tag-neutral">{{ statusLabel(r.status) }}</span>
                     </div>
                   </div>
                 </div>
@@ -301,7 +309,7 @@
                     </div>
                   </div>
 
-                  <div class="t-rcard-actions" @click.stop style="position:relative;z-index:2">
+                  <div class="t-rcard-actions" @click.stop style="position:relative;z-index:6">
                     <button v-if="canManageRecipients" class="t-action-btn" :aria-label="`Редактировать ${fullName(r)}`" @click="editRecipient(r)">
                       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                         <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
@@ -343,6 +351,13 @@
                     </div>
                   </div>
                 </div>
+
+                <div
+                  v-if="hasPhoto(r) && zoomPhotoId === r.id && activeDropdown !== r.id"
+                  class="t-rcard-zoom"
+                  :style="{ backgroundImage: `url(${r.photo})` }"
+                  aria-hidden="true"
+                ></div>
               </article>
             </div>
           </section>
@@ -727,6 +742,8 @@ const selectedIds  = ref([]);
 const searchFocused = ref(false);
 const photoError  = ref({});
 const openTip     = ref(null);
+const zoomPhotoId = ref(null);
+const searchInputRef = ref(null);
 
 // --- Загрузка фото с ПК (сжатие → data URL в form.photo) ---
 const photoUploading   = ref(false);
@@ -1125,6 +1142,16 @@ const handleClickOutside = (event) => {
 };
 
 const handleEscape = (event) => {
+  // Горячая клавиша «/» — фокус в поле поиска (если не печатаем в другом поле).
+  if (event.key === '/') {
+    const el = event.target;
+    const tag = el && el.tagName;
+    if (tag === 'INPUT' || tag === 'TEXTAREA' || el?.isContentEditable) return;
+    event.preventDefault();
+    searchInputRef.value?.focus();
+    searchInputRef.value?.select?.();
+    return;
+  }
   if (event.key !== 'Escape') return;
   sortMenuOpen.value = false;
   openFilterMenu.value = null;
@@ -1190,14 +1217,10 @@ onUnmounted(() => {
   --t-tap: 2.75rem;
 
   font-family: var(--t-font-sans);
-  /* Как в макете: контент ограничен по ширине и центрирован,
-     чтобы по краям были отступы, а карточки не растягивались на весь экран. */
-  max-width: 96rem;
-  margin-inline: auto;
-  padding-inline: 0.5rem;
-}
-@media (max-width: 640px) {
-  .erp-r-teacher { padding-inline: 0; }
+  /* Контент растянут на всю доступную ширину — без пустоты по бокам. */
+  max-width: none;
+  margin-inline: 0;
+  padding-inline: 0;
 }
 .sr-only {
   position: absolute; width: 1px; height: 1px;
@@ -1477,8 +1500,13 @@ onUnmounted(() => {
 .t-rcard:hover .t-rcard-check,
 .t-rcard.selected .t-rcard-check { opacity: 1; }
 .t-rcard-flags {
-  position: absolute; bottom: 0.25rem; right: 0.25rem;
-  display: flex; gap: 0.1875rem; z-index: 4;
+  /* Значки вынесены под фото, чтобы не перекрываться увеличением фото при наведении. */
+  position: relative;
+  z-index: 3; /* над ссылкой-оверлеем карточки — значки остаются наводимыми */
+  display: flex;
+  justify-content: center;
+  gap: 0.375rem;
+  margin-top: -0.25rem;
 }
 .t-flag {
   position: relative;
@@ -1551,6 +1579,26 @@ onUnmounted(() => {
   position: relative;
   width: 6.5rem; height: 6.5rem;
   flex: 0 0 6.5rem;
+  /* Поднимаем фото над ссылкой-оверлеем карточки, чтобы работало наведение (просмотр фото). */
+  z-index: 3;
+}
+.t-rcard-photo.has-zoom { cursor: pointer; }
+/* Развёрнутое фото на всю карточку при наведении */
+.t-rcard-zoom {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  border-radius: var(--t-r-lg);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  box-shadow: inset 0 0 0 1px var(--t-line), 0 .5rem 1.5rem rgba(17,34,17,.18);
+  pointer-events: none;
+  animation: t-zoomIn 180ms ease;
+}
+@keyframes t-zoomIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 .t-rcard-photo img,
 .t-rcard-photo-fallback {

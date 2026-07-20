@@ -1,5 +1,5 @@
 <template>
-  <div class="diagnostics-page">
+  <div class="diagnostics-page" :class="{ 'diag-readonly': isEmployee }">
     <a class="skip-link" href="#stages-flow">Перейти к этапам диагностики</a>
 
     <!-- Преподаватель (куратор) видит только заполнение карточки по своей
@@ -1741,6 +1741,11 @@ const authStore = useAuthStore()
 // Роль-специфика: преподаватель (куратор) заполняет диагностику только по
 // своей проф. области. Ему недоступны переключатель режимов и назначение.
 const isTeacher = computed(() => authStore.isTeacher)
+// Сотрудник: карточка диагностики доступна ТОЛЬКО для просмотра —
+// он видит этапы и данные, но не может их редактировать/сохранять.
+const isEmployee = computed(() => authStore.isEmployee)
+// Слушатели режима «только просмотр» для сотрудника (снимаются в onUnmounted).
+let employeeReadonlyGuards = null
 // profileKey проф. ориентации преподавателя (psy/log/izo/theatre/vocal/afk).
 const teacherProfileKey = ref('')
 
@@ -1916,6 +1921,47 @@ onMounted(() => {
   if (authStore.isTeacher) {
     diagMode.value = 'card';
     lockTeacherProfile();
+  }
+
+  // Роль «Сотрудник»: карточка диагностики только для просмотра.
+  // CSS прячет кнопки редактирования и глушит мышь; здесь блокируем ввод
+  // с клавиатуры (Tab+печать/пробел/стрелки в полях), не трогая рантайм —
+  // никаких disabled/readonly, чтобы не конфликтовать с lock/unlock подпанелей.
+  if (authStore.isEmployee) {
+    const isCardEditable = (el) => {
+      if (!el || !el.closest) return false;
+      if (!el.closest('.content')) return false; // только карточка диагностики
+      const tag = el.tagName;
+      return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+    };
+    const NAV_KEYS = ['Tab', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'];
+    const swallow = (e) => {
+      if (diagMode.value !== 'card') return;
+      if (!isCardEditable(e.target)) return;
+      e.preventDefault();
+      e.stopPropagation();
+    };
+    const swallowKey = (e) => {
+      if (diagMode.value !== 'card') return;
+      const el = e.target;
+      if (!isCardEditable(el)) return;
+      const tag = el.tagName;
+      // Для select / чекбоксов / радио блокируем изменение значения клавишами,
+      // оставляя только выход по Tab/Escape.
+      if (tag === 'SELECT' || (tag === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio'))) {
+        if (e.key !== 'Tab' && e.key !== 'Escape') { e.preventDefault(); e.stopPropagation(); }
+        return;
+      }
+      // Для текстовых полей блокируем ввод, но сохраняем навигацию.
+      if (!NAV_KEYS.includes(e.key)) { e.preventDefault(); e.stopPropagation(); }
+    };
+    employeeReadonlyGuards = [
+      ['beforeinput', swallow],
+      ['paste', swallow],
+      ['drop', swallow],
+      ['keydown', swallowKey]
+    ];
+    employeeReadonlyGuards.forEach(([evt, fn]) => document.addEventListener(evt, fn, true));
   }
 
     // Тёплый кремовый фон на всю страницу (как в Дашборде) + поднимаем
@@ -4280,12 +4326,43 @@ onUnmounted(() => {
   document.documentElement.style.removeProperty('--fab-offset');
   // Снимаем жёсткую привязку профиля, чтобы она не «протекла» на другую роль.
   window.__forcedProfileKey = '';
+  // Снимаем слушатели режима «только просмотр» сотрудника.
+  if (employeeReadonlyGuards) {
+    employeeReadonlyGuards.forEach(([evt, fn]) => document.removeEventListener(evt, fn, true));
+    employeeReadonlyGuards = null;
+  }
 });
 
 </script>
 
 <style>
 @import url("https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap");
+
+/* ============================================================
+   Роль «Сотрудник» — карточка диагностики ТОЛЬКО для просмотра.
+   Этапы и данные видны; все инструменты редактирования скрыты,
+   поля недоступны для мыши (клавиатуру глушит JS-гвард).
+   Затрагивает только режим карточки (.content / .save-bar),
+   режим «Назначение» и другие роли не трогаются.
+   ============================================================ */
+.diagnostics-page.diag-readonly .content [data-action="save-draft"],
+.diagnostics-page.diag-readonly .content [data-action="finish-stage"],
+.diagnostics-page.diag-readonly .content [data-action="finish-subblock"],
+.diagnostics-page.diag-readonly .content [data-action="edit-stage"],
+.diagnostics-page.diag-readonly .content [data-action="edit-subblock"],
+.diagnostics-page.diag-readonly .content .specialist-add {
+  display: none !important;
+}
+.diagnostics-page.diag-readonly .save-bar {
+  display: none !important;
+}
+.diagnostics-page.diag-readonly .content input,
+.diagnostics-page.diag-readonly .content textarea,
+.diagnostics-page.diag-readonly .content select,
+.diagnostics-page.diag-readonly .content [contenteditable] {
+  pointer-events: none !important;
+  cursor: default !important;
+}
 
 .diagnostics-page{
       --font-serif: "Lora", "Times New Roman", Georgia, serif;
