@@ -1,8 +1,31 @@
 import express from 'express';
 import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
 import { RecipientDoc, Recipient } from '../models/index.js';
+import { generateDocument } from '../services/documentGenerator.js';
 
 const router = express.Router();
+
+// Сформировать заполненный документ (согласие/заявление) из данных мастера.
+// Возвращает готовый .docx/.xlsx файлом для скачивания.
+router.post('/generate', authMiddleware, async (req, res, next) => {
+  try {
+    const { docType, form } = req.body || {};
+    if (!docType || !form) {
+      return res.status(400).json({ message: 'Требуются docType и form' });
+    }
+    const { buffer, filename, contentType } = generateDocument(docType, form);
+    const ext = filename.split('.').pop();
+    res.setHeader('Content-Type', contentType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="document.${ext}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+    );
+    res.send(buffer);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ message: err.message });
+    next(err);
+  }
+});
 
 const recipientInclude = {
   model: Recipient,

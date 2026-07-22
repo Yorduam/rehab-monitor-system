@@ -250,6 +250,45 @@
             </dl>
           </div>
         </section>
+
+        <!-- Прикреплённые сканы -->
+        <section class="card" style="margin-top: 1.25rem;">
+          <div class="card-head">
+            <h2 class="card-title">Прикреплённые файлы</h2>
+            <span v-if="scans.length" class="rd-scan-badge">{{ scans.length }}</span>
+          </div>
+          <div class="card-body">
+            <div v-if="scansLoading" class="rd-loading" style="min-height:120px"><div class="spinner"></div></div>
+            <div v-else-if="!scans.length" class="rd-inline-empty">Нет прикреплённых файлов</div>
+            <div v-else class="rd-scan-grid">
+              <div v-for="s in scans" :key="s.id" class="rd-scan">
+                <button v-if="isImage(s)" type="button" class="rd-scan-thumb" @click="openLightbox(s)" :title="'Открыть: ' + scanLabel(s)">
+                  <img :src="scanFileUrl(s)" :alt="scanLabel(s)" loading="lazy" />
+                </button>
+                <a v-else class="rd-scan-thumb rd-scan-file" :href="scanFileUrl(s)" target="_blank" rel="noopener" :title="'Открыть: ' + scanLabel(s)">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                  <span class="rd-scan-ext">{{ fileExt(s) }}</span>
+                </a>
+                <div class="rd-scan-meta">
+                  <div class="rd-scan-name" :title="scanLabel(s)">{{ scanLabel(s) }}</div>
+                  <div class="rd-scan-sub" :title="s.originalName">{{ s.originalName }} · {{ formatSize(s.sizeBytes) }}</div>
+                  <a :href="scanFileUrl(s)" target="_blank" rel="noopener" class="rd-scan-open">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                    Открыть
+                  </a>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Лайтбокс просмотра изображения -->
+        <div v-if="lightbox" class="rd-lightbox" @click="lightbox = null">
+          <img :src="lightbox" alt="" @click.stop />
+          <button type="button" class="rd-lightbox-close" @click="lightbox = null" aria-label="Закрыть">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
       </div>
 
       <!-- PANEL: ГРУППА -->
@@ -392,6 +431,12 @@ const groupsLoading = ref(false);
 const selectedGroupId = ref(null);
 const savingGroup = ref(false);
 
+// Прикреплённые сканы/файлы реабилитанта
+const scans = ref([]);
+const scansLoading = ref(false);
+const scansLoaded = ref(false);
+const lightbox = ref(null);
+
 const directions = ref([]);
 const directionsLoading = ref(false);
 const specialists = ref([]);
@@ -529,6 +574,37 @@ const loadRecipient = async () => {
   }
 };
 
+const loadScans = async () => {
+  if (!recipientId || scansLoaded.value || scansLoading.value) return;
+  scansLoading.value = true;
+  try {
+    const { data } = await api.get(`/recipients/${recipientId}/scans`);
+    scans.value = Array.isArray(data) ? data : [];
+    scansLoaded.value = true;
+  } catch (err) {
+    console.error('loadScans', err);
+    scans.value = [];
+  } finally {
+    scansLoading.value = false;
+  }
+};
+
+const scanFileUrl = (s) => `/api/v1/recipients/${recipientId}/scans/${s.id}/file`;
+const isImage = (s) =>
+  /^image\//i.test(s?.mimeType || '') || /\.(png|jpe?g|gif|webp|bmp)$/i.test(s?.originalName || '');
+const scanLabel = (s) => s?.docTypeRef?.name || s?.originalName || 'Документ';
+const fileExt = (s) => {
+  const m = String(s?.originalName || '').match(/\.([a-z0-9]+)$/i);
+  return m ? m[1].toUpperCase() : 'ФАЙЛ';
+};
+const formatSize = (bytes) => {
+  const b = Number(bytes) || 0;
+  if (b < 1024) return b + ' Б';
+  if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' КБ';
+  return (b / (1024 * 1024)).toFixed(1) + ' МБ';
+};
+const openLightbox = (s) => { lightbox.value = scanFileUrl(s); };
+
 const loadGroups = async () => {
   if (allGroups.value.length || groupsLoading.value) return;
   groupsLoading.value = true;
@@ -658,6 +734,8 @@ watch(activeTab, (tab) => {
     if (!groupMembers.value.length && !groupMembersLoading.value) loadGroupMembers();
   } else if (tab === 'diagnostics') {
     loadAssignments();
+  } else if (tab === 'documents') {
+    loadScans();
   }
 });
 
@@ -967,6 +1045,63 @@ onMounted(loadRecipient);
 .rd-gs-row .btn { flex: 0 0 auto; }
 
 .rd-inline-empty { text-align: center; padding: 1.5rem; color: var(--ink-muted); font-size: 0.9375rem; }
+
+/* ===== ПРИКРЕПЛЁННЫЕ СКАНЫ ===== */
+.rd-scan-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.5rem; height: 1.5rem; padding: 0 0.45rem;
+  background: var(--sage-100); color: var(--sage-700);
+  font-size: 0.8rem; font-weight: 700; border-radius: 62.5rem;
+}
+.rd-scan-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
+  gap: 1rem;
+}
+.rd-scan {
+  border: 0.0625rem solid var(--line); border-radius: var(--radius-md);
+  background: var(--paper); overflow: hidden;
+  display: flex; flex-direction: column;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.rd-scan:hover { border-color: var(--line-strong); box-shadow: var(--shadow-md); }
+.rd-scan-thumb {
+  display: flex; align-items: center; justify-content: center;
+  width: 100%; height: 8rem; padding: 0;
+  background: var(--paper-sunken); border: none; cursor: pointer;
+  overflow: hidden; position: relative;
+}
+.rd-scan-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.rd-scan-file { flex-direction: column; gap: 0.4rem; color: var(--sage-700); text-decoration: none; }
+.rd-scan-file svg { width: 2.5rem; height: 2.5rem; }
+.rd-scan-ext { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; color: var(--ink-muted); }
+.rd-scan-meta { padding: 0.6rem 0.7rem 0.7rem; display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
+.rd-scan-name { font-size: 0.875rem; font-weight: 600; color: var(--ink-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-scan-sub { font-size: 0.75rem; color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-scan-open {
+  margin-top: 0.35rem; align-self: flex-start;
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.8rem; font-weight: 600; color: var(--sage-700); text-decoration: none;
+}
+.rd-scan-open svg { width: 0.85rem; height: 0.85rem; }
+.rd-scan-open:hover { color: var(--sage-900); text-decoration: underline; }
+
+/* ===== ЛАЙТБОКС ===== */
+.rd-lightbox {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(15, 20, 15, 0.82); padding: 2rem; cursor: zoom-out;
+}
+.rd-lightbox img { max-width: 92vw; max-height: 88vh; object-fit: contain; border-radius: 0.5rem; box-shadow: 0 1.5rem 3rem rgba(0,0,0,0.45); cursor: default; }
+.rd-lightbox-close {
+  position: absolute; top: 1.25rem; right: 1.25rem;
+  width: 2.75rem; height: 2.75rem; border-radius: 50%;
+  background: rgba(255,255,255,0.12); border: 0.0625rem solid rgba(255,255,255,0.25);
+  color: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: background 0.15s ease;
+}
+.rd-lightbox-close:hover { background: rgba(255,255,255,0.24); }
+.rd-lightbox-close svg { width: 1.4rem; height: 1.4rem; }
 
 /* ===== ASSIGN (диагностика) ===== */
 .rd-assign { margin-bottom: 1.5rem; padding-bottom: 1.25rem; border-bottom: 0.0625rem solid var(--line-soft); }

@@ -33,6 +33,10 @@ router.get('/', authMiddleware, async (req, res) => {
     const where = {};
     if (req.query.recipientId) where.idRecipient = parseInt(req.query.recipientId);
     if (req.query.directionId) where.idDirection = parseInt(req.query.directionId);
+    // Фильтр по специалисту (учётной записи преподавателя) — нужен, чтобы
+    // преподаватель на вкладке «Диагностика» видел только тех реабилитантов,
+    // которых направили на диагностику именно к нему (idSpecialist = его userId).
+    if (req.query.specialistId) where.idSpecialist = parseInt(req.query.specialistId);
 
     const { count, rows } = await ReResult.findAndCountAll({
       where,

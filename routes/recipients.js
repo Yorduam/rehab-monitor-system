@@ -193,6 +193,15 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
   }
 
   try {
+    // СНИЛС уникален (один человек — одна карта). Проверяем заранее и отдаём
+    // понятное сообщение вместо сырого «Validation error» из БД.
+    if (doc.snils) {
+      const dup = await RecipientDoc.findOne({ where: { snils: doc.snils } });
+      if (dup) {
+        return res.status(409).json({ message: `Реабилитант с таким СНИЛС (${doc.snils}) уже зарегистрирован в системе` });
+      }
+    }
+
     const result = await sequelize.transaction(async (t) => {
 
       let nozId = null;
@@ -217,13 +226,19 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
       }
       if (crgId == null) throw new Error('Справочник ЦРГ пуст');
 
+      // Синтетические e-mail — это лишь технические плейсхолдеры (аккаунты
+      // никогда не логинятся, пароль случайный). Они ОБЯЗАНЫ быть уникальными,
+      // иначе повторное сохранение или совпадение СНИЛС/телефона роняет всю
+      // транзакцию по UNIQUE-констрейнту. Добавляем случайный суффикс.
+      const uniqSuffix = crypto.randomBytes(5).toString('hex');
+
       const repPhone = representative.telephone || '';
       const rep = await LegalRepresentative.create({
         firstName: representative.firstName || '',
         middleName: representative.middleName || '',
         lastName: representative.lastName || '',
         telephone: repPhone,
-        email: `lr-${onlyDigits(repPhone) || Date.now()}@intake.local`,
+        email: `lr-${onlyDigits(repPhone) || 'na'}-${uniqSuffix}@intake.local`,
         passportSeries: representative.passportSeries || '',
         passportNumber: representative.passportNumber || '',
         passportIssuer: representative.passportIssuer || '',
@@ -232,7 +247,7 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
         passportReg: representative.passportReg || ''
       }, { transaction: t });
 
-      const recEmail = `rcp-${onlyDigits(doc.snils) || Date.now()}@intake.local`;
+      const recEmail = `rcp-${onlyDigits(doc.snils) || 'na'}-${uniqSuffix}@intake.local`;
       const tempHash = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
       const user = await User.create({ email: recEmail, passwordHash: tempHash, role: 'recipient' }, { transaction: t });
 
@@ -280,6 +295,15 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
     const full = await Recipient.findByPk(result, { include: detailInclude });
     res.status(201).json(full);
   } catch (err) {
+    // Страховка: любое нарушение уникальности превращаем в понятное сообщение,
+    // а не в 500 «Validation error».
+    if (err?.name === 'SequelizeUniqueConstraintError') {
+      const path = err?.errors?.[0]?.path || '';
+      const msg = /snils/i.test(path)
+        ? 'Реабилитант с таким СНИЛС уже зарегистрирован в системе'
+        : `Запись с такими данными уже существует (${path || 'дубликат'})`;
+      return res.status(409).json({ message: msg });
+    }
     next(err);
   }
 });

@@ -29,7 +29,33 @@
       </button>
     </div>
 
-    <div class="content" v-show="diagMode === 'card'">
+    <div class="content" :class="{ 'is-gated': !recipientChosen }" v-show="diagMode === 'card'">
+
+      <!-- Ворота выбора: пока реабилитант не выбран, карточка диагностики скрыта
+           (см. CSS .content.is-gated), а на её месте — приглашение выбрать. -->
+      <div class="diag-gate" v-show="!recipientChosen">
+        <div class="diag-gate-card">
+          <div class="diag-gate-iconwrap" aria-hidden="true">
+            <div class="diag-gate-icon">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+          </div>
+          <div class="diag-gate-body">
+            <h2 class="diag-gate-title">{{ gateTitle }}</h2>
+            <p class="diag-gate-text">{{ gateText }}</p>
+            <div v-if="gateHasButton" class="diag-gate-actions">
+              <button
+                type="button"
+                class="btn btn-primary diag-gate-btn"
+                @click="openRecipientPicker"
+              >
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                Выбрать реабилитанта
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="hero-sticky-sentinel" aria-hidden="true"></div>
 
@@ -1649,7 +1675,7 @@
       </div>
     </div>
 
-    <div class="save-bar" role="region" aria-label="Действия по диагностике" v-show="diagMode === 'card'">
+    <div class="save-bar" role="region" aria-label="Действия по диагностике" v-show="diagMode === 'card' && recipientChosen">
       <div class="save-bar-assign">
         <label for="assignment-target" class="save-bar-assign-label">Сохранить в назначение</label>
         <select id="assignment-target" class="save-bar-assign-select">
@@ -1748,6 +1774,35 @@ const isEmployee = computed(() => authStore.isEmployee)
 let employeeReadonlyGuards = null
 // profileKey проф. ориентации преподавателя (psy/log/izo/theatre/vocal/afk).
 const teacherProfileKey = ref('')
+
+// ── Ворота выбора реабилитанта ────────────────────────────────────────────
+// Карточка диагностики показывается ТОЛЬКО после явного выбора реабилитанта.
+// Сотрудник/Администратор выбирают из полного списка; преподаватель — только
+// из тех, кого направили на диагностику лично к нему (idSpecialist = его id).
+const recipientChosen = ref(false)
+// Сколько реабилитантов доступно преподавателю — определяет текст «ворот».
+const teacherAssignedCount = ref(0)
+
+const gateHasButton = computed(() =>
+  authStore.isTeacher ? teacherAssignedCount.value > 0 : true
+)
+const gateTitle = computed(() => {
+  if (authStore.isTeacher && teacherAssignedCount.value === 0) {
+    return 'Пока нет направлений на диагностику'
+  }
+  return 'Выберите реабилитанта'
+})
+const gateText = computed(() => {
+  if (authStore.isTeacher) {
+    return teacherAssignedCount.value === 0
+      ? 'Реабилитант появится здесь, как только его направят к вам на диагностику.'
+      : 'Выберите реабилитанта из направленных к вам на диагностику, чтобы открыть карточку.'
+  }
+  return 'Чтобы открыть карточку диагностики, сначала выберите реабилитанта из списка.'
+})
+function openRecipientPicker() {
+  if (typeof window.__openRecipientPicker === 'function') window.__openRecipientPicker()
+}
 
 /* =====================================================================
    Переключатель режимов вкладки «Диагностика»:
@@ -2125,23 +2180,53 @@ onMounted(() => {
         const rows = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
         if (rows.length) {
           diagnosticsRuntime.recipients = rows.map((row, idx) => normalizeRecipient(row, idx));
-          // Выбираем сохранённого реабилитанта, если он есть в реальном списке,
-          // иначе — первого реального (а не «жёстко зашитую» Марию).
-          const savedId = getSavedRecipientId();
-          const match = savedId != null
-            ? diagnosticsRuntime.recipients.find(r => String(r.id) === String(savedId))
-            : null;
-          updateRecipientUI(match || diagnosticsRuntime.recipients[0], { silent: true });
-          renderRecipientList();
-        } else if (!getSavedRecipientId()) {
-          // База пуста и ничего не сохранено — показываем локальный список,
-          // чтобы страница оставалась рабочей.
-          updateRecipientUI(FALLBACK_RECIPIENTS[0], { silent: true });
-          renderRecipientList();
+        } else {
+          // База пуста — оставляем локальный список, чтобы окно выбора работало.
+          diagnosticsRuntime.recipients = FALLBACK_RECIPIENTS.map((row, idx) => normalizeRecipient(row, idx));
         }
+        // Реабилитант НЕ выбирается автоматически — выбор всегда явный («ворота»).
+        renderRecipientList();
       } catch (err) {
 
         console.warn('Не удалось загрузить реабилитантов из проекта, используется локальный список', err);
+      }
+    }
+
+    // Список для преподавателя: только реабилитанты, которых направили на
+    // диагностику лично к нему (ReResult.idSpecialist = его userId и запись ещё
+    // не опубликована). Пока таких нет — список пуст и «ворота» это показывают.
+    async function loadTeacherAssignedRecipients() {
+      const specialistId = authStore.user?.id;
+      if (!specialistId) {
+        diagnosticsRuntime.recipients = [];
+        teacherAssignedCount.value = 0;
+        renderRecipientList();
+        return;
+      }
+      try {
+        const { data } = await api.get('/diagnostics', { params: { specialistId, limit: 500 } });
+        const rows = Array.isArray(data?.data) ? data.data : [];
+        const pending = rows.filter((r) => !r.published);
+        // Уникальные реабилитанты (порядок сохраняем) с базовой инфой из назначения.
+        const byId = new Map();
+        for (const r of pending) {
+          const rec = r.recipient;
+          if (rec && rec.id != null && !byId.has(rec.id)) byId.set(rec.id, rec);
+        }
+        // Обогащаем полными данными (возраст/диагноз/группа) через /recipients/:id.
+        const ids = [...byId.keys()];
+        const full = await Promise.all(ids.map(async (id) => {
+          try { return (await api.get('/recipients/' + id)).data; }
+          catch { return byId.get(id); }
+        }));
+        diagnosticsRuntime.recipients = full.map((row, idx) => normalizeRecipient(row, idx));
+        teacherAssignedCount.value = diagnosticsRuntime.recipients.length;
+        renderRecipientList();
+      } catch (err) {
+        console.warn('Не удалось загрузить направленных на диагностику', err);
+        diagnosticsRuntime.recipients = [];
+        teacherAssignedCount.value = 0;
+        renderRecipientList();
       }
     }
 
@@ -2285,6 +2370,7 @@ onMounted(() => {
           </span>`;
         btn.addEventListener('click', () => {
           updateRecipientUI(r);
+          recipientChosen.value = true; // выбор сделан — «ворота» вниз, карточка открыта
           window.setDiagnosticCompleted?.(false);
           closeRecipientModal();
         });
@@ -2315,14 +2401,17 @@ onMounted(() => {
       // Стартовый placeholder на время загрузки — без «жёстко зашитой» Марии.
       // Реальный реабилитант выбирается в loadRecipientsFromProject() после
       // получения списка из базы.
-      let savedRecipient = null;
-      try { savedRecipient = JSON.parse(localStorage.getItem('diagnostics.selectedRecipient') || 'null'); } catch (_) {}
-      if (savedRecipient?.fullName) {
-        updateRecipientUI(savedRecipient, { silent: true });
+      // Выбор реабилитанта всегда явный — сохранённого из localStorage больше
+      // НЕ восстанавливаем автоматически. Показываем нейтральный плейсхолдер, а
+      // поверх карточки — «ворота» выбора (см. recipientChosen в шаблоне).
+      updateRecipientUI({ id: '', fullName: '—', diagnosis: '', groupName: '', code: '', age: '' }, { silent: true });
+      // Позволяем «воротам» (Vue-кнопке) открывать это же модальное окно выбора.
+      window.__openRecipientPicker = openRecipientModal;
+      if (authStore.isTeacher) {
+        loadTeacherAssignedRecipients();
       } else {
-        updateRecipientUI({ id: '', fullName: 'Загрузка…', diagnosis: '', groupName: '', code: '', age: '' }, { silent: true });
+        loadRecipientsFromProject();
       }
-      loadRecipientsFromProject();
 
       const nameEl = document.getElementById('hero-name');
       if (nameEl) {
@@ -4326,6 +4415,8 @@ onUnmounted(() => {
   document.documentElement.style.removeProperty('--fab-offset');
   // Снимаем жёсткую привязку профиля, чтобы она не «протекла» на другую роль.
   window.__forcedProfileKey = '';
+  // Снимаем мост к окну выбора реабилитанта.
+  window.__openRecipientPicker = null;
   // Снимаем слушатели режима «только просмотр» сотрудника.
   if (employeeReadonlyGuards) {
     employeeReadonlyGuards.forEach(([evt, fn]) => document.removeEventListener(evt, fn, true));
@@ -4337,6 +4428,126 @@ onUnmounted(() => {
 
 <style>
 @import url("https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap");
+
+/* ============================================================
+   «Ворота» выбора реабилитанта: пока реабилитант не выбран,
+   вся карточка диагностики скрыта, показывается только приглашение.
+   Палитра — родная «бумажно-шалфейная» (--paper / --sage-* / --ink-*).
+   ============================================================ */
+.content.is-gated > *:not(.diag-gate) { display: none !important; }
+/* Ворота центрируем по середине доступной области страницы. */
+.diag-gate {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 70vh;
+  padding: 2rem 1rem;
+}
+/* Карточка — ГОРИЗОНТАЛЬНАЯ: круглая иконка слева, текст и действия справа.
+   Просторные отступы, чтобы иконка не упиралась в края (как в макете). */
+.diag-gate-card {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 3rem;
+  max-width: 1040px;
+  width: 100%;
+  padding: 3.875rem 4.25rem;
+  /* Мягкая шалфейная «подсветка» слева поверх бумажного фона. */
+  background:
+    radial-gradient(120% 150% at 14% 50%, var(--sage-50, #EEF4E2) 0%, rgba(238, 244, 226, 0) 55%),
+    var(--paper, #fff);
+  border: 1px solid var(--line, #E4DECF);
+  border-radius: 30px;
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.7) inset,
+    0 2px 4px rgba(30, 47, 30, 0.04),
+    0 32px 64px -32px rgba(30, 47, 30, 0.32);
+}
+/* Внешний круг-ореол: мягкая радиальная подсветка вокруг иконки.
+   Отдельным элементом (не псевдо-z-index), поэтому виден поверх карточки. */
+.diag-gate-iconwrap {
+  flex: none;
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(circle, rgba(95, 126, 69, 0.16) 0%, rgba(95, 126, 69, 0.06) 54%, rgba(95, 126, 69, 0) 72%);
+}
+/* Внутренний круг с заливкой градиентом шалфея. */
+.diag-gate-icon {
+  width: 152px;
+  height: 152px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  background: linear-gradient(155deg, var(--sage-500, #5F7E45) 0%, var(--sage-900, #1E2F1E) 100%);
+  box-shadow: 0 20px 40px -14px rgba(30, 47, 30, 0.5);
+}
+.diag-gate-icon svg { width: 68px; height: 68px; }
+/* Правая колонка — текст и действия, выравнивание по левому краю. */
+.diag-gate-body {
+  min-width: 0;
+  text-align: left;
+}
+.diag-gate-title {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--ink-strong, #0F140F);
+  letter-spacing: -0.02em;
+  margin: 0 0 0.75rem;
+}
+.diag-gate-text {
+  font-size: 1.0625rem;
+  color: var(--ink-subtle, #6E7368);
+  line-height: 1.6;
+  max-width: 460px;
+  margin: 0 0 1.875rem;
+}
+/* Строка действий с кнопкой — слегка сдвинута правее относительно текста. */
+.diag-gate-actions {
+  display: flex;
+  align-items: center;
+  gap: 1.375rem;
+  flex-wrap: wrap;
+  margin-left: 2rem;
+}
+.diag-gate-btn.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.9375rem 1.875rem;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: 14px;
+  box-shadow: 0 12px 24px -12px rgba(30, 47, 30, 0.55);
+  transition: background 0.16s ease, transform 0.16s ease, box-shadow 0.16s ease;
+}
+.diag-gate-btn.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 16px 30px -12px rgba(30, 47, 30, 0.62);
+}
+.diag-gate-btn.btn-primary:active { transform: translateY(0); }
+.diag-gate-btn svg { width: 18px; height: 18px; }
+
+/* Узкие экраны — складываем карточку в колонку и центрируем. */
+@media (max-width: 700px) {
+  .diag-gate-card {
+    flex-direction: column;
+    gap: 1.75rem;
+    text-align: center;
+    padding: 2.5rem 1.75rem;
+  }
+  .diag-gate-body { text-align: center; }
+  .diag-gate-text { margin-left: auto; margin-right: auto; }
+  .diag-gate-actions { justify-content: center; margin-left: 0; }
+  .diag-gate-iconwrap { width: 168px; height: 168px; }
+  .diag-gate-icon { width: 128px; height: 128px; }
+  .diag-gate-icon svg { width: 56px; height: 56px; }
+}
 
 /* ============================================================
    Роль «Сотрудник» — карточка диагностики ТОЛЬКО для просмотра.
@@ -4952,15 +5163,16 @@ onUnmounted(() => {
       margin: 0 auto;
       padding: 1.25rem 2rem 0;
       display: flex;
-      gap: 0.5rem;
+      justify-content: center;
+      gap: 0.75rem;
     }
     .diagnostics-page .diag-mode-btn{
       display: inline-flex;
       align-items: center;
-      gap: 0.5rem;
-      padding: 0.6rem 1.1rem;
+      gap: 0.6rem;
+      padding: 0.85rem 1.7rem;
       font-family: var(--font-sans);
-      font-size: 0.9rem;
+      font-size: 1.05rem;
       font-weight: 600;
       color: var(--ink-muted);
       background: var(--paper);
@@ -4969,7 +5181,7 @@ onUnmounted(() => {
       cursor: pointer;
       transition: background 0.15s, color 0.15s, border-color 0.15s, box-shadow 0.15s;
     }
-    .diagnostics-page .diag-mode-btn svg{ width: 1.05rem; height: 1.05rem; }
+    .diagnostics-page .diag-mode-btn svg{ width: 1.25rem; height: 1.25rem; }
     .diagnostics-page .diag-mode-btn:hover{ border-color: var(--line-strong); background: var(--paper-soft); }
     .diagnostics-page .diag-mode-btn.active{
       color: #F4F8EC;

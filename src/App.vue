@@ -82,6 +82,7 @@ watch(() => pageStore.current, () => {
 
 onMounted(async () => {
   await authStore.checkAuth();
+  pageStore.initHistory();
   window.addEventListener('resize', handleResize);
 });
 
@@ -167,8 +168,14 @@ body.high-contrast {
 body.large-text { font-size: 1.125rem; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
+/* Единый шрифт всего приложения — Arial.
+   !important нужен, т.к. компоненты задают свои шрифты (Lora/Inter/DM Sans…)
+   в scoped-стилях с более высокой специфичностью. */
+*, *::before, *::after {
+  font-family: Arial, Helvetica, sans-serif !important;
+}
 body {
-  font-family: 'DM Sans', system-ui, sans-serif;
+  font-family: Arial, Helvetica, sans-serif;
   background: var(--bg-app);
   color: var(--text-primary);
   transition: background var(--transition), color var(--transition);

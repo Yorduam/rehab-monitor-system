@@ -127,7 +127,7 @@
       </button>
     </nav>
 
-    <span class="s-section-label">Аналитика</span>
+    <span class="s-section-label">Приём</span>
     <nav class="s-nav">
       <button
         v-for="item in adminAnalyticsNav"
@@ -225,7 +225,7 @@
       </button>
     </nav>
 
-    <span class="s-section-label">Аналитика</span>
+    <span class="s-section-label">Приём</span>
     <nav class="s-nav">
       <button
         class="s-item"

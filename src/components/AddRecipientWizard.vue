@@ -506,9 +506,9 @@
                     <div class="rw-gen-title">Сформировать пакет из 3 документов</div>
                     <div class="rw-gen-sub">Заполнятся автоматически: ФИО представителя и реабилитанта, паспортные данные, адреса, дата рождения, особенности</div>
                   </div>
-                  <button class="rw-btn rw-btn-primary" type="button" @click="docsGenerated = true">
+                  <button class="rw-btn rw-btn-primary" type="button" @click="generateDocs">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                    Сгенерировать
+                    {{ docsGenerated ? 'Сформировано' : 'Сгенерировать' }}
                   </button>
                 </div>
                 <div class="rw-gen-docs">
@@ -522,9 +522,9 @@
                       <div class="rw-gd-sub">{{ gd.sub }}</div>
                     </div>
                     <div class="rw-gd-actions">
-                      <button class="rw-btn rw-btn-secondary rw-btn-sm" type="button" :disabled="!docsGenerated">
+                      <button class="rw-btn rw-btn-secondary rw-btn-sm" type="button" :disabled="!docsGenerated || downloadingDoc === gd.k" @click="downloadDoc(gd.k)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        Скачать
+                        {{ downloadingDoc === gd.k ? 'Скачивание…' : 'Скачать' }}
                       </button>
                     </div>
                   </div>
@@ -563,13 +563,17 @@
                 </div>
               </div>
 
-              <label class="rw-switch-row" style="margin-top:1.5rem">
+              <label class="rw-switch-row" :class="{ 'is-locked': !packageComplete }" style="margin-top:1.5rem">
                 <div class="rw-sr-text">
                   <div class="rw-sr-title">Подтверждаю комплектность пакета документов</div>
                   <div class="rw-sr-sub">Все сканы соответствуют оригиналам, согласия и заявление подписаны законным представителем</div>
+                  <div v-if="!packageComplete" class="rw-sr-lock">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    Заполните все обязательные поля и прикрепите все обязательные документы на всех этапах — только тогда можно подтвердить комплектность.
+                  </div>
                 </div>
                 <span class="rw-switch">
-                  <input type="checkbox" v-model="f.consentConfirmed" />
+                  <input type="checkbox" v-model="f.consentConfirmed" :disabled="!packageComplete" />
                   <span class="rw-slider"></span>
                 </span>
               </label>
@@ -601,7 +605,7 @@
             Далее
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
           </button>
-          <button v-else class="rw-btn rw-btn-primary" type="button" :disabled="saving" @click="save">
+          <button v-else class="rw-btn rw-btn-primary" type="button" :disabled="saving || !f.consentConfirmed" :title="!f.consentConfirmed ? 'Подтвердите комплектность пакета документов, чтобы сохранить карточку' : ''" @click="save">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             {{ saving ? 'Сохранение…' : 'Сохранить и создать карточку' }}
           </button>
@@ -950,6 +954,22 @@ const overallProgress = computed(() => {
 // Все три этапа заполнены полностью → загорается финишная отметка «дороги».
 const allComplete = computed(() => stepProgress.value.every((s) => s.complete));
 
+// Комплектность пакета БЕЗ учёта самого тумблера подтверждения:
+// все обязательные поля шагов 1–2, все обязательные сканы, сгенерированные
+// и подписанные документы. Пока это не выполнено — подтвердить нельзя.
+const packageComplete = computed(() => {
+  const [s1, s2, s3] = requiredChecks.value;
+  // последний пункт s3 — это сам тумблер consentConfirmed, его исключаем
+  return s1.every(Boolean) && s2.every(Boolean) && s3.slice(0, -1).every(Boolean);
+});
+
+// Если комплектность нарушилась (убрали скан / очистили поле уже после
+// подтверждения) — автоматически снимаем тумблер, чтобы его нельзя было
+// «оставить» включённым при неполном пакете.
+watch(packageComplete, (ok) => {
+  if (!ok && f.value.consentConfirmed) f.value.consentConfirmed = false;
+});
+
 // ── Черновик: данные не теряются при случайном закрытии вкладки ──
 const loadDraft = () => {
   try {
@@ -1054,6 +1074,52 @@ const onSignedFile = (key, e) => {
   if (file) signedUploads.value = { ...signedUploads.value, [key]: file };
 };
 
+// ── Генерация документов на подпись (согласия + заявление) ──────────────
+const downloadingDoc = ref('');
+
+const generateDocs = () => {
+  if (!f.value.rLast || !f.value.rFirst) {
+    alert('Заполните ФИО реабилитанта (шаг 2), чтобы сформировать документы');
+    return;
+  }
+  docsGenerated.value = true;
+};
+
+// gd.k ('pdn' | 'photo' | 'diag') совпадает с docType на бэкенде.
+const downloadDoc = async (key) => {
+  if (!docsGenerated.value || downloadingDoc.value) return;
+  downloadingDoc.value = key;
+  try {
+    const resp = await api.post(
+      '/documents/generate',
+      { docType: key, form: f.value },
+      { responseType: 'blob' }
+    );
+    let filename = key === 'diag' ? 'Заявление.docx' : 'Согласие.docx';
+    const cd = resp.headers['content-disposition'] || '';
+    const star = cd.match(/filename\*=UTF-8''([^;]+)/i);
+    if (star) {
+      filename = decodeURIComponent(star[1]);
+    } else {
+      const plain = cd.match(/filename="?([^"]+)"?/i);
+      if (plain) filename = plain[1];
+    }
+    const url = URL.createObjectURL(resp.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error(err);
+    alert('Не удалось сформировать документ. Попробуйте ещё раз.');
+  } finally {
+    downloadingDoc.value = '';
+  }
+};
+
 const fileToBase64 = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
@@ -1064,6 +1130,11 @@ const fileToBase64 = (file) => new Promise((resolve, reject) => {
 const save = async () => {
   if (!f.value.rLast || !f.value.rFirst) {
     alert('Заполните ФИО реабилитанта (шаг 2)');
+    return;
+  }
+  if (!f.value.consentConfirmed) {
+    alert('Нельзя сохранить карточку: сначала заполните все этапы, поля и обязательные сканы, затем включите «Подтверждаю комплектность пакета документов».');
+    step.value = steps.length; // перекинуть на шаг с тумблером подтверждения
     return;
   }
   saving.value = true;
@@ -1145,7 +1216,8 @@ const save = async () => {
     emit('close');
   } catch (err) {
     console.error(err);
-    alert('Ошибка при сохранении');
+    const msg = err?.response?.data?.message || err?.message || 'неизвестная ошибка';
+    alert('Ошибка при сохранении: ' + msg);
   } finally {
     saving.value = false;
   }
@@ -1868,6 +1940,16 @@ onUnmounted(() => {
 }
 .rw-switch input:checked + .rw-slider { background: var(--rw-sage-500); }
 .rw-switch input:checked + .rw-slider::before { transform: translateX(1.125rem); }
+.rw-switch input:disabled + .rw-slider { cursor: not-allowed; opacity: 0.55; }
+.rw-switch-row.is-locked { cursor: not-allowed; }
+.rw-switch-row.is-locked .rw-slider { cursor: not-allowed; }
+.rw-sr-lock {
+  display: flex; align-items: flex-start; gap: 0.4rem;
+  margin-top: 0.5rem;
+  font-size: 0.8125rem; font-weight: 500; line-height: 1.4;
+  color: var(--rw-amber-700);
+}
+.rw-sr-lock svg { width: 0.95rem; height: 0.95rem; flex: 0 0 auto; margin-top: 0.06rem; color: var(--rw-amber-500); }
 .rw-subsection {
   margin-top: 1.75rem; padding-top: 1.5rem;
   border-top: 1px solid var(--rw-line-soft);
