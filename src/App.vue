@@ -111,6 +111,9 @@ onUnmounted(() => {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 :root {
+  /* Шрифты проекта — как в макете. */
+  --font-serif: 'Lora', 'Times New Roman', Georgia, serif;
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --bg-app: #F7F4ED;
   --bg-sidebar: #0b2b3f;
   --bg-surface: #ffffff;
@@ -168,18 +171,18 @@ body.high-contrast {
 body.large-text { font-size: 1.125rem; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
-/* Единый шрифт всего приложения — Arial.
-   !important нужен, т.к. компоненты задают свои шрифты (Lora/Inter/DM Sans…)
-   в scoped-стилях с более высокой специфичностью. */
-*, *::before, *::after {
-  font-family: Arial, Helvetica, sans-serif !important;
-}
+/* Шрифты — как в макете: Inter (основной, наследуется от body) и Lora
+   (заголовки/крупные числа). Компоненты сами выбирают начертание через
+   var(--font-sans)/var(--font-serif); глобального !important-переопределения
+   больше НЕТ — иначе оно затирало бы Lora в заголовках. */
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
   background: var(--bg-app);
   color: var(--text-primary);
   transition: background var(--transition), color var(--transition);
 }
+/* Элементы форм по умолчанию не наследуют шрифт — принудительно наследуем Inter. */
+input, select, textarea, button { font-family: inherit; }
 .app { display: flex; min-height: 100vh; }
 .main { flex: 1; margin-left: var(--sidebar-width, 260px); display: flex; flex-direction: column; }
 .content { padding: 1.75rem; }

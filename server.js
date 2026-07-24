@@ -3,6 +3,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit from 'express-rate-limit';
+import jwt from 'jsonwebtoken';
 import pinoHttp from 'pino-http';
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
@@ -33,12 +34,27 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(cookieParser());
 
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: 100,
-  message: 'Too many requests, please try again later.',
+
+function isAuthenticated(req) {
+  const token = req.cookies?.token;
+  if (!token) return false;
+  try {
+    jwt.verify(token, process.env.JWT_SECRET);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+const guestLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000, // 1 час
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => isAuthenticated(req),
+  message: { message: 'Слишком много запросов. Попробуйте позже (примерно через час).' },
 });
-app.use('/api', limiter);
+app.use('/api', guestLimiter);
 
 app.use(pinoHttp({ logger, genReqId: (req) => req.headers['x-request-id'] || uuidv4() }));
 app.use(requestId);

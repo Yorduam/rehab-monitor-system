@@ -441,7 +441,7 @@ onMounted(() => {
   color: #D5DDC9;
   padding: 1.5rem 1rem 1rem;
   gap: 0;
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: var(--font-sans);
   font-size: 0.875rem;
   line-height: 1.5;
 }
@@ -462,14 +462,14 @@ onMounted(() => {
   border-radius: 0.625rem;
   display: grid;
   place-items: center;
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--font-serif);
   font-weight: 500;
   font-size: 1.25rem;
   letter-spacing: -0.02em;
   flex-shrink: 0;
 }
 .s-brand-name {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--font-serif);
   font-size: 1rem;
   font-weight: 500;
   color: #FFFFFF;
@@ -586,7 +586,7 @@ onMounted(() => {
   color: #3F1D00;
   display: grid;
   place-items: center;
-  font-family: Georgia, serif;
+  font-family: var(--font-serif);
   font-size: 0.8125rem;
   font-weight: 600;
   letter-spacing: -0.02em;

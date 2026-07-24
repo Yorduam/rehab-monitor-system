@@ -1309,6 +1309,9 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 64px - 3.5rem);
+  /* Резерв снизу, чтобы пагинация не оказывалась под плавающей кнопкой
+     помощника (она fixed в правом нижнем углу и перекрывала «На странице»). */
+  padding-bottom: 4rem;
 }
 @media (max-width: 768px) {
   /* На мобильном .content имеет отступ 1rem, а снизу закреплён навбар 70px. */
@@ -1553,6 +1556,8 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
   gap: 1rem;
+  /* Отступ до пагинации, иначе её верхняя линия «сливается» с карточками. */
+  margin-bottom: 1.5rem;
 }
 .t-rcard {
   position: relative;
@@ -2051,7 +2056,7 @@ onUnmounted(() => {
   border-radius: var(--radius-md); background: #FFFFFF;
   color: #131713; font-size: .9rem; cursor: pointer;
 }
-.items-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; }
+.items-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; margin-bottom: 1.5rem; }
 @media (max-width: 900px) { .items-grid { grid-template-columns: repeat(2,1fr); } }
 @media (max-width: 640px) { .items-grid { grid-template-columns: 1fr; } }
 .item-card {

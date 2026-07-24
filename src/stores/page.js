@@ -32,6 +32,18 @@ function buildUrl(page, params = {}) {
   return url
 }
 
+// history.replaceState/pushState клонируют аргумент алгоритмом structured clone,
+// а он НЕ умеет клонировать реактивные Proxy из Vue/Pinia (this.params — именно
+// такой) и бросает DataCloneError. Поэтому кладём в историю только «сырой»
+// сериализуемый снимок объекта.
+function plain(obj) {
+  try {
+    return JSON.parse(JSON.stringify(obj ?? {}))
+  } catch {
+    return {}
+  }
+}
+
 function parseUrl() {
   if (typeof window === 'undefined') return null
   const hash = window.location.hash || ''
@@ -103,7 +115,7 @@ export const usePageStore = defineStore('page', {
       // Фиксируем текущую страницу как стартовую запись истории c её URL,
       // иначе кнопке «Назад» некуда возвращаться на первом переходе.
       window.history.replaceState(
-        { __page: { page: this.current, title: this.title, params: this.params } },
+        { __page: { page: this.current, title: this.title, params: plain(this.params) } },
         '',
         buildUrl(this.current, this.params)
       )
@@ -137,7 +149,7 @@ export const usePageStore = defineStore('page', {
       // pushState НЕ вызывает popstate/hashchange — поэтому лишних срабатываний нет.
       if (!restoring && !sameState && typeof window !== 'undefined') {
         window.history.pushState(
-          { __page: { page, title, params } },
+          { __page: { page, title, params: plain(params) } },
           '',
           buildUrl(page, params)
         )
