@@ -218,6 +218,7 @@
                 class="t-rcard"
                 :class="[
                   stripeStatus(r) ? `stripe-${stripeStatus(r)}` : '',
+                  attendanceClass(r),
                   { 'archived-card': r.status === 'archived', 'selected': selectedIds.includes(r.id) }
                 ]"
                 role="listitem"
@@ -347,6 +348,49 @@
                       </div>
                     </div>
                   </div>
+                </div>
+
+                <div
+                  v-if="authStore.isTeacher"
+                  class="t-att-mark"
+                  role="group"
+                  aria-label="Отметка посещения"
+                  @click.stop
+                  style="position:relative;z-index:6"
+                >
+                  <button
+                    type="button"
+                    class="t-att-btn is-present"
+                    :class="{ active: attendanceOf(r) === 'present' }"
+                    :aria-pressed="attendanceOf(r) === 'present'"
+                    :disabled="attendanceSaving[r.id]"
+                    @click.stop="setAttendance(r, 'present')"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+                    <span>Был</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="t-att-btn is-absent"
+                    :class="{ active: attendanceOf(r) === 'absent' }"
+                    :aria-pressed="attendanceOf(r) === 'absent'"
+                    :disabled="attendanceSaving[r.id]"
+                    @click.stop="setAttendance(r, 'absent')"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                    <span>Частично</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="t-att-btn is-left"
+                    :class="{ active: attendanceOf(r) === 'left' }"
+                    :aria-pressed="attendanceOf(r) === 'left'"
+                    :disabled="attendanceSaving[r.id]"
+                    @click.stop="setAttendance(r, 'left')"
+                  >
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+                    <span>Не был</span>
+                  </button>
                 </div>
 
                 <div
@@ -487,11 +531,11 @@
           </button>
         </div>
 
-        <Pagination
-          v-if="totalPages > 1"
+        <RecipientsPager
           :page="page"
           :total-pages="totalPages"
           :limit="limit"
+          :total="totalCount"
           @update:page="changePage"
           @update:limit="changeLimit"
         />
@@ -617,7 +661,7 @@
         </div>
       </div>
 
-      <Pagination v-if="totalPages > 1" :page="page" :total-pages="totalPages" :limit="limit" @update:page="changePage" @update:limit="changeLimit" />
+      <RecipientsPager :page="page" :total-pages="totalPages" :limit="limit" :total="totalCount" @update:page="changePage" @update:limit="changeLimit" />
 
       <Modal v-if="showModal && editId" :title="modalTitle" @close="closeModal">
         <form @submit.prevent="saveRecipient" class="recipient-form">
@@ -700,7 +744,7 @@ import { usePageStore } from '../stores/page';
 import api from '../api';
 import { fullName, recipientAge, initials, statusLabel } from '../utils/recipient';
 import Modal from '../components/Modal.vue';
-import Pagination from '../components/Pagination.vue';
+import RecipientsPager from '../components/RecipientsPager.vue';
 import AddRecipientWizard from '../components/AddRecipientWizard.vue';
 
 const authStore = useAuthStore();
@@ -716,7 +760,7 @@ const groupsList   = ref([]);
 const search       = ref('');
 const filterDiagnosis = ref('all');
 const page         = ref(1);
-const limit        = ref(15);
+const limit        = ref(12);
 const totalPages   = ref(1);
 const totalCount   = ref(0);
 const loading      = ref(true);
@@ -972,6 +1016,42 @@ const nextClassLabel = (r) => {
   return 'Нет записи';
 };
 
+// --- Отметка посещения (присутствует / отсутствует / ушёл) ---
+// Отметка действует в пределах текущего дня: если attendanceDate не «сегодня»,
+// она считается неактуальной и карточка снова нейтральная. Именно 'present'
+// открывает реабилитанта на вкладке «Диагностика» (при наличии направления).
+const attendanceSaving = ref({});
+const attendanceOf = (r) =>
+  r && r.attendanceDate === todayIso ? (r.attendanceStatus || null) : null;
+const attendanceClass = (r) => {
+  // Тонировка — только у преподавателя (кнопки посещения тоже только у него).
+  if (!authStore.isTeacher) return '';
+  const s = attendanceOf(r);
+  return s ? `att-${s}` : '';
+};
+const setAttendance = async (r, status) => {
+  if (attendanceSaving.value[r.id]) return;
+  if (attendanceOf(r) === status) return;          // уже отмечено этим статусом
+  const prevStatus = r.attendanceStatus;
+  const prevDate = r.attendanceDate;
+  // Оптимистично красим карточку сразу, до ответа сервера.
+  r.attendanceStatus = status;
+  r.attendanceDate = todayIso;
+  attendanceSaving.value = { ...attendanceSaving.value, [r.id]: true };
+  try {
+    await api.put(`/recipients/${r.id}/attendance`, { status });
+  } catch (err) {
+    console.error('setAttendance', err);
+    r.attendanceStatus = prevStatus;               // откат при ошибке
+    r.attendanceDate = prevDate;
+    alert('Не удалось сохранить отметку посещения. Попробуйте ещё раз.');
+  } finally {
+    const next = { ...attendanceSaving.value };
+    delete next[r.id];
+    attendanceSaving.value = next;
+  }
+};
+
 // --- Тултип флага по тапу (для тач-устройств) ---
 const flagKey = (r, kind) => `${r.id}:${kind}`;
 const isFlagTipOpen = (r, kind) => openTip.value === flagKey(r, kind);
@@ -1224,6 +1304,15 @@ onUnmounted(() => {
   max-width: none;
   margin-inline: 0;
   padding-inline: 0;
+  /* На всю высоту области контента (вьюпорт минус шапка 64px и вертикальные
+     отступы .content 2×1.75rem), чтобы пагинация прижималась к самому низу. */
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - 64px - 3.5rem);
+}
+@media (max-width: 768px) {
+  /* На мобильном .content имеет отступ 1rem, а снизу закреплён навбар 70px. */
+  .erp-r-teacher { min-height: calc(100vh - 64px - 2rem - 70px); }
 }
 .sr-only {
   position: absolute; width: 1px; height: 1px;
@@ -1680,6 +1769,49 @@ onUnmounted(() => {
   line-height: 1.2;
 }
 .t-next-class.soon { color: var(--t-sage-700); }
+
+/* --- Отметка посещения: 3 кнопки внизу карточки + подсветка карточки --- */
+.t-att-mark {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.375rem;
+  padding: 0.5rem 0.75rem 0.75rem;
+  border-top: 1px solid var(--t-line-soft);
+}
+.t-att-btn {
+  min-width: 0;
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 0.3rem;
+  padding: 0.45rem 0.3rem;
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-r-md);
+  background: var(--t-paper);
+  color: var(--t-ink-muted);
+  font-size: 0.72rem; font-weight: 600; line-height: 1;
+  cursor: pointer;
+  transition: background 150ms, color 150ms, border-color 150ms, box-shadow 150ms;
+}
+.t-att-btn svg { width: 0.85rem; height: 0.85rem; flex: 0 0 auto; }
+.t-att-btn span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.t-att-btn:hover:not(:disabled) { border-color: var(--t-line-strong); color: var(--t-ink-strong); }
+.t-att-btn:disabled { opacity: 0.6; cursor: default; }
+.t-att-btn.is-present.active {
+  background: var(--t-sage-500); border-color: var(--t-sage-500); color: #fff;
+  box-shadow: 0 1px 3px rgba(63,110,63,.35);
+}
+.t-att-btn.is-absent.active {
+  background: var(--t-rose-500); border-color: var(--t-rose-500); color: #fff;
+  box-shadow: 0 1px 3px rgba(177,75,57,.35);
+}
+.t-att-btn.is-left.active {
+  background: var(--t-amber-500); border-color: var(--t-amber-500); color: #fff;
+  box-shadow: 0 1px 3px rgba(185,119,24,.35);
+}
+/* Тонировка всей карточки по отметке (приоритет над полоской stripe-*) */
+.t-rcard.att-present { background: var(--t-sage-50);  border-color: var(--t-sage-100);  border-left: 4px solid var(--t-sage-500); }
+.t-rcard.att-absent  { background: var(--t-rose-50);  border-color: var(--t-rose-100);  border-left: 4px solid var(--t-rose-500); }
+.t-rcard.att-left    { background: var(--t-amber-50); border-color: var(--t-amber-100); border-left: 4px solid var(--t-amber-500); }
+
 .t-rcard-actions { display: flex; gap: 0.125rem; }
 .t-action-btn {
   width: var(--t-tap); height: var(--t-tap);

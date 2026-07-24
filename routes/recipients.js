@@ -8,7 +8,7 @@ import {
   Recipient, ReGroup, LegalRepresentative,
   Nozology, CRG, CRGDesc, User,
   RecipientDoc, RecipientScanDoc, ReResult, CRGRecipientSec, DocType,
-  ScheduleEvent
+  ScheduleEvent, Direction
 } from '../models/index.js';
 
 const router = express.Router();
@@ -16,7 +16,7 @@ const router = express.Router();
 const groupInclude = {
   model: ReGroup,
   as: 'group',
-  include: [{ model: User, as: 'curatorUser', attributes: ['id', 'firstName', 'lastName', 'email', 'fullName'] }]
+  include: [{ model: User, as: 'curatorUser', attributes: ['id', 'firstName', 'lastName', 'email', 'phone', 'fullName'] }]
 };
 const listInclude = [groupInclude];
 const detailInclude = [
@@ -183,6 +183,26 @@ router.get('/:id', authMiddleware, async (req, res, next) => {
   }
 });
 
+// Лента событий реабилитанта из расписания (ScheduleEvent) с преподавателем и
+// направлением. Используется карточкой реабилитанта для блоков «Последние
+// занятия», «Ближайшие события» и «Команда сопровождения», а также счётчиков
+// вкладок. Отменённые события (status='cancelled') исключаем.
+router.get('/:id/agenda', authMiddleware, async (req, res, next) => {
+  try {
+    const events = await ScheduleEvent.findAll({
+      where: { recipientId: req.params.id, status: { [Op.ne]: 'cancelled' } },
+      include: [
+        { model: User, as: 'specialist', attributes: ['id', 'firstName', 'lastName', 'email', 'phone', 'fullName'] },
+        { model: Direction, as: 'direction', attributes: ['id', 'name'] }
+      ],
+      order: [['date', 'ASC'], ['startTime', 'ASC']]
+    });
+    res.json({ events });
+  } catch (err) {
+    next(err);
+  }
+});
+
 const onlyDigits = (s) => (s || '').replace(/\D/g, '');
 
 router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
@@ -337,6 +357,38 @@ router.put('/:id', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'
 
     const updated = await Recipient.findByPk(recipient.id, { include: detailInclude });
     res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Отметка посещения на «сегодня»: 'present' | 'absent' | 'left' | null (снять).
+// Ставит преподаватель на вкладке «Реабилитанты». Именно статус 'present'
+// открывает карточку реабилитанта на вкладке «Диагностика» (если он направлен
+// на диагностику именно к этому преподавателю). Дата фиксируется на серверный
+// «сегодня», чтобы отметка действовала только в пределах текущего дня.
+router.put('/:id/attendance', authMiddleware, roleMiddleware('admin', 'teacher'), async (req, res, next) => {
+  try {
+    const recipient = await Recipient.findByPk(req.params.id);
+    if (!recipient) return res.status(404).json({ message: 'Реабилитант не найден' });
+
+    const raw = req.body?.status;
+    const allowed = ['present', 'absent', 'left'];
+    const status = raw == null || raw === '' ? null : String(raw);
+    if (status !== null && !allowed.includes(status)) {
+      return res.status(400).json({ message: 'Недопустимый статус посещения' });
+    }
+
+    await recipient.update({
+      attendanceStatus: status,
+      attendanceDate: status ? fmtDate(new Date()) : null
+    });
+
+    res.json({
+      id: recipient.id,
+      attendanceStatus: recipient.attendanceStatus,
+      attendanceDate: recipient.attendanceDate
+    });
   } catch (err) {
     next(err);
   }

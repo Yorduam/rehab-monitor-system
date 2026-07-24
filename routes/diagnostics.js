@@ -1,6 +1,6 @@
 import express from 'express';
 import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
-import { ReResult, Recipient, Direction, User } from '../models/index.js';
+import { ReResult, Recipient, Direction, User, ScheduleEvent, sequelize } from '../models/index.js';
 
 const router = express.Router();
 
@@ -60,6 +60,7 @@ router.get('/', authMiddleware, async (req, res) => {
 });
 
 router.post('/', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res) => {
+  const t = await sequelize.startUnmanagedTransaction();
   try {
     const { idRecipient, idDirection, idSpecialist, date, results, published } = req.body;
     const result = await ReResult.create({
@@ -69,10 +70,45 @@ router.post('/', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'),
       date,
       results: results ?? {},
       published: published ?? false
-    });
+    }, { transaction: t });
+
+    // Направление на диагностику должно попасть в расписание специалиста, иначе
+    // реабилитант не появится на вкладке «Реабилитанты» у преподавателя
+    // (та вкладка показывает только тех, у кого есть ScheduleEvent с этим специалистом).
+    // Форма назначения диагностики не задаёт время — ставим слот по умолчанию.
+    // Дедуп: если событие на эту дату/специалиста/направление уже есть — не плодим дубли.
+    if (idRecipient && idSpecialist && date) {
+      const existing = await ScheduleEvent.findOne({
+        where: {
+          specialistUserId: idSpecialist,
+          recipientId: idRecipient,
+          directionId: idDirection ?? null,
+          date,
+          type: 'diagnostic'
+        },
+        transaction: t
+      });
+      if (!existing) {
+        await ScheduleEvent.create({
+          specialistUserId: idSpecialist,
+          recipientId: idRecipient,
+          directionId: idDirection ?? null,
+          type: 'diagnostic',
+          title: 'Диагностика',
+          date,
+          startTime: '09:00:00',
+          endTime: '09:30:00',
+          status: 'scheduled',
+          createdBy: req.user.id
+        }, { transaction: t });
+      }
+    }
+
+    await t.commit();
     const full = await ReResult.findByPk(result.id, { include: resultInclude });
     res.status(201).json(serializeResult(full));
   } catch (err) {
+    await t.rollback();
     console.error(err);
     res.status(500).json({ message: 'Ошибка сервера' });
   }

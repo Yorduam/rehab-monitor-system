@@ -28,7 +28,14 @@ const Recipient = sequelize.define('Recipient', {
   diagnosis: { type: DataTypes.STRING(255), allowNull: false },
   nozology: { type: DataTypes.INTEGER, allowNull: false },
   groupId: { type: DataTypes.INTEGER, allowNull: true },
-  CRGMain: { type: DataTypes.INTEGER, allowNull: false }
+  CRGMain: { type: DataTypes.INTEGER, allowNull: false },
+
+  // Отметка посещения «на день», которую ставит преподаватель на вкладке
+  // «Реабилитанты». Именно статус 'present' открывает реабилитанта на вкладке
+  // «Диагностика» (при наличии направления). attendanceDate ограничивает
+  // действие отметки одним днём — назавтра она считается неактуальной.
+  attendanceStatus: { type: DataTypes.ENUM('present', 'absent', 'left'), allowNull: true, defaultValue: null },
+  attendanceDate: { type: DataTypes.DATEONLY, allowNull: true, defaultValue: null }
 }, {
   tableName: 'Recipients',
   timestamps: false

@@ -1788,15 +1788,15 @@ const gateHasButton = computed(() =>
 )
 const gateTitle = computed(() => {
   if (authStore.isTeacher && teacherAssignedCount.value === 0) {
-    return 'Пока нет направлений на диагностику'
+    return 'Нет отмеченных реабилитантов'
   }
   return 'Выберите реабилитанта'
 })
 const gateText = computed(() => {
   if (authStore.isTeacher) {
     return teacherAssignedCount.value === 0
-      ? 'Реабилитант появится здесь, как только его направят к вам на диагностику.'
-      : 'Выберите реабилитанта из направленных к вам на диагностику, чтобы открыть карточку.'
+      ? 'Отметьте «Присутствует» на вкладке «Реабилитанты» — и направленный на диагностику реабилитант появится здесь.'
+      : 'Выберите реабилитанта из отмеченных присутствующими, чтобы открыть карточку.'
   }
   return 'Чтобы открыть карточку диагностики, сначала выберите реабилитанта из списка.'
 })
@@ -2153,6 +2153,32 @@ onMounted(() => {
       try { localStorage.setItem('diagnostics.selectedRecipient', JSON.stringify(current)); } catch (_) {}
       if (!opts.silent && typeof showToast === 'function') showToast('Выбран реабилитант: <strong>' + escapeHtml(current.fullName) + '</strong>');
       loadAssignmentsForRecipient();
+      hydrateResultsForRecipient();
+    }
+
+    // Подгружаем в карточку ранее сохранённые (завершённые) результаты диагностики
+    // выбранного реабилитанта. Каждая завершённая запись (по одной на профиль/
+    // направление) восстанавливается в свой блок — так администратор (и любой,
+    // кто открывает карточку) видит то, что заполнил преподаватель.
+    async function hydrateResultsForRecipient() {
+      // Сначала полностью очищаем форму, чтобы данные одного реабилитанта не
+      // «протекали» на другого при переключении.
+      if (typeof window.__resetFormState === 'function') {
+        window.__resetFormState(document.querySelector('.diagnostics-page .content'));
+      }
+      const recipientId = diagnosticsRuntime.currentRecipient?.id;
+      if (!recipientId) return;
+      if (typeof window.__applyFormState !== 'function') return;
+      try {
+        const { data } = await api.get('/diagnostics', { params: { recipientId, limit: 100 } });
+        const rows = Array.isArray(data?.data) ? data.data : [];
+        // Только завершённые (published) записи содержат финальные данные блока.
+        rows
+          .filter(r => r.published && r.results && r.results.formState)
+          .forEach(r => window.__applyFormState(r.results.formState));
+      } catch (err) {
+        console.warn('Не удалось загрузить сохранённые результаты диагностики', err);
+      }
     }
 
     function escapeHtml(value) {
@@ -2219,7 +2245,16 @@ onMounted(() => {
           try { return (await api.get('/recipients/' + id)).data; }
           catch { return byId.get(id); }
         }));
-        diagnosticsRuntime.recipients = full.map((row, idx) => normalizeRecipient(row, idx));
+        // Ключевое правило: реабилитант появляется здесь ТОЛЬКО после того, как
+        // преподаватель отметил его «Присутствует» на вкладке «Реабилитанты»
+        // (attendanceStatus === 'present' на сегодняшнюю дату). Пока присутствие
+        // не отмечено — на вкладке «Диагностика» реабилитанта нет.
+        const d = new Date();
+        const todayLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        const present = full.filter((row) =>
+          row && row.attendanceStatus === 'present' && String(row.attendanceDate) === todayLocal
+        );
+        diagnosticsRuntime.recipients = present.map((row, idx) => normalizeRecipient(row, idx));
         teacherAssignedCount.value = diagnosticsRuntime.recipients.length;
         renderRecipientList();
       } catch (err) {
@@ -2285,8 +2320,20 @@ onMounted(() => {
         return false;
       }
       try {
+        // Профиль назначения определяет, состояние КАКОГО блока карточки
+        // сохранять (и куда потом восстанавливать у администратора).
+        const assignment = (diagnosticsRuntime.assignments || []).find(a => String(a.id) === String(assignmentId));
+        const profileKey = assignment?.direction?.profileKey || '';
+        const reportData = diagnosticsRuntime.lastReportData
+          || (typeof window.__collectReportData === 'function' ? window.__collectReportData() : {});
+        // Полный снимок заполненных полей блока — чтобы данные преподавателя
+        // не терялись и подгружались обратно в карточку при просмотре.
+        const formState = typeof window.__snapshotFormState === 'function'
+          ? window.__snapshotFormState(profileKey)
+          : null;
+        const results = Object.assign({}, reportData, formState ? { formState } : {});
         await api.put('/diagnostics/' + assignmentId, {
-          results: diagnosticsRuntime.lastReportData || collectReportData(),
+          results,
           published: true
         });
         showToast('Результаты сохранены в карточке реабилитанта. <strong>Назначение отмечено как проведённое.</strong>', 4600);
@@ -3359,6 +3406,7 @@ onMounted(() => {
 
         return { recipient, reportDate, blocks };
       }
+      window.__collectReportData = collectReportData;
 
       function validateStage(stageKey) {
         const card = q('.stage-card[data-stage="' + stageKey + '"]');
@@ -3500,6 +3548,119 @@ onMounted(() => {
       }
       window.__applyProfileRestriction = applyProfileRestriction;
       window.__applyAssignmentProfile = function () { applyProfileRestriction(selectedAssignmentProfileKey()); };
+
+      // ============================================================
+      //  СОХРАНЕНИЕ И ВОССТАНОВЛЕНИЕ СОСТОЯНИЯ ФОРМЫ ДИАГНОСТИКИ
+      //  Раньше результат преподавателя (выбранные варианты, тексты,
+      //  специалисты) сохранялся в БД только как «отчёт», но никогда не
+      //  подгружался обратно в карточку — поэтому администратор видел
+      //  пустую форму. Здесь мы делаем полноценный снимок блока и умеем
+      //  восстанавливать его ПОВТОРНО ПРОИГРЫВАЯ КЛИКИ по элементам,
+      //  чтобы отработали все обработчики (цвета, aria, шкалы, суммы).
+      // ============================================================
+      // Все «выбираемые» контролы блока (чекбоксы-чипы + radio-подобные кнопки).
+      const FORM_SEL = '.chip, .seg-btn, .triple-btn, .point-btn, .scale-tick, .gmfcs-card, .level-card, .theatre-option, .verdict-option';
+      // Все свободные текстовые поля блока.
+      const FORM_TXT = 'textarea, input[type="text"], input[type="number"], input[type="search"]';
+      // Классы визуального состояния, которые нужно снять при сбросе блока.
+      const FORM_STATE_CLASSES = ['active', 'selected', 'sage', 'amber', 'rose', 'yes', 'partial', 'no', 'low', 'mid', 'high', 'trial', 'below'];
+
+      // Корневой элемент блока по профилю специалиста. Пустой профиль → вся карточка.
+      function blockRootForProfile(profileKey) {
+        const block = profileKey ? PROFILE_BLOCKS[profileKey] : null;
+        if (!block) return document.querySelector('.diagnostics-page .content');
+        if (block.sub) return document.getElementById('subpanel-' + block.sub);
+        return document.querySelector('.stage-card[data-stage="' + block.stage + '"]');
+      }
+
+      // Снимок состояния блока (или всей карточки при пустом профиле).
+      function snapshotFormState(profileKey) {
+        const root = blockRootForProfile(profileKey);
+        if (!root) return null;
+        const sel = qa(FORM_SEL, root).map(el =>
+          (el.classList.contains('active') || el.classList.contains('selected')) ? 1 : 0);
+        const txt = qa(FORM_TXT, root).map(el => el.value || '');
+        const specialists = [];
+        qa('.specialists-list', root).forEach((list, li) => {
+          qa('.specialist-chip', list).forEach(chip => {
+            const av = chip.querySelector('.av');
+            const clone = chip.cloneNode(true);
+            clone.querySelectorAll('button, svg, .av').forEach(e => e.remove());
+            const color = Array.from(chip.classList).find(c => c !== 'specialist-chip') || '';
+            specialists.push({ li, initials: av ? av.textContent.trim() : '', name: text(clone), color });
+          });
+        });
+        return { scope: profileKey || null, sel, txt, specialists };
+      }
+      window.__snapshotFormState = snapshotFormState;
+
+      // Полный сброс блока к «пустому» виду (снимаем выбор, чистим тексты,
+      // убираем специалистов, обнуляем производные суммы/шкалы).
+      function resetFormState(root) {
+        if (!root) return;
+        qa(FORM_SEL, root).forEach(el => {
+          el.classList.remove(...FORM_STATE_CLASSES);
+          if (el.hasAttribute('aria-checked')) el.setAttribute('aria-checked', 'false');
+          const input = el.querySelector('input[type="checkbox"], input[type="radio"]');
+          if (input) input.checked = false;
+        });
+        qa(FORM_TXT, root).forEach(el => { el.value = ''; });
+        qa('.scale-row', root).forEach(row => {
+          const valEl = row.querySelector('.scale-value .val');
+          if (valEl) valEl.textContent = '';
+        });
+        qa('.gmfcs-grid', root).forEach(grid => grid.classList.remove('is-disabled'));
+        qa('.specialist-chip', root).forEach(c => c.remove());
+        if (typeof window.__updateIzoTotal === 'function') window.__updateIzoTotal();
+        if (typeof window.__updateVocalTotal === 'function') window.__updateVocalTotal();
+      }
+      window.__resetFormState = resetFormState;
+
+      // Восстанавливаем сохранённых специалистов, воссоздавая их «чипы».
+      function injectSpecialists(root, list) {
+        if (!root || !Array.isArray(list) || !list.length) return;
+        const lists = qa('.specialists-list', root);
+        list.forEach(sp => {
+          const target = lists[sp.li] || lists[0];
+          if (!target) return;
+          const exists = qa('.specialist-chip', target).some(c => {
+            const av = c.querySelector('.av');
+            return av && av.textContent.trim() === sp.initials;
+          });
+          if (exists) return;
+          const addBtn = target.querySelector('.specialist-add');
+          const chip = document.createElement('span');
+          chip.className = 'specialist-chip ' + (sp.color || '');
+          chip.setAttribute('role', 'listitem');
+          chip.innerHTML =
+            '<span class="av" aria-hidden="true">' + escapeHtml(sp.initials) + '</span>' +
+            escapeHtml(sp.name) +
+            '<button type="button" class="rm" aria-label="Убрать ' + escapeHtml(sp.name) + '">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
+            '</button>';
+          if (addBtn) target.insertBefore(chip, addBtn); else target.appendChild(chip);
+          const rm = chip.querySelector('.rm');
+          if (rm) rm.addEventListener('click', () => chip.remove());
+        });
+      }
+
+      // Восстановление снимка в карточку: сброс блока + проигрывание кликов,
+      // чтобы отработали штатные обработчики и производные значения.
+      function applyFormState(fs) {
+        if (!fs) return;
+        const root = blockRootForProfile(fs.scope);
+        if (!root) return;
+        resetFormState(root);
+        const selEls = qa(FORM_SEL, root);
+        (fs.sel || []).forEach((on, i) => { if (on && selEls[i]) selEls[i].click(); });
+        const txtEls = qa(FORM_TXT, root);
+        (fs.txt || []).forEach((val, i) => {
+          const el = txtEls[i];
+          if (el && val) { el.value = val; el.dispatchEvent(new Event('input', { bubbles: true })); }
+        });
+        injectSpecialists(root, fs.specialists);
+      }
+      window.__applyFormState = applyFormState;
 
       function finishDiagnostic() {
         const activeStages = stageOrder.filter(stage => {
@@ -3927,7 +4088,19 @@ onMounted(() => {
 
       q('[data-action="finish-diagnostic"]')?.addEventListener('click', async () => {
         const ok = finishDiagnostic();
-        if (ok) await persistResultToAssignment();
+        if (!ok) return;
+        // Преподаватель: жёстко закрепляем его профиль ДО сохранения результата.
+        // Иначе после публикации назначение исчезает из списка ожидающих, и
+        // loadAssignmentsForRecipient() вызывает applyProfileRestriction('') с
+        // пустым profileKey — тогда снимаются все .profile-hidden и на экране
+        // раскрываются чужие блоки (только для просмотра). Фиксируем profileKey
+        // выбранного назначения в window.__forcedProfileKey, чтобы карточка
+        // осталась на собственном (завершённом) блоке преподавателя.
+        if (authStore.isTeacher && !window.__forcedProfileKey) {
+          const key = selectedAssignmentProfileKey();
+          if (key) window.__forcedProfileKey = key;
+        }
+        await persistResultToAssignment();
       });
       q('#assignment-target')?.addEventListener('change', () => {
         applyProfileRestriction(selectedAssignmentProfileKey());
@@ -3962,6 +4135,7 @@ onMounted(() => {
         btn.addEventListener('click', () => setTimeout(updateIzoTotal, 0));
       });
       updateIzoTotal();
+      window.__updateIzoTotal = updateIzoTotal;
 
       function updateVocalTotal() {
         let sum = 0;
@@ -3980,6 +4154,7 @@ onMounted(() => {
         t.addEventListener('click', () => setTimeout(updateVocalTotal, 0));
       });
       updateVocalTotal();
+      window.__updateVocalTotal = updateVocalTotal;
     })();
 
     (function() {

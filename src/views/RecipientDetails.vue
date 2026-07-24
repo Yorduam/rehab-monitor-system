@@ -32,7 +32,13 @@
 
       <!-- HERO -->
       <section class="hero" aria-label="Сводка по реабилитанту">
-        <div class="hero-banner" aria-hidden="true"></div>
+        <button v-if="photoUrl" type="button" class="hero-banner hero-banner-photo" @click="heroPhotoOpen = true" aria-label="Открыть фото на весь экран">
+          <img :src="photoUrl" alt="" />
+          <span class="hero-banner-zoom" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+          </span>
+        </button>
+        <div v-else class="hero-banner" aria-hidden="true"></div>
         <div class="hero-body">
           <img v-if="photoUrl" :src="photoUrl" class="hero-avatar-img" alt="" />
           <div v-else class="hero-avatar" aria-hidden="true">{{ initials(recipient) }}</div>
@@ -94,8 +100,8 @@
           </div>
           <div class="mini-stat">
             <div class="label">В программе</div>
-            <div class="value">{{ programDays != null ? programDays : '—' }}<span v-if="programDays != null" class="value-unit"> дн.</span></div>
-            <div class="trend neutral">{{ recipient.createdAt ? 'с ' + formatDate(recipient.createdAt) : '—' }}</div>
+            <div class="value">{{ inProgramDays != null ? inProgramDays : '—' }}<span v-if="inProgramDays != null" class="value-unit"> дн.</span></div>
+            <div class="trend neutral">{{ firstEventDate ? 'первое занятие ' + formatDate(firstEventDate) : 'по данным расписания' }}</div>
           </div>
           <div class="mini-stat" :class="{ active: !!groupName }">
             <div class="label">Группа</div>
@@ -103,9 +109,9 @@
             <div class="trend neutral">{{ curatorName ? 'куратор: ' + curatorName : 'куратор не назначен' }}</div>
           </div>
           <div class="mini-stat">
-            <div class="label">Статус</div>
-            <div class="value value-text">{{ statusLabel(recipient.status) }}</div>
-            <div class="trend neutral">целевая группа {{ crgShort || '—' }}</div>
+            <div class="label">Следующий контроль</div>
+            <div class="value value-text">{{ nextControl ? formatShort(nextControl.date) : '—' }}</div>
+            <div class="trend neutral">{{ nextControl ? (nextControl.title || 'Диагностика') : 'диагностик не запланировано' }}</div>
           </div>
         </div>
       </section>
@@ -118,6 +124,8 @@
           @click="activeTab = t.id">
           {{ t.label }}
           <span v-if="t.id === 'diagnostics' && diagCount" class="tab-count">{{ diagCount }}</span>
+          <span v-else-if="t.id === 'lessons' && lessonsCount" class="tab-count">{{ lessonsCount }}</span>
+          <span v-else-if="t.id === 'documents' && scans.length" class="tab-count">{{ scans.length }}</span>
         </button>
       </div>
 
@@ -167,10 +175,53 @@
                     <dt class="kv-key">Место обучения</dt>
                     <dd class="kv-val"><span class="kv-text">{{ doc.educationPlace || '—' }}</span></dd>
                   </div>
+                  <div class="kv">
+                    <dt class="kv-key">Группа инвалидности</dt>
+                    <dd class="kv-val"><span class="kv-text">{{ recipient.disableGroup || '—' }}</span></dd>
+                  </div>
+                  <div v-if="doc" class="kv">
+                    <dt class="kv-key">Справка МСЭ до</dt>
+                    <dd class="kv-val"><span class="kv-text">{{ formatDate(doc.mseValidDate) }}</span></dd>
+                  </div>
                 </dl>
               </div>
-              <button class="card-foot-link" type="button" @click="activeTab = 'documents'">
-                Все документы и медкарта
+              <button class="card-foot-link" type="button" @click="activeTab = 'profile'">
+                Анкета и медкарта
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
+            </section>
+
+            <!-- Последние занятия -->
+            <section class="card">
+              <div class="card-head">
+                <div>
+                  <h2 class="card-title-sans">Последние занятия</h2>
+                  <div class="card-sub">По данным расписания</div>
+                </div>
+              </div>
+              <div class="card-body">
+                <div v-if="agendaLoading" class="rd-loading" style="min-height:90px"><div class="spinner"></div></div>
+                <div v-else-if="!recentEvents.length" class="rd-inline-empty">Проведённых занятий пока нет</div>
+                <div v-else class="lesson-list">
+                  <div v-for="e in recentEvents" :key="e.id" class="lesson-card">
+                    <div class="lesson-head">
+                      <span class="lesson-type" :class="e.type === 'diagnostic' ? 'is-diag' : 'is-lesson'">{{ typeLabel(e) }}</span>
+                      <span class="lesson-title">{{ eventTitle(e) }}</span>
+                    </div>
+                    <div class="lesson-meta">
+                      <span>{{ formatDay(e.date) }}</span>
+                      <span v-if="formatTime(e.startTime)" class="sep-dot">·</span>
+                      <span v-if="formatTime(e.startTime)">{{ formatTime(e.startTime) }}</span>
+                      <template v-if="e.specialist">
+                        <span class="sep-dot">·</span>
+                        <span>{{ e.specialist.fullName || fullName(e.specialist) }}</span>
+                      </template>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <button class="card-foot-link" type="button" @click="activeTab = 'lessons'">
+                Все занятия и группа
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
             </section>
@@ -178,31 +229,72 @@
 
           <!-- RIGHT -->
           <aside>
+            <!-- Команда сопровождения -->
             <section class="card">
-              <div class="card-head"><h2 class="card-title-sans">Куратор и группа</h2></div>
+              <div class="card-head"><h2 class="card-title-sans">Команда сопровождения</h2></div>
               <div class="card-body">
-                <div v-if="!curatorName && !groupName" class="rd-inline-empty">Группа и куратор не назначены</div>
-                <template v-else>
-                  <div v-if="curatorName" class="person">
-                    <div class="person-avatar sage" aria-hidden="true">{{ initialsFromName(curatorName) }}</div>
+                <div v-if="agendaLoading && !team.length" class="rd-loading" style="min-height:90px"><div class="spinner"></div></div>
+                <div v-else-if="!team.length" class="rd-inline-empty">Специалисты пока не назначены</div>
+                <div v-else>
+                  <div v-for="m in team" :key="m.id" class="person">
+                    <div class="person-avatar" :class="m.isCurator ? 'sage' : 'amber'" aria-hidden="true">{{ initialsFromName(m.name) }}</div>
                     <div class="person-info">
-                      <div class="person-name">{{ curatorName }}</div>
-                      <div class="person-role">Куратор{{ groupName ? ' · ' + groupName : '' }}</div>
+                      <div class="person-name">
+                        {{ m.name }}
+                        <span v-if="m.isCurator" class="rd-curator-badge">куратор</span>
+                      </div>
+                      <div class="person-role rd-team-role">{{ m.roles.join(' · ') || 'Специалист' }}</div>
+                    </div>
+                    <div class="person-actions">
+                      <a v-if="m.phone" class="person-action" :href="'tel:' + String(m.phone).replace(/[^\d+]/g, '')" :aria-label="'Позвонить: ' + m.name"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.86 19.86 0 0 1 3.09 4.18 2 2 0 0 1 5.07 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L9.09 10a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a>
+                      <a v-if="m.email" class="person-action" :href="'mailto:' + m.email" :aria-label="'Написать: ' + m.name"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg></a>
                     </div>
                   </div>
-                  <div v-else class="person">
-                    <div class="person-avatar amber" aria-hidden="true">Г</div>
-                    <div class="person-info">
-                      <div class="person-name">{{ groupName }}</div>
-                      <div class="person-role">Куратор не назначен</div>
-                    </div>
-                  </div>
-                </template>
+                </div>
               </div>
-              <button class="card-foot-link" type="button" @click="activeTab = 'group'">
-                Группа и участники
+              <button class="card-foot-link" type="button" @click="activeTab = 'lessons'">
+                Занятия и группа
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
+            </section>
+
+            <!-- Ближайшие события -->
+            <section class="card">
+              <div class="card-head"><h2 class="card-title-sans">Ближайшие события</h2></div>
+              <div class="card-body">
+                <div v-if="agendaLoading && !upcoming.length" class="rd-loading" style="min-height:90px"><div class="spinner"></div></div>
+                <div v-else-if="!upcoming.length" class="rd-inline-empty">Запланированных событий нет</div>
+                <div v-else class="event-list">
+                  <div v-for="(ev, i) in upcoming" :key="i" class="event-row">
+                    <div class="event-date" :class="{ mse: ev.kind === 'mse' }">
+                      <span class="event-day">{{ dayNum(ev.date) }}</span>
+                      <span class="event-mon">{{ monthShort(ev.date) }}</span>
+                    </div>
+                    <div class="event-info">
+                      <div class="event-title">{{ ev.title }}</div>
+                      <div class="event-meta">{{ ev.meta }}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Отметка посещения (только админ/преподаватель) -->
+            <section v-if="canMarkAttendance" class="card">
+              <div class="card-head"><h2 class="card-title-sans">Отметка посещения сегодня</h2></div>
+              <div class="card-body">
+                <div class="rd-att">
+                  <div class="rd-att-toggle" role="group" aria-label="Статус посещения">
+                    <button type="button" class="rd-att-btn is-yes" :class="{ active: attStatus === 'present' }" @click="attStatus = 'present'">Был</button>
+                    <button type="button" class="rd-att-btn is-partial" :class="{ active: attStatus === 'absent' }" @click="attStatus = 'absent'">Частично</button>
+                    <button type="button" class="rd-att-btn is-no" :class="{ active: attStatus === 'left' }" @click="attStatus = 'left'">Не был</button>
+                  </div>
+                  <button class="btn btn-primary rd-att-save" :disabled="!attDirty || attSaving" @click="saveAttendance">
+                    {{ attSaving ? 'Сохранение…' : 'Подтвердить' }}
+                  </button>
+                </div>
+                <div v-if="attSavedStatus" class="rd-att-hint">Сегодня отмечено: <strong>{{ attSavedStatus === 'present' ? 'Был' : attSavedStatus === 'absent' ? 'Частично' : 'Не был' }}</strong></div>
+              </div>
             </section>
 
             <section class="card">
@@ -229,27 +321,60 @@
         </div>
       </div>
 
-      <!-- PANEL: ДОКУМЕНТЫ -->
-      <div v-else-if="activeTab === 'documents'" class="tabpanel">
+      <!-- PANEL: АНКЕТА И МЕДКАРТА -->
+      <div v-else-if="activeTab === 'profile'" class="tabpanel">
         <section class="card">
-          <div class="card-head"><h2 class="card-title">Документы и медкарта</h2></div>
+          <div class="card-head">
+            <div>
+              <h2 class="card-title">Личные данные</h2>
+              <div class="card-sub">Контакты и адреса реабилитанта</div>
+            </div>
+          </div>
           <div class="card-body">
-            <div v-if="!doc" class="rd-inline-empty">Документ не заполнен</div>
-            <dl v-else class="kv-grid">
-              <div class="kv"><dt class="kv-key">Тип документа</dt><dd class="kv-val"><span class="kv-text">{{ doc.docType || '—' }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">Серия / номер</dt><dd class="kv-val"><span class="kv-text">{{ [doc.docSeries, doc.docNumber].filter(Boolean).join(' ') || '—' }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">Кем выдан</dt><dd class="kv-val"><span class="kv-text">{{ doc.docIssuer || '—' }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">Дата выдачи</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(doc.docIssuerDate) }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">СНИЛС</dt><dd class="kv-val"><span class="kv-text">{{ doc.snils || '—' }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">МСЭ выдана</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(doc.mseIssueDate) }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">МСЭ действительна до</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(doc.mseValidDate) }}</span></dd></div>
-              <div class="kv kv-full"><dt class="kv-key">Адрес регистрации</dt><dd class="kv-val"><span class="kv-text">{{ doc.regAddress || '—' }}</span></dd></div>
-              <div class="kv kv-full"><dt class="kv-key">Адрес проживания</dt><dd class="kv-val"><span class="kv-text">{{ (doc.factSameReg ? doc.regAddress : doc.factAddress) || '—' }}</span></dd></div>
-              <div class="kv kv-full"><dt class="kv-key">Место обучения</dt><dd class="kv-val"><span class="kv-text">{{ doc.educationPlace || '—' }}</span></dd></div>
-              <div class="kv kv-full"><dt class="kv-key">Особые отметки</dt><dd class="kv-val"><span class="kv-text">{{ doc.specialNote || '—' }}</span></dd></div>
+            <dl class="kv-grid">
+              <div class="kv kv-full"><dt class="kv-key">ФИО</dt><dd class="kv-val"><span class="kv-text">{{ fullName(recipient) || '—' }}</span></dd></div>
+              <div class="kv"><dt class="kv-key">Дата рождения</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(recipient.birthDate) }}<template v-if="age != null"> · {{ age }} {{ yearsWord(age) }}</template></span></dd></div>
+              <div class="kv"><dt class="kv-key">Группа инвалидности</dt><dd class="kv-val"><span class="kv-text">{{ recipient.disableGroup || '—' }}</span></dd></div>
+              <div class="kv"><dt class="kv-key">Телефон</dt><dd class="kv-val"><span class="kv-text">{{ recipient.telephone || '—' }}</span></dd></div>
+              <div class="kv"><dt class="kv-key">E-mail</dt><dd class="kv-val"><span class="kv-text">{{ recipient.email || recipient.user?.email || '—' }}</span></dd></div>
+              <div class="kv"><dt class="kv-key">СНИЛС</dt><dd class="kv-val"><span class="kv-text">{{ doc?.snils || '—' }}</span></dd></div>
+              <div class="kv"><dt class="kv-key">Место обучения</dt><dd class="kv-val"><span class="kv-text">{{ doc?.educationPlace || '—' }}</span></dd></div>
+              <div class="kv kv-full"><dt class="kv-key">Адрес регистрации</dt><dd class="kv-val"><span class="kv-text">{{ doc?.regAddress || '—' }}</span></dd></div>
+              <div class="kv kv-full"><dt class="kv-key">Адрес проживания</dt><dd class="kv-val"><span class="kv-text">{{ (doc?.factSameReg ? doc?.regAddress : doc?.factAddress) || '—' }}</span></dd></div>
             </dl>
           </div>
         </section>
+
+        <section class="card" style="margin-top: 1.25rem;">
+          <div class="card-head">
+            <div>
+              <h2 class="card-title">Медкарта и документ</h2>
+              <div class="card-sub">Диагноз, нозология, МСЭ и удостоверяющий документ</div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div v-if="!doc && !recipient.diagnosis && !recipient.crgMain && !recipient.nozologyRef" class="rd-inline-empty">Медкарта не заполнена</div>
+            <dl v-else class="kv-grid">
+              <div class="kv kv-full"><dt class="kv-key">Диагноз</dt><dd class="kv-val"><span class="kv-text">{{ recipient.diagnosis || '—' }}</span></dd></div>
+              <div class="kv kv-full"><dt class="kv-key">Нозология (МКБ-10)</dt><dd class="kv-val"><span class="kv-text"><span v-if="recipient.nozologyRef?.class" class="code">{{ recipient.nozologyRef.class }}</span>{{ nozologyName }}</span></dd></div>
+              <div class="kv kv-full"><dt class="kv-key">Целевая реабилитационная группа (ЦРГ)</dt><dd class="kv-val"><span class="kv-text"><span v-if="recipient.crgMain?.code" class="code">{{ recipient.crgMain.code }}</span>{{ recipient.crgMain?.name || crgText }}</span></dd></div>
+              <div class="kv"><dt class="kv-key">МСЭ выдана</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(doc?.mseIssueDate) }}</span></dd></div>
+              <div class="kv"><dt class="kv-key">МСЭ действительна до</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(doc?.mseValidDate) }}</span></dd></div>
+              <div class="kv"><dt class="kv-key">Тип документа</dt><dd class="kv-val"><span class="kv-text">{{ doc?.docType || '—' }}</span></dd></div>
+              <div class="kv"><dt class="kv-key">Серия / номер</dt><dd class="kv-val"><span class="kv-text">{{ [doc?.docSeries, doc?.docNumber].filter(Boolean).join(' ') || '—' }}</span></dd></div>
+              <div class="kv kv-full"><dt class="kv-key">Кем выдан</dt><dd class="kv-val"><span class="kv-text">{{ doc?.docIssuer || '—' }}<template v-if="doc?.docIssuerDate"> · {{ formatDate(doc.docIssuerDate) }}</template></span></dd></div>
+              <div class="kv kv-full"><dt class="kv-key">Особые отметки</dt><dd class="kv-val"><span class="kv-text">{{ doc?.specialNote || '—' }}</span></dd></div>
+            </dl>
+          </div>
+          <button class="card-foot-link" type="button" @click="activeTab = 'documents'">
+            Прикреплённые файлы
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+        </section>
+      </div>
+
+      <!-- PANEL: ДОКУМЕНТЫ -->
+      <div v-else-if="activeTab === 'documents'" class="tabpanel">
 
         <!-- Прикреплённые сканы -->
         <section class="card" style="margin-top: 1.25rem;">
@@ -291,8 +416,52 @@
         </div>
       </div>
 
-      <!-- PANEL: ГРУППА -->
-      <div v-else-if="activeTab === 'group'" class="tabpanel">
+      <!-- PANEL: ЗАНЯТИЯ И ГРУППА -->
+      <div v-else-if="activeTab === 'lessons'" class="tabpanel">
+        <!-- Занятия -->
+        <section class="card" style="margin-bottom: 1.25rem;">
+          <div class="card-head">
+            <div>
+              <h2 class="card-title">Занятия и диагностики</h2>
+              <div class="card-sub">Всего записей в расписании: {{ lessonsCount }}</div>
+            </div>
+          </div>
+          <div class="card-body">
+            <p class="rd-assign-moved">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              Педагогические заметки и отметки достижений по каждому занятию в системе пока не ведутся — показаны факт занятия, дата, специалист и статус из расписания.
+            </p>
+            <div v-if="agendaLoading" class="rd-loading" style="min-height:100px"><div class="spinner"></div></div>
+            <div v-else-if="!allEventsDesc.length" class="rd-inline-empty">В расписании пока нет занятий</div>
+            <div v-else class="lesson-list">
+              <div v-for="e in allEventsDesc" :key="e.id" class="lesson-card">
+                <div class="lesson-head">
+                  <span class="lesson-type" :class="e.type === 'diagnostic' ? 'is-diag' : 'is-lesson'">{{ typeLabel(e) }}</span>
+                  <span class="lesson-title">{{ eventTitle(e) }}</span>
+                  <span v-if="e.status === 'completed'" class="doc-status sage">Проведено</span>
+                  <span v-else class="doc-status amber">Запланировано</span>
+                </div>
+                <div class="lesson-meta">
+                  <span>{{ formatDay(e.date) }}</span>
+                  <template v-if="formatTime(e.startTime)">
+                    <span class="sep-dot">·</span>
+                    <span>{{ formatTime(e.startTime) }}<template v-if="formatTime(e.endTime)">–{{ formatTime(e.endTime) }}</template></span>
+                  </template>
+                  <template v-if="e.specialist">
+                    <span class="sep-dot">·</span>
+                    <span>{{ e.specialist.fullName || fullName(e.specialist) }}</span>
+                  </template>
+                  <template v-if="e.direction?.name">
+                    <span class="sep-dot">·</span>
+                    <span>{{ e.direction.name }}</span>
+                  </template>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- Группа -->
         <section class="card">
           <div class="card-head">
             <div>
@@ -333,11 +502,15 @@
         </section>
       </div>
 
-      <!-- PANEL: ПРЕДСТАВИТЕЛЬ -->
+      <!-- PANEL: ПРЕДСТАВИТЕЛЬ И СЕМЬЯ -->
       <div v-else-if="activeTab === 'representative'" class="tabpanel">
         <section class="card">
           <div class="card-head"><h2 class="card-title">Законный представитель</h2></div>
           <div class="card-body">
+            <p class="rd-assign-moved">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              В системе хранится один законный представитель. Расширенный состав семьи и дополнительные контакты пока не ведутся.
+            </p>
             <div v-if="!recipient.representative" class="rd-inline-empty">Представитель не указан</div>
             <dl v-else class="kv-grid">
               <div class="kv kv-full"><dt class="kv-key">ФИО</dt><dd class="kv-val"><span class="kv-text">{{ fullName(recipient.representative) || '—' }}</span></dd></div>
@@ -352,11 +525,15 @@
         </section>
       </div>
 
-      <!-- PANEL: ДИАГНОСТИКИ -->
+      <!-- PANEL: ДИАГНОСТИКА И РАЗВИТИЕ -->
       <div v-else-if="activeTab === 'diagnostics'" class="tabpanel">
         <section class="card">
-          <div class="card-head"><h2 class="card-title">Диагностики</h2></div>
+          <div class="card-head"><h2 class="card-title">Диагностика и развитие</h2></div>
           <div class="card-body">
+            <p class="rd-assign-moved">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
+              Числовые показатели развития (баллы «старт → сейчас → цель») в системе пока не ведутся. Ниже — назначения на диагностику, их статусы и текстовые результаты.
+            </p>
             <p class="rd-assign-moved">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
               Назначение на диагностику выполняется на вкладке «Диагностика» → «Назначение на диагностику».
@@ -407,6 +584,14 @@
         <span class="id-chip">ID R-{{ recipientCode }}</span>
         <button class="btn btn-secondary" @click="goBack">← К списку</button>
       </div>
+
+      <!-- Лайтбокс фото из шапки -->
+      <div v-if="heroPhotoOpen && photoUrl" class="rd-lightbox" @click="heroPhotoOpen = false">
+        <img :src="photoUrl" alt="" @click.stop />
+        <button type="button" class="rd-lightbox-close" @click="heroPhotoOpen = false" aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
     </template>
   </div>
 </template>
@@ -414,10 +599,12 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue';
 import { usePageStore } from '../stores/page';
+import { useAuthStore } from '../stores/auth';
 import api from '../api';
 import { fullName, initials, recipientAge, statusLabel } from '../utils/recipient';
 
 const pageStore = usePageStore();
+const authStore = useAuthStore();
 const recipientId = pageStore.params?.recipientId;
 
 const loading = ref(true);
@@ -425,6 +612,19 @@ const recipient = ref(null);
 const groupMembers = ref([]);
 const groupMembersLoading = ref(false);
 const activeTab = ref('overview');
+
+// Расписание/занятия реабилитанта (источник: ScheduleEvent через /agenda)
+const events = ref([]);
+const agendaLoading = ref(false);
+const agendaLoaded = ref(false);
+
+// Просмотр фото из шапки
+const heroPhotoOpen = ref(false);
+
+// Отметка посещения на сегодня
+const attStatus = ref(null);      // выбранный в UI статус (present|absent|left)
+const attSaving = ref(false);
+const attSavedStatus = ref(null); // уже сохранённый на сегодня статус
 
 const allGroups = ref([]);
 const groupsLoading = ref(false);
@@ -460,10 +660,11 @@ const groupChanged = computed(
 
 const tabs = [
   { id: 'overview', label: 'Обзор' },
+  { id: 'profile', label: 'Анкета и медкарта' },
+  { id: 'lessons', label: 'Занятия и группа' },
+  { id: 'diagnostics', label: 'Диагностика и развитие' },
   { id: 'documents', label: 'Документы' },
-  { id: 'group', label: 'Группа' },
-  { id: 'representative', label: 'Представитель' },
-  { id: 'diagnostics', label: 'Диагностики' },
+  { id: 'representative', label: 'Представитель и семья' },
 ];
 
 const stageSteps = ['Заявка', 'Заявление', 'Диагностика', 'Зачисление', 'Занятия', 'Итоги цикла'];
@@ -498,6 +699,90 @@ const programDays = computed(() => {
   return diff >= 0 ? diff : null;
 });
 
+// ===== Производные данные из расписания (events) =====
+const pastEvents = computed(() => events.value.filter(e => String(e.date) < todayStr));
+const futureEvents = computed(() => events.value.filter(e => String(e.date) >= todayStr));
+const recentEvents = computed(() => pastEvents.value.slice(-3).reverse());
+const allEventsDesc = computed(() => [...events.value].reverse());
+const lessonsCount = computed(() => events.value.length);
+
+// «В программе»: точной даты зачисления в модели нет (Recipient без createdAt),
+// поэтому берём дату самого раннего события расписания как приближение.
+const firstEventDate = computed(() => (events.value.length ? events.value[0].date : null));
+const inProgramDays = computed(() => {
+  if (!firstEventDate.value) return null;
+  const diff = Math.floor((Date.now() - new Date(firstEventDate.value).getTime()) / 86400000);
+  return diff >= 0 ? diff : null;
+});
+
+// Следующий контроль = ближайшая будущая диагностика
+const nextControl = computed(() => futureEvents.value.find(e => e.type === 'diagnostic') || null);
+
+// Ближайшие события: будущие занятия/диагностики + напоминание об истечении справки МСЭ
+const upcoming = computed(() => {
+  const rows = futureEvents.value.map(e => ({
+    kind: 'event',
+    date: String(e.date).slice(0, 10),
+    title: eventTitle(e),
+    meta: eventMeta(e),
+    type: e.type
+  }));
+  const mse = doc.value?.mseValidDate;
+  if (mse) {
+    const mseStr = String(mse).slice(0, 10);
+    if (mseStr >= todayStr) {
+      rows.push({
+        kind: 'mse',
+        date: mseStr,
+        title: 'Истекает справка МСЭ',
+        meta: 'Контроль сроков документов',
+        type: 'mse'
+      });
+    }
+  }
+  rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  return rows.slice(0, 6);
+});
+
+// Команда сопровождения: куратор группы + специалисты из расписания (с их направлениями)
+const team = computed(() => {
+  const map = new Map();
+  const cur = recipient.value?.group?.curatorUser;
+  if (cur && cur.id) {
+    map.set(cur.id, {
+      id: cur.id,
+      name: cur.fullName || fullName(cur),
+      phone: cur.phone || '',
+      email: cur.email || '',
+      roles: new Set(['Куратор группы']),
+      isCurator: true
+    });
+  }
+  for (const e of events.value) {
+    const s = e.specialist;
+    if (!s || !s.id) continue;
+    let entry = map.get(s.id);
+    if (!entry) {
+      entry = {
+        id: s.id,
+        name: s.fullName || fullName(s),
+        phone: s.phone || '',
+        email: s.email || '',
+        roles: new Set(),
+        isCurator: false
+      };
+      map.set(s.id, entry);
+    }
+    if (e.direction?.name) entry.roles.add(e.direction.name);
+    else entry.roles.add(e.type === 'diagnostic' ? 'Диагностика' : 'Занятия');
+  }
+  return Array.from(map.values()).map(m => ({ ...m, roles: Array.from(m.roles) }));
+});
+
+// Права на отметку посещения (как на карточках вкладки «Реабилитанты»)
+const canMarkAttendance = computed(() => authStore.isAdmin || authStore.isTeacher);
+const attDirty = computed(() => !!attStatus.value && attStatus.value !== attSavedStatus.value);
+
 const nozologyName = computed(() => {
   const n = recipient.value?.nozologyRef;
   if (!n) return '—';
@@ -531,6 +816,54 @@ function formatDate(d) {
   if (isNaN(dt.getTime())) return String(d);
   const m = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
   return `${dt.getDate()} ${m[dt.getMonth()]} ${dt.getFullYear()}`;
+}
+
+function formatShort(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return String(d);
+  const m = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+  return `${dt.getDate()} ${m[dt.getMonth()]}`;
+}
+
+function formatDay(d) {
+  if (!d) return '—';
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return String(d);
+  const wd = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][dt.getDay()];
+  return `${wd}, ${formatShort(d)}`;
+}
+
+function formatTime(t) {
+  return t ? String(t).slice(0, 5) : '';
+}
+
+function typeLabel(e) {
+  return e?.type === 'diagnostic' ? 'Диагностика' : 'Занятие';
+}
+
+function eventTitle(e) {
+  return e?.title || typeLabel(e);
+}
+
+function eventMeta(e) {
+  const parts = [];
+  const t = formatTime(e?.startTime);
+  if (t) parts.push(t);
+  if (e?.specialist) parts.push(e.specialist.fullName || fullName(e.specialist));
+  if (e?.direction?.name) parts.push(e.direction.name);
+  return parts.join(' · ');
+}
+
+function dayNum(d) {
+  const dt = new Date(d);
+  return isNaN(dt.getTime()) ? '' : dt.getDate();
+}
+
+function monthShort(d) {
+  const dt = new Date(d);
+  if (isNaN(dt.getTime())) return '';
+  return ['янв', 'фев', 'мар', 'апр', 'май', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'][dt.getMonth()];
 }
 
 function memberMeta(m) {
@@ -728,8 +1061,54 @@ const cancelAssignment = async (a) => {
   }
 };
 
+const loadAgenda = async () => {
+  if (!recipientId || agendaLoaded.value || agendaLoading.value) return;
+  agendaLoading.value = true;
+  try {
+    const { data } = await api.get(`/recipients/${recipientId}/agenda`);
+    events.value = Array.isArray(data?.events) ? data.events : [];
+    agendaLoaded.value = true;
+  } catch (err) {
+    console.error('loadAgenda', err);
+    events.value = [];
+  } finally {
+    agendaLoading.value = false;
+  }
+};
+
+// Подставляем сохранённый статус посещения, только если он относится к сегодняшнему дню
+const initAttendance = () => {
+  const r = recipient.value;
+  const savedDate = r?.attendanceDate ? String(r.attendanceDate).slice(0, 10) : null;
+  if (r && r.attendanceStatus && savedDate === todayStr) {
+    attSavedStatus.value = r.attendanceStatus;
+    attStatus.value = r.attendanceStatus;
+  } else {
+    attSavedStatus.value = null;
+    attStatus.value = null;
+  }
+};
+
+const saveAttendance = async () => {
+  if (!attStatus.value || attSaving.value) return;
+  attSaving.value = true;
+  try {
+    await api.put(`/recipients/${recipientId}/attendance`, { status: attStatus.value });
+    attSavedStatus.value = attStatus.value;
+    if (recipient.value) {
+      recipient.value.attendanceStatus = attStatus.value;
+      recipient.value.attendanceDate = todayStr;
+    }
+  } catch (err) {
+    console.error('saveAttendance', err);
+    alert('Не удалось сохранить отметку посещения');
+  } finally {
+    attSaving.value = false;
+  }
+};
+
 watch(activeTab, (tab) => {
-  if (tab === 'group') {
+  if (tab === 'lessons') {
     loadGroups();
     if (!groupMembers.value.length && !groupMembersLoading.value) loadGroupMembers();
   } else if (tab === 'diagnostics') {
@@ -739,7 +1118,11 @@ watch(activeTab, (tab) => {
   }
 });
 
-onMounted(loadRecipient);
+onMounted(async () => {
+  await loadRecipient();
+  initAttendance();
+  loadAgenda();
+});
 </script>
 
 <style scoped>
@@ -1150,6 +1533,88 @@ onMounted(loadRecipient);
 .rd-footer {
   margin-top: 1.5rem; padding-top: 1rem; border-top: 0.0625rem solid var(--line);
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+}
+
+/* ===== HERO PHOTO BANNER ===== */
+.hero-banner-photo {
+  position: relative; display: block; width: 100%; padding: 0; border: none;
+  cursor: zoom-in; overflow: hidden;
+}
+.hero-banner-photo img {
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  filter: saturate(1.02);
+  transition: transform 0.35s ease;
+}
+.hero-banner-photo:hover img { transform: scale(1.03); }
+.hero-banner-zoom {
+  position: absolute; right: 0.875rem; bottom: 0.875rem;
+  width: 2.25rem; height: 2.25rem; border-radius: 0.5rem;
+  background: rgba(15, 20, 15, 0.45); color: #fff;
+  display: grid; place-items: center; backdrop-filter: blur(2px);
+  opacity: 0; transition: opacity 0.2s ease;
+}
+.hero-banner-photo:hover .hero-banner-zoom { opacity: 1; }
+.hero-banner-zoom svg { width: 1.1rem; height: 1.1rem; }
+
+/* ===== LESSON LIST ===== */
+.lesson-list { display: flex; flex-direction: column; gap: 0.6rem; }
+.lesson-card {
+  border: 0.0625rem solid var(--line-soft); border-radius: var(--radius-md);
+  padding: 0.7rem 0.85rem; background: var(--paper);
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+.lesson-card:hover { border-color: var(--line-strong); background: var(--paper-soft); }
+.lesson-head { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.3rem; }
+.lesson-type {
+  font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 0.12rem 0.5rem; border-radius: 62.5rem;
+}
+.lesson-type.is-lesson { background: var(--sage-50); color: var(--sage-700); }
+.lesson-type.is-diag { background: var(--blue-50); color: var(--blue-700); }
+.lesson-title { font-size: 0.9375rem; font-weight: 600; color: var(--ink-strong); }
+.lesson-meta { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; font-size: 0.82rem; color: var(--ink-muted); }
+.sep-dot { color: var(--line-strong); }
+
+/* ===== EVENT LIST (ближайшие события) ===== */
+.event-list { display: flex; flex-direction: column; gap: 0.3rem; }
+.event-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 0.0625rem solid var(--line-soft); }
+.event-row:last-child { border-bottom: none; }
+.event-date {
+  flex: 0 0 3rem; width: 3rem; height: 3rem; border-radius: var(--radius-md);
+  background: var(--sage-50); color: var(--sage-700);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; line-height: 1;
+}
+.event-date.mse { background: var(--amber-50); color: var(--amber-700); }
+.event-day { font-family: var(--font-serif); font-size: 1.125rem; font-weight: 600; }
+.event-mon { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.event-info { flex: 1; min-width: 0; }
+.event-title { font-size: 0.9rem; font-weight: 500; color: var(--ink-strong); }
+.event-meta { font-size: 0.8rem; color: var(--ink-muted); }
+
+/* ===== ОТМЕТКА ПОСЕЩЕНИЯ ===== */
+.rd-att { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
+.rd-att-toggle { display: inline-flex; gap: 0.3rem; flex: 1 1 auto; flex-wrap: wrap; }
+.rd-att-btn {
+  flex: 1 1 auto; min-width: 4.5rem; padding: 0.5rem 0.6rem;
+  border: 0.0625rem solid var(--line-strong); border-radius: var(--radius-md);
+  background: var(--paper); color: var(--ink-muted);
+  font-size: 0.875rem; font-weight: 600; cursor: pointer;
+  transition: background 0.12s, color 0.12s, border-color 0.12s;
+}
+.rd-att-btn:hover { border-color: var(--ink-muted); }
+.rd-att-btn.is-yes.active { background: var(--sage-50); color: var(--sage-700); border-color: var(--sage-500); }
+.rd-att-btn.is-partial.active { background: var(--rose-50); color: var(--rose-700); border-color: var(--rose-500); }
+.rd-att-btn.is-no.active { background: var(--amber-50); color: var(--amber-700); border-color: var(--amber-700); }
+.rd-att-save { flex: 0 0 auto; }
+.rd-att-hint { margin-top: 0.6rem; font-size: 0.82rem; color: var(--ink-muted); }
+.rd-att-hint strong { color: var(--ink-strong); font-weight: 600; }
+
+/* ===== КОМАНДА СОПРОВОЖДЕНИЯ ===== */
+.rd-team-role { line-height: 1.35; }
+.rd-curator-badge {
+  font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
+  background: var(--sage-100); color: var(--sage-700);
+  padding: 0.1rem 0.4rem; border-radius: 0.25rem;
 }
 
 /* ===== RESPONSIVE ===== */
