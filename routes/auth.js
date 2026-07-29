@@ -5,6 +5,19 @@ import { User } from '../models/index.js';
 
 const router = express.Router();
 
+// Единая форма пользователя для /register, /login и /me.
+//
+// Раньше вход отдавал только { id, email, role }, а полную запись фронтенд
+// получал лишь из GET /me — то есть после перезагрузки страницы. До этого
+// момента в authStore не было ни directionId, ни прав на заключение, и
+// преподаватель на вкладке «Заявки на диагностику» видел «в вашей учётной
+// записи не указана профессиональная ориентированность», хотя направление
+// у него в базе есть. Отдаём один и тот же объект отовсюду.
+const publicUser = (user) => {
+  const { passwordHash, ...rest } = user.toJSON();
+  return rest;
+};
+
 router.post('/register', async (req, res, next) => {
   try {
     const { email, password, role, agreedToTerms, firstName, lastName, directionId } = req.body;
@@ -31,7 +44,7 @@ router.post('/register', async (req, res, next) => {
       sameSite: 'strict',
       maxAge: 24 * 60 * 60 * 1000
     });
-    res.json({ user: { id: user.id, email: user.email, role: user.role } });
+    res.json({ user: publicUser(user) });
   } catch (err) {
     next(err);
   }
@@ -51,7 +64,7 @@ router.post('/login', async (req, res, next) => {
       sameSite: 'strict',
       maxAge: 24 * 60 * 60 * 1000
     });
-    res.json({ user: { id: user.id, email: user.email, role: user.role } });
+    res.json({ user: publicUser(user) });
   } catch (err) {
     next(err);
   }

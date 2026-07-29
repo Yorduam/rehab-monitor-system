@@ -12,7 +12,17 @@ const RecipientScanDoc = sequelize.define('RecipientScanDoc', {
   mimeType: { type: DataTypes.STRING(100), allowNull: false },
   sizeBytes: { type: DataTypes.BIGINT.UNSIGNED, allowNull: false },
   checksum_sha256: { type: DataTypes.CHAR(64), allowNull: false },
-  fileData: { type: DataTypes.BLOB('long'), allowNull: true }
+  fileData: { type: DataTypes.BLOB('long'), allowNull: true },
+
+  // ---- Аудит загрузки/обновления файлов -------------------------------------
+  // Старые сканы НЕ удаляются: при замене у прежней версии isCurrent=false,
+  // а у новой заполняется replacesScanId. Так сохраняется вся цепочка версий.
+  uploadedBy: { type: DataTypes.INTEGER, allowNull: true },
+  uploadedAt: { type: DataTypes.DATE, allowNull: true },
+  // Причина обновления — обязательна при замене существующего документа.
+  updateReason: { type: DataTypes.STRING(500), allowNull: true },
+  replacesScanId: { type: DataTypes.INTEGER, allowNull: true },
+  isCurrent: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true }
 }, {
   tableName: 'RecipientScanDocs',
   timestamps: false

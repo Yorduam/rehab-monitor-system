@@ -335,6 +335,14 @@
                           </svg>
                           Редактировать
                         </button>
+                        <button v-if="canAssignDiagnostic" class="t-menu-item" @click="openAssignDiagnostic(r); closeDropdown()">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                            <rect x="3" y="4" width="18" height="18" rx="2"/>
+                            <path d="M16 2v4M8 2v4M3 10h18"/>
+                            <path d="M12 14v4M10 16h4"/>
+                          </svg>
+                          Назначить диагностику
+                        </button>
                         <div v-if="canManageRecipients" class="t-menu-divider"></div>
                         <button v-if="canManageRecipients" class="t-menu-item t-menu-danger" @click="deleteRecipient(r.id); closeDropdown()">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
@@ -493,7 +501,7 @@
                     <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
                   </svg>
                 </button>
-                <div v-if="canManageRecipients" style="position:relative">
+                <div v-if="canManageRecipients || canAssignDiagnostic" style="position:relative">
                   <button class="t-action-btn" @click.stop="toggleDropdown(r.id)" title="Ещё">
                     <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                       <circle cx="12" cy="5" r="1.5"/><circle cx="12" cy="12" r="1.5"/><circle cx="12" cy="19" r="1.5"/>
@@ -501,9 +509,12 @@
                   </button>
                   <div v-if="activeDropdown === r.id" class="t-row-menu t-row-menu-list" @click.stop>
                     <button class="t-menu-item" @click="openDetails(r.id); closeDropdown()">Карточка</button>
-                    <button class="t-menu-item" @click="editRecipient(r); closeDropdown()">Редактировать</button>
-                    <div class="t-menu-divider"></div>
-                    <button class="t-menu-item t-menu-danger" @click="deleteRecipient(r.id); closeDropdown()">Удалить</button>
+                    <button v-if="canManageRecipients" class="t-menu-item" @click="editRecipient(r); closeDropdown()">Редактировать</button>
+                    <button v-if="canAssignDiagnostic" class="t-menu-item" @click="openAssignDiagnostic(r); closeDropdown()">Назначить диагностику</button>
+                    <template v-if="canManageRecipients">
+                      <div class="t-menu-divider"></div>
+                      <button class="t-menu-item t-menu-danger" @click="deleteRecipient(r.id); closeDropdown()">Удалить</button>
+                    </template>
                   </div>
                 </div>
               </div>
@@ -713,6 +724,16 @@
       @saved="onRecipientSaved"
     />
 
+    <!-- Назначение диагностики имеющемуся реабилитанту: сначала проверка
+         маршрута и документов, затем форма назначения. -->
+    <AssignDiagnosticModal
+      v-if="assignTarget"
+      :recipient-id="assignTarget.id"
+      :recipient-name="assignTarget.name"
+      @close="closeAssignDiagnostic"
+      @assigned="onDiagnosticAssigned"
+    />
+
     <!-- Маленькое всплывающее окно после добавления нового реабилитанта:
          предложить перейти в карточку или на назначение диагностики -->
     <transition name="added-pop">
@@ -746,6 +767,7 @@ import { fullName, recipientAge, initials, statusLabel } from '../utils/recipien
 import Modal from '../components/Modal.vue';
 import RecipientsPager from '../components/RecipientsPager.vue';
 import AddRecipientWizard from '../components/AddRecipientWizard.vue';
+import AssignDiagnosticModal from '../components/AssignDiagnosticModal.vue';
 
 const authStore = useAuthStore();
 const pageStore = usePageStore();
@@ -754,6 +776,20 @@ const pageStore = usePageStore();
 // но управляющие действия (редактирование/удаление/массовые операции) остаются
 // только у преподавателя и администратора — у сотрудника лишь просмотр и добавление.
 const canManageRecipients = computed(() => authStore.isAdmin || authStore.isTeacher);
+
+// Назначение диагностики — функция координатора (администратор и сотрудник).
+// Преподаватель диагностику не назначает, он её проводит.
+const canAssignDiagnostic = computed(() => authStore.isAdmin || authStore.isEmployee);
+
+// Модалка «Назначение диагностики» для выбранного реабилитанта.
+const assignTarget = ref(null);
+const openAssignDiagnostic = (r) => {
+  assignTarget.value = { id: r.id, name: fullName(r) };
+};
+const closeAssignDiagnostic = () => { assignTarget.value = null; };
+// После успешного назначения обновляем список — у карточки меняется
+// «ближайшее занятие».
+const onDiagnosticAssigned = () => { loadRecipients(); };
 
 const recipients   = ref([]);
 const groupsList   = ref([]);
@@ -775,6 +811,7 @@ const editId       = ref(null);
 const showWizard   = ref(false);
 const showAddedPopup = ref(false);
 const addedRecipientId = ref(null);
+const addedRecipientName = ref('');
 const defaultPhoto = 'https://via.placeholder.com/100';
 let searchTimeout  = null;
 const activeDropdown = ref(null);
@@ -1119,6 +1156,7 @@ const onRecipientSaved = (createdRecipient) => {
   const id = createdRecipient?.id ?? null;
   if (id) {
     addedRecipientId.value = id;
+    addedRecipientName.value = fullName(createdRecipient);
     showAddedPopup.value = true;
   }
 };
@@ -1129,9 +1167,13 @@ const goToAddedDetails = () => {
   if (id) openDetails(id);
 };
 
+// Открываем ту же модалку назначения, что и из меню карточки: заявка ставится
+// только датой. Раньше отсюда уводило на старый экран «Диагностика → Назначение»
+// с выбором направления и специалиста — он упразднён.
 const goToAddedAssign = () => {
+  const id = addedRecipientId.value;
   showAddedPopup.value = false;
-  pageStore.setPage('diagnostics', 'Диагностика', { mode: 'assign' });
+  if (id) assignTarget.value = { id, name: addedRecipientName.value };
 };
 
 const loadRecipients = async () => {

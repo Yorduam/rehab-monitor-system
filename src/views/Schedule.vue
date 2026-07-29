@@ -16,8 +16,12 @@
       <div class="sch-tabs">
         <button class="sch-tab" :class="{ active: tab === 'day' }" @click="tab = 'day'">Дневное расписание</button>
         <button class="sch-tab" :class="{ active: tab === 'week' }" @click="tab = 'week'">Недельный календарь</button>
+        <button class="sch-tab" :class="{ active: tab === 'pool' }" @click="switchToPool">
+          Заявки на диагностику
+          <span v-if="poolBadge" class="sch-tab-badge">{{ poolBadge }}</span>
+        </button>
       </div>
-      <div class="sch-nav">
+      <div class="sch-nav" v-if="tab !== 'pool'">
         <button class="sch-nav-btn" @click="shift(-1)" aria-label="Назад">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
         </button>
@@ -79,6 +83,80 @@
       </div>
     </div>
 
+    <!-- ============ POOL VIEW: заявки на диагностику ============ -->
+    <div v-else-if="tab === 'pool'" class="sch-pool">
+      <p class="sch-pool-lead">
+        <template v-if="canClaim">
+          Заявки создаёт ресепшн — только датой. Возьмите реабилитанта себе:
+          направление подставится из вашего профиля, время вы выбираете сами.
+        </template>
+        <template v-else>
+          Заявки на диагностику, которые сейчас разбирают специалисты.
+        </template>
+      </p>
+
+      <div v-if="!myProfile && canClaim" class="sch-pool-warn">
+        В вашей учётной записи не указана профессиональная ориентированность —
+        брать реабилитантов на диагностику нельзя. Обратитесь к администратору.
+      </div>
+
+      <div v-if="poolLoading" class="sch-loading"><div class="sch-spinner"></div></div>
+      <div v-else-if="!pool.length" class="sch-empty card">Свободных заявок на диагностику нет.</div>
+
+      <div v-else class="sch-pool-list">
+        <article v-for="s in pool" :key="s.id" class="sch-pcard card" :class="{ 'is-mine': s.claimedByMe }">
+          <div class="sch-pcard-head">
+            <div class="sch-pcard-id">
+              <h3 class="sch-pcard-name">{{ s.recipient ? fullName(s.recipient) : 'Реабилитант #' + s.recipientId }}</h3>
+              <div class="sch-pcard-meta">
+                <span class="sch-pcard-date">{{ formatDate(String(s.date).slice(0, 10)) }}</span>
+                <span class="sch-pdot" aria-hidden="true">·</span>
+                <span :class="['sch-pstatus', s.status]">{{ statusLabel(s.status) }}</span>
+                <template v-if="s.authorName">
+                  <span class="sch-pdot" aria-hidden="true">·</span>
+                  <span>заявку создал(а) {{ s.authorName }}</span>
+                </template>
+              </div>
+            </div>
+            <span class="sch-pcount">{{ s.completed }} / {{ s.total }}</span>
+          </div>
+
+          <p v-if="s.note" class="sch-pnote">{{ s.note }}</p>
+
+          <div v-if="s.blocks.length" class="sch-pblocks">
+            <span
+              v-for="b in s.blocks"
+              :key="b.id"
+              class="sch-pblock"
+              :class="{ done: b.blockStatus === 'completed', mine: b.isMine }"
+            >
+              <span class="sch-pblock-ico">{{ b.blockStatus === 'completed' ? '✓' : '…' }}</span>
+              <span class="sch-pblock-txt">
+                {{ blockProfile(b) }} · {{ b.specialistName || '—' }}
+                <template v-if="b.startTime">, {{ hhmm(b.startTime) }}–{{ hhmm(b.endTime) }}</template>
+              </span>
+            </span>
+          </div>
+          <p v-else class="sch-pempty">Никто ещё не взял этого реабилитанта.</p>
+
+          <div class="sch-pcard-foot">
+            <button v-if="canOpenBoard(s)" class="dm-btn dm-btn--ghost" @click="openBoard(s.id)">
+              Доска диагностики
+            </button>
+            <button
+              v-if="canClaim && !s.claimedByMe"
+              class="dm-btn dm-btn--primary"
+              :disabled="!myProfile"
+              @click="openClaim(s)"
+            >
+              Взять себе
+            </button>
+            <span v-else-if="s.claimedByMe" class="sch-ptaken">Вы уже взяли этого реабилитанта</span>
+          </div>
+        </article>
+      </div>
+    </div>
+
     <!-- ============ WEEK VIEW ============ -->
     <div v-else class="sch-week card">
       <div class="sch-week-grid">
@@ -132,8 +210,63 @@
       v-if="fillAssignmentId"
       :assignment-id="fillAssignmentId"
       @close="fillAssignmentId = null"
-      @updated="loadEvents"
+      @updated="onFillUpdated"
     />
+
+    <!-- diagnostic board (живая доска заявки) -->
+    <DiagnosticBoardModal
+      v-if="boardSessionId"
+      :session-id="boardSessionId"
+      @close="boardSessionId = null"
+      @open-block="onBoardOpenBlock"
+      @changed="refreshAll"
+    />
+
+    <!-- claim modal: специалист выбирает только время -->
+    <div v-if="claimSession" class="sch-overlay" @click.self="closeClaim">
+      <div class="sch-create" role="dialog" aria-modal="true">
+        <div class="sch-detail-head">
+          <h3>Взять на диагностику</h3>
+          <button class="dm-x" @click="closeClaim" aria-label="Закрыть">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="sch-create-body">
+          <div class="sch-claim-info">
+            <div class="sch-detail-row">
+              <span>Реабилитант</span>
+              <b>{{ claimSession.recipient ? fullName(claimSession.recipient) : '#' + claimSession.recipientId }}</b>
+            </div>
+            <div class="sch-detail-row">
+              <span>Дата</span><b>{{ formatDate(String(claimSession.date).slice(0, 10)) }}</b>
+            </div>
+            <div class="sch-detail-row">
+              <span>Ваше направление</span><b>{{ myProfile || 'не указано' }}</b>
+            </div>
+          </div>
+          <p class="sch-claim-hint">
+            Направление берётся из вашего профиля — выберите только удобное вам время.
+          </p>
+          <div class="sch-field-row">
+            <label class="sch-field">
+              <span>Начало</span>
+              <input type="time" v-model="claimForm.startTime" step="900" class="sch-input" />
+            </label>
+            <label class="sch-field">
+              <span>Окончание</span>
+              <input type="time" v-model="claimForm.endTime" step="900" class="sch-input" />
+            </label>
+          </div>
+          <p v-if="claimError" class="sch-error">{{ claimError }}</p>
+        </div>
+        <div class="sch-detail-foot">
+          <button class="dm-btn dm-btn--ghost" @click="closeClaim">Отмена</button>
+          <button class="dm-btn dm-btn--primary" :disabled="claiming" @click="submitClaim">
+            {{ claiming ? 'Берём…' : 'Взять себе' }}
+          </button>
+        </div>
+      </div>
+    </div>
 
     <!-- lesson detail modal -->
     <div v-if="detailEvent" class="sch-overlay" @click.self="detailEvent = null">
@@ -180,25 +313,16 @@
           </div>
 
           <template v-if="createMode === 'assignment'">
+            <p class="sch-assign-hint">
+              Диагностика назначается только датой. Направление и специалиста
+              выбирать не нужно — заявка попадёт во вкладку «Заявки на диагностику»,
+              и специалисты возьмут реабилитанта сами.
+            </p>
             <label class="sch-field">
               <span>Реабилитант</span>
               <select v-model="form.recipientId" class="sch-input">
                 <option :value="null" disabled>Выберите…</option>
                 <option v-for="r in recipients" :key="r.id" :value="r.id">{{ fullName(r) }}</option>
-              </select>
-            </label>
-            <label class="sch-field">
-              <span>Тип / направление</span>
-              <select v-model="form.directionId" class="sch-input">
-                <option :value="null" disabled>Выберите…</option>
-                <option v-for="d in directions" :key="d.id" :value="d.id">{{ directionLabel(d) }}</option>
-              </select>
-            </label>
-            <label class="sch-field">
-              <span>Специалист</span>
-              <select v-model="form.specialistUserId" class="sch-input">
-                <option :value="null" disabled>Выберите…</option>
-                <option v-for="s in specialists" :key="s.id" :value="s.id">{{ specialistName(s) }}{{ s.direction ? ' · ' + directionLabel(s.direction) : '' }}{{ s.cabinet ? ' · каб. ' + s.cabinet : '' }}</option>
               </select>
             </label>
           </template>
@@ -227,20 +351,22 @@
           <div class="sch-field-row">
             <label class="sch-field">
               <span>Дата</span>
-              <input type="date" v-model="form.date" class="sch-input" />
+              <input type="date" v-model="form.date" :min="createMode === 'assignment' ? todayYmd : null" class="sch-input" />
             </label>
-            <label class="sch-field">
-              <span>Начало</span>
-              <input type="time" v-model="form.startTime" step="900" class="sch-input" />
-            </label>
-            <label class="sch-field">
-              <span>Окончание</span>
-              <input type="time" v-model="form.endTime" step="900" class="sch-input" />
-            </label>
+            <template v-if="createMode !== 'assignment'">
+              <label class="sch-field">
+                <span>Начало</span>
+                <input type="time" v-model="form.startTime" step="900" class="sch-input" />
+              </label>
+              <label class="sch-field">
+                <span>Окончание</span>
+                <input type="time" v-model="form.endTime" step="900" class="sch-input" />
+              </label>
+            </template>
           </div>
 
           <label v-if="createMode === 'assignment'" class="sch-field">
-            <span>Комментарий (необязательно)</span>
+            <span>Комментарий для специалистов (необязательно)</span>
             <textarea v-model="form.comment" rows="2" class="sch-input"></textarea>
           </label>
 
@@ -264,9 +390,13 @@ import { useAuthStore } from '../stores/auth';
 import { fullName } from '../utils/recipient';
 import { PROFILE_LABELS } from '../utils/diagnosticBlocks';
 import DiagnosticFillModal from '../components/DiagnosticFillModal.vue';
+import DiagnosticBoardModal from '../components/DiagnosticBoardModal.vue';
 
 const authStore = useAuthStore();
+// Кто создаёт заявку на диагностику (ресепшн/админ).
 const canAssign = computed(() => authStore.isAdmin || authStore.isEmployee);
+// Кто может «взять» реабилитанта себе — специалист (и админ для подстраховки).
+const canClaim = computed(() => authStore.isTeacher || authStore.isAdmin);
 
 // --- timeline geometry ---
 const DAY_START = 8;   // 08:00
@@ -290,7 +420,16 @@ const currentDate = ref(toYmd(new Date()));
 const todayYmd = toYmd(new Date());
 
 const fillAssignmentId = ref(null);
+const boardSessionId = ref(null);
 const detailEvent = ref(null);
+
+// --- пул заявок на диагностику ---
+const pool = ref([]);
+const poolLoading = ref(false);
+const claimSession = ref(null);
+const claiming = ref(false);
+const claimError = ref('');
+const claimForm = reactive({ startTime: '09:00', endTime: '09:30' });
 
 // create modal
 const createOpen = ref(false);
@@ -380,6 +519,112 @@ async function loadEvents() {
   } finally {
     loading.value = false;
   }
+}
+
+// --- пул заявок на диагностику -------------------------------------------
+// Заявку создаёт ресепшн (только дата). Специалисты сами разбирают её здесь.
+async function loadPool() {
+  poolLoading.value = true;
+  try {
+    const { data } = await api.get('/schedule/pool');
+    pool.value = Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error(err);
+    pool.value = [];
+  } finally {
+    poolLoading.value = false;
+  }
+}
+
+// Счётчик на вкладке: для специалиста — сколько заявок он ещё может взять,
+// для координатора — сколько заявок в работе всего.
+const poolBadge = computed(() => {
+  if (!pool.value.length) return 0;
+  if (canClaim.value) return pool.value.filter((s) => !s.claimedByMe).length;
+  return pool.value.length;
+});
+
+// Профиль (направление) текущего пользователя — подставляется при «взять себе».
+const myProfile = computed(() => {
+  const id = authStore.user?.directionId;
+  if (!id) return '';
+  const d = directions.value.find((x) => x.id === id);
+  return d ? directionLabel(d) : 'ваш профиль';
+});
+
+function statusLabel(s) {
+  return { open: 'свободна', in_progress: 'в работе', completed: 'завершена', cancelled: 'отменена' }[s] || s;
+}
+
+// Название профиля по блоку (direction приходит объектом).
+function blockProfile(b) {
+  return PROFILE_LABELS[b.profileKey] || b.direction?.name || 'Направление';
+}
+
+// Доску заявки открываем тем, кто хоть что-то в ней видит.
+function canOpenBoard(s) {
+  return canAssign.value || s.claimedByMe || s.canViewAll || s.canConclude;
+}
+
+async function switchToPool() {
+  tab.value = 'pool';
+  if (!directions.value.length) await loadDirections();
+  await loadPool();
+}
+
+async function loadDirections() {
+  try {
+    const { data } = await api.get('/lists/directions');
+    directions.value = data || [];
+  } catch (err) {
+    console.error(err);
+  }
+}
+
+function openClaim(s) {
+  claimError.value = '';
+  claimForm.startTime = '09:00';
+  claimForm.endTime = '09:30';
+  claimSession.value = s;
+}
+function closeClaim() {
+  if (claiming.value) return;
+  claimSession.value = null;
+}
+async function submitClaim() {
+  if (!claimSession.value || claiming.value) return;
+  claimError.value = '';
+  if (!claimForm.startTime || !claimForm.endTime) { claimError.value = 'Укажите время.'; return; }
+  if (toMin(claimForm.endTime) <= toMin(claimForm.startTime)) {
+    claimError.value = 'Окончание должно быть позже начала.'; return;
+  }
+  claiming.value = true;
+  try {
+    const { data } = await api.post(`/schedule/sessions/${claimSession.value.id}/claim`, {
+      startTime: claimForm.startTime,
+      endTime: claimForm.endTime
+    });
+    claimSession.value = null;
+    await refreshAll();
+    // Сразу открываем блок — специалист может начать заполнять свой профиль.
+    if (data?.assignmentId) fillAssignmentId.value = data.assignmentId;
+  } catch (err) {
+    claimError.value = err.response?.data?.message || 'Не удалось взять реабилитанта.';
+  } finally {
+    claiming.value = false;
+  }
+}
+
+function openBoard(id) { boardSessionId.value = id; }
+function onBoardOpenBlock(assignmentId) {
+  boardSessionId.value = null;
+  fillAssignmentId.value = assignmentId;
+}
+async function onFillUpdated() { await refreshAll(); }
+
+async function refreshAll() {
+  await loadEvents();
+  if (tab.value === 'pool' || pool.value.length) await loadPool();
 }
 
 // --- geometry for a single event block ---
@@ -478,32 +723,44 @@ async function loadRefs() {
 }
 async function submitCreate() {
   createError.value = '';
-  if (!form.date || !form.startTime || !form.endTime) { createError.value = 'Укажите дату и время.'; return; }
-  if (toMin(form.endTime) <= toMin(form.startTime)) { createError.value = 'Окончание должно быть позже начала.'; return; }
+  if (!form.date) { createError.value = 'Укажите дату.'; return; }
   submitting.value = true;
   try {
     if (createMode.value === 'assignment') {
-      if (!form.recipientId || !form.directionId || !form.specialistUserId) {
-        createError.value = 'Заполните реабилитанта, направление и специалиста.'; submitting.value = false; return;
+      // Заявка на диагностику: только реабилитант + дата.
+      if (!form.recipientId) {
+        createError.value = 'Выберите реабилитанта.'; submitting.value = false; return;
       }
-      await api.post('/schedule/assignments', {
-        recipientId: form.recipientId, directionId: form.directionId,
-        specialistUserId: form.specialistUserId, date: form.date,
-        startTime: form.startTime, endTime: form.endTime, comment: form.comment
+      await api.post('/schedule/sessions', {
+        recipientId: form.recipientId,
+        date: form.date,
+        note: form.comment || null
       });
-    } else {
-      const body = {
-        title: form.title || 'Занятие', recipientId: form.recipientId || null,
-        date: form.date, startTime: form.startTime, endTime: form.endTime
-      };
-      if (canAssign.value && form.specialistUserId) body.specialistUserId = form.specialistUserId;
-      await api.post('/schedule/events', body);
+      createOpen.value = false;
+      resetForm();
+      await switchToPool();
+      return;
     }
+
+    if (!form.startTime || !form.endTime) { createError.value = 'Укажите время.'; submitting.value = false; return; }
+    if (toMin(form.endTime) <= toMin(form.startTime)) {
+      createError.value = 'Окончание должно быть позже начала.'; submitting.value = false; return;
+    }
+    const body = {
+      title: form.title || 'Занятие', recipientId: form.recipientId || null,
+      date: form.date, startTime: form.startTime, endTime: form.endTime
+    };
+    if (canAssign.value && form.specialistUserId) body.specialistUserId = form.specialistUserId;
+    await api.post('/schedule/events', body);
+
     createOpen.value = false;
     resetForm();
     await loadEvents();
   } catch (err) {
-    createError.value = err.response?.data?.message || 'Не удалось сохранить.';
+    const d = err.response?.data;
+    createError.value = d?.blockers?.length
+      ? d.blockers.map((b) => b.message).join('; ')
+      : (d?.message || 'Не удалось сохранить.');
   } finally {
     submitting.value = false;
   }
@@ -516,6 +773,9 @@ function resetForm() {
 onMounted(() => {
   document.documentElement.style.setProperty('--bg-app', '#F7F4ED');
   loadEvents();
+  // Счётчик свободных заявок нужен сразу — он висит на вкладке.
+  loadDirections();
+  loadPool();
   nowTimer = setInterval(() => { nowTick.value = Date.now(); }, 60000);
 });
 onUnmounted(() => {
@@ -542,6 +802,60 @@ onUnmounted(() => {
 .sch-tabs { display: inline-flex; background: #F3EEE4; border: 1px solid #E4DECF; border-radius: 0.7rem; padding: 0.2rem; gap: 0.2rem; }
 .sch-tab { border: none; background: none; padding: 0.45rem 0.9rem; border-radius: 0.55rem; font-size: 0.85rem; font-weight: 600; color: #6E7368; cursor: pointer; font-family: inherit; }
 .sch-tab.active { background: #FFFFFF; color: #2F4A2F; box-shadow: 0 1px 3px rgba(17,34,17,0.08); }
+.sch-tab-badge {
+  display: inline-grid; place-items: center; min-width: 1.15rem; height: 1.15rem;
+  margin-left: 0.35rem; padding: 0 0.28rem; border-radius: 999px;
+  background: #B0533F; color: #fff; font-size: 0.68rem; font-weight: 700;
+}
+
+/* ---- пул заявок на диагностику ---- */
+.sch-pool { display: flex; flex-direction: column; gap: 0.9rem; }
+.sch-pool-lead { margin: 0; color: #4F564A; font-size: 0.9rem; line-height: 1.5; max-width: 62ch; }
+.sch-pool-warn {
+  padding: 0.7rem 0.9rem; border-radius: 0.7rem;
+  background: #FAE9E0; border: 1px solid #EFC9B8; color: #8A3A28; font-size: 0.85rem;
+}
+.sch-pool-list { display: grid; gap: 0.85rem; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); }
+.sch-pcard { padding: 1rem 1.1rem; display: flex; flex-direction: column; gap: 0.65rem; }
+.sch-pcard.is-mine { border-left: 3px solid #5F7E45; }
+.sch-pcard-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.75rem; }
+.sch-pcard-name { font-family: 'Lora', Georgia, serif; font-size: 1.05rem; font-weight: 600; color: #0F140F; margin: 0; }
+.sch-pcard-meta { margin-top: 0.25rem; font-size: 0.78rem; color: #6E7368; display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
+.sch-pcard-date { font-weight: 600; color: #4F564A; }
+.sch-pdot { color: #C4BFB2; }
+.sch-pstatus { font-weight: 600; }
+.sch-pstatus.open { color: #B97718; }
+.sch-pstatus.in_progress { color: #2F4A2F; }
+.sch-pstatus.completed { color: #6E7368; }
+.sch-pcount {
+  flex-shrink: 0; font-size: 0.76rem; font-weight: 700; color: #4F564A;
+  background: #F3EEE4; border: 1px solid #E4DECF; border-radius: 999px; padding: 0.2rem 0.55rem;
+}
+.sch-pnote {
+  margin: 0; padding: 0.5rem 0.65rem; border-radius: 0.55rem;
+  background: #FBF9F3; border: 1px dashed #E4DECF; color: #4F564A;
+  font-size: 0.83rem; line-height: 1.45;
+}
+.sch-pblocks { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+.sch-pblock {
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-size: 0.76rem; padding: 0.26rem 0.55rem; border-radius: 999px;
+  background: #F3EEE4; border: 1px solid #E4DECF; color: #4F564A;
+}
+.sch-pblock.done { background: #E0EBD1; border-color: #CBDDB4; color: #234623; }
+.sch-pblock.mine { font-weight: 600; border-color: #5F7E45; }
+.sch-pblock-ico { font-weight: 700; }
+.sch-pempty { margin: 0; font-size: 0.83rem; color: #8A8F82; font-style: italic; }
+.sch-pcard-foot { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; margin-top: auto; padding-top: 0.35rem; }
+.sch-ptaken { font-size: 0.8rem; color: #2F4A2F; font-weight: 600; }
+
+.sch-claim-info { display: grid; gap: 0.3rem; margin-bottom: 0.6rem; }
+.sch-claim-hint { margin: 0 0 0.6rem; font-size: 0.82rem; color: #6E7368; line-height: 1.45; }
+.sch-assign-hint {
+  margin: 0 0 0.35rem; padding: 0.6rem 0.7rem; border-radius: 0.6rem;
+  background: #EEF4E2; border: 1px dashed #CBDDB4; color: #2F4A2F;
+  font-size: 0.82rem; line-height: 1.45;
+}
 
 .sch-nav { display: inline-flex; align-items: center; gap: 0.4rem; }
 .sch-nav-btn { width: 2rem; height: 2rem; display: grid; place-items: center; border: 1px solid #D6CFBE; background: #fff; border-radius: 0.55rem; color: #4F564A; cursor: pointer; }

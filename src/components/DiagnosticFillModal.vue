@@ -21,19 +21,56 @@
         <div class="dm-body">
           <!-- session progress (blocks by specialty) -->
           <div class="dm-session" v-if="session && session.siblings.length > 1">
-            <div class="dm-session-label">Этапы комплексной диагностики</div>
+            <div class="dm-session-head">
+              <div class="dm-session-label">Этапы комплексной диагностики</div>
+              <span class="dm-live" title="Обновляется автоматически">
+                <i class="dm-live-dot" aria-hidden="true"></i>онлайн
+              </span>
+            </div>
             <div class="dm-session-blocks">
-              <div
+              <button
                 v-for="b in session.siblings"
                 :key="b.id"
+                type="button"
                 class="dm-chip"
-                :class="{ 'dm-chip--me': b.id === assignment.id, 'dm-chip--done': b.blockStatus === 'completed' }"
+                :class="{
+                  'dm-chip--me': b.id === assignment.id,
+                  'dm-chip--done': b.blockStatus === 'completed',
+                  'dm-chip--open': openSibling === b.id
+                }"
+                :disabled="b.id === assignment.id"
+                @click="toggleSibling(b)"
               >
-                <svg v-if="b.id !== assignment.id" class="dm-lock" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <svg v-if="b.resultsHidden" class="dm-lock" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                 {{ specialtyName(b) }}
                 <span class="dm-chip-state">{{ b.blockStatus === 'completed' ? '✓' : '…' }}</span>
-              </div>
+              </button>
             </div>
+
+            <!-- результаты коллеги, только чтение -->
+            <div v-if="activeSibling" class="dm-peer">
+              <div class="dm-peer-head">
+                <span class="dm-peer-name">{{ specialtyName(activeSibling) }}</span>
+                <span class="dm-peer-who">{{ activeSibling.specialistName || 'Специалист' }}</span>
+              </div>
+              <div v-if="activeSibling.resultsHidden" class="dm-peer-lock">
+                Результаты этого специалиста вам не видны — право на просмотр
+                результатов других педагогов выдаёт администратор.
+              </div>
+              <template v-else>
+                <div v-if="peerCriteria.length" class="dm-peer-crits">
+                  <div v-for="c in peerCriteria" :key="c.id" class="dm-peer-crit">
+                    <span class="dm-peer-crit-label">{{ c.label }}</span>
+                    <span class="dm-peer-scale">
+                      <i v-for="s in SCALE" :key="s.value" class="dm-peer-tick" :class="{ on: c.value === s.value }">{{ s.short }}</i>
+                    </span>
+                  </div>
+                </div>
+                <p v-else class="dm-peer-blank">Специалист ещё не внёс оценки.</p>
+                <p v-if="peerComment" class="dm-peer-comment">{{ peerComment }}</p>
+              </template>
+            </div>
+
             <div v-if="session.fullyCompleted" class="dm-fully">
               Диагностика полностью завершена всеми специалистами.
             </div>
@@ -114,10 +151,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import api from '../api';
 import { fullName } from '../utils/recipient';
 import { SCALE, getBlock, profileLabel, averageScore } from '../utils/diagnosticBlocks';
+
+// Как часто подтягиваем этапы коллег, пока модалка открыта.
+const POLL_MS = 15000;
 
 const props = defineProps({
   assignmentId: { type: [Number, String], required: true }
@@ -130,6 +170,8 @@ const data = reactive({ canEdit: false });
 const assignment = ref(null);
 const session = ref(null);
 const form = reactive({ criteria: {}, comment: '' });
+const openSibling = ref(null);
+let poller = null;
 
 const profileKey = computed(() => assignment.value?.direction?.profileKey || '');
 const block = computed(() => getBlock(profileKey.value));
@@ -146,13 +188,42 @@ const statusLabel = computed(() => {
 });
 const statusClass = computed(() => assignment.value?.blockStatus === 'completed' ? 'is-done' : 'is-progress');
 
-const load = async () => {
-  loading.value = true;
+// ---- этапы коллег (просмотр в реальном времени) ----------------------------
+const activeSibling = computed(() =>
+  session.value?.siblings?.find((b) => b.id === openSibling.value) || null
+);
+const peerCriteria = computed(() => {
+  const b = activeSibling.value;
+  if (!b || b.resultsHidden) return [];
+  const schema = getBlock(b.profileKey || b.direction?.profileKey);
+  if (!schema) return [];
+  const stored = b.results?.criteria || {};
+  const rows = schema.criteria.map((c) => ({
+    id: c.id,
+    label: c.label,
+    value: stored[c.id] === undefined ? null : stored[c.id]
+  }));
+  return rows.some((r) => r.value !== null && r.value !== '') ? rows : [];
+});
+const peerComment = computed(() => {
+  const b = activeSibling.value;
+  if (!b || b.resultsHidden) return '';
+  return b.results?.comment || b.comment || '';
+});
+const toggleSibling = (b) => {
+  if (b.id === assignment.value?.id) return;
+  openSibling.value = openSibling.value === b.id ? null : b.id;
+};
+
+// silent=true — фоновое обновление: не трогаем то, что специалист печатает.
+const load = async (silent = false) => {
+  if (!silent) loading.value = true;
   try {
     const { data: res } = await api.get(`/schedule/assignments/${props.assignmentId}`);
     assignment.value = res.assignment;
     session.value = res.session;
     data.canEdit = res.canEdit;
+    if (silent) return;
     // init form
     const stored = res.assignment.results || {};
     const criteria = {};
@@ -164,9 +235,9 @@ const load = async () => {
     form.comment = stored.comment || res.assignment.comment || '';
   } catch (err) {
     console.error(err);
-    assignment.value = null;
+    if (!silent) assignment.value = null;
   } finally {
-    loading.value = false;
+    if (!silent) loading.value = false;
   }
 };
 
@@ -219,7 +290,7 @@ const reopen = async () => {
 };
 
 const specialtyName = (b) => {
-  const pk = b.direction?.profileKey;
+  const pk = b.profileKey || b.direction?.profileKey;
   return getBlock(pk)?.label || b.direction?.name || profileLabel(pk);
 };
 
@@ -233,7 +304,14 @@ const formatDate = (d) => {
   return `${parseInt(day, 10)} ${MONTHS[parseInt(m, 10) - 1]} ${y}`;
 };
 
-onMounted(load);
+onMounted(async () => {
+  await load();
+  // Этапы коллег подтягиваем фоном — «в режиме реального времени».
+  poller = setInterval(() => {
+    if (!saving.value) load(true);
+  }, POLL_MS);
+});
+onUnmounted(() => { if (poller) clearInterval(poller); });
 </script>
 
 <style scoped>
@@ -290,16 +368,55 @@ onMounted(load);
   font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em;
   color: #6E7368; font-weight: 600; margin-bottom: 0.55rem;
 }
+.dm-session-head { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; }
+.dm-live { display: inline-flex; align-items: center; gap: 0.3rem; font-size: 0.68rem; color: #8A8F82; margin-bottom: 0.55rem; }
+.dm-live-dot { width: 6px; height: 6px; border-radius: 50%; background: #5F7E45; animation: dmPulse 1.8s ease-in-out infinite; }
+@keyframes dmPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
+
 .dm-session-blocks { display: flex; flex-wrap: wrap; gap: 0.4rem; }
 .dm-chip {
   display: inline-flex; align-items: center; gap: 0.35rem;
   font-size: 0.78rem; padding: 0.28rem 0.6rem; border-radius: 999px;
   background: #F3EEE4; color: #4F564A; border: 1px solid #E4DECF;
+  font-family: inherit; cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
 }
+.dm-chip:disabled { cursor: default; }
+.dm-chip:not(:disabled):hover { border-color: #5F7E45; }
 .dm-chip--me { background: #EEF4E2; color: #2F4A2F; border-color: #CBDDB4; font-weight: 600; }
 .dm-chip--done { background: #E0EBD1; color: #234623; }
+.dm-chip--open { border-color: #5F7E45; box-shadow: 0 0 0 2px rgba(95,126,69,0.18); }
 .dm-lock { opacity: 0.6; }
 .dm-chip-state { font-weight: 700; }
+
+/* результаты коллеги — только чтение */
+.dm-peer {
+  margin-top: 0.75rem; padding: 0.75rem 0.85rem;
+  border: 1px solid #E4DECF; border-radius: 0.7rem; background: #FBF9F3;
+}
+.dm-peer-head { display: flex; align-items: baseline; gap: 0.5rem; margin-bottom: 0.55rem; flex-wrap: wrap; }
+.dm-peer-name { font-weight: 600; font-size: 0.88rem; color: #0F140F; }
+.dm-peer-who { font-size: 0.76rem; color: #6E7368; }
+.dm-peer-lock {
+  padding: 0.5rem 0.65rem; border-radius: 0.5rem;
+  background: #FAE9E0; color: #8A3A28; font-size: 0.8rem; line-height: 1.45;
+}
+.dm-peer-crits { display: flex; flex-direction: column; gap: 0.35rem; }
+.dm-peer-crit { display: flex; align-items: center; justify-content: space-between; gap: 0.7rem; flex-wrap: wrap; }
+.dm-peer-crit-label { font-size: 0.82rem; color: #131713; flex: 1; min-width: 120px; }
+.dm-peer-scale { display: inline-flex; gap: 0.2rem; }
+.dm-peer-tick {
+  width: 1.45rem; height: 1.45rem; display: grid; place-items: center;
+  border-radius: 0.38rem; border: 1px solid #E4DECF; background: #fff;
+  color: #B4B0A4; font-size: 0.73rem; font-weight: 600; font-style: normal;
+}
+.dm-peer-tick.on { background: #5F7E45; border-color: #5F7E45; color: #fff; }
+.dm-peer-blank { margin: 0; font-size: 0.81rem; color: #8A8F82; font-style: italic; }
+.dm-peer-comment {
+  margin: 0.55rem 0 0; padding: 0.5rem 0.65rem; border-radius: 0.5rem;
+  background: #fff; border: 1px solid #EFEADC;
+  font-size: 0.82rem; color: #4F564A; line-height: 1.5; white-space: pre-wrap;
+}
 .dm-fully {
   margin-top: 0.7rem; padding: 0.55rem 0.7rem; border-radius: 0.6rem;
   background: #E0EBD1; color: #234623; font-size: 0.82rem; font-weight: 500;

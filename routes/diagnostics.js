@@ -59,7 +59,13 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res) => {
+// Легаси-назначение (ReResult + событие в расписании) с явным выбором
+// направления и специалиста. Штатный путь теперь другой: ресепшн создаёт заявку
+// только датой через POST /schedule/sessions, а специалисты разбирают её сами.
+// Этот маршрут оставлен админу для ручного разбора старых записей и закрыт для
+// остальных ролей: он не проверяет ни маршрут реабилитанта, ни документы,
+// ни дубли — то есть в обход всех проверок готовности.
+router.post('/', authMiddleware, roleMiddleware('admin'), async (req, res) => {
   const t = await sequelize.startUnmanagedTransaction();
   try {
     const { idRecipient, idDirection, idSpecialist, date, results, published } = req.body;

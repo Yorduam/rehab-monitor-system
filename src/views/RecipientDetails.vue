@@ -30,6 +30,27 @@
         </div>
       </div>
 
+      <!-- ALERT: просроченные / недостающие документы -->
+      <div v-if="docAlertCount" class="alert alert-docs" role="alert">
+        <div class="alert-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="12" y1="18.5" x2="12.01" y2="18.5"/></svg>
+        </div>
+        <div class="alert-body">
+          <div class="alert-title">{{ docAlertLabel }}</div>
+          <div class="alert-text">
+            <template v-if="expiredDocs.length">
+              Просрочено: {{ expiredDocs.map(d => `${d.label} (до ${formatDate(d.date)})`).join(', ') }}.
+            </template>
+            <template v-if="missingScans.length">
+              Не загружены: {{ missingScans.map(m => m.name).join(', ') }}.
+            </template>
+          </div>
+        </div>
+        <button v-if="canEditDocs" type="button" class="alert-action" @click="openDocUpdate">
+          Обновить документы
+        </button>
+      </div>
+
       <!-- HERO -->
       <section class="hero" aria-label="Сводка по реабилитанту">
         <button v-if="photoUrl" type="button" class="hero-banner hero-banner-photo" @click="heroPhotoOpen = true" aria-label="Открыть фото на весь экран">
@@ -70,25 +91,38 @@
           </div>
         </div>
 
-        <!-- STAGE TRACK -->
+        <!-- STAGE TRACK — реальная заполненность маршрута (из /readiness).
+             Диагностику можно назначить только когда все шаги закрыты. -->
         <div class="stage-track">
-          <div class="stage-track-label">Маршрут реабилитанта</div>
+          <div class="stage-track-head">
+            <div class="stage-track-label">Маршрут реабилитанта</div>
+            <span class="stage-track-state" :class="routeComplete ? 'ok' : 'bad'">
+              {{ routeDoneCount }} / {{ routeSteps.length }} · {{ routeComplete ? 'заполнен' : 'не заполнен' }}
+            </span>
+          </div>
           <ol class="stage-steps">
-            <li v-for="(name, i) in stageSteps" :key="i"
+            <li v-for="(s, i) in routeSteps" :key="s.key"
                 class="stage-step"
-                :class="{ done: i < stageIndex, current: i === stageIndex }">
+                :class="{ done: s.done, blocked: !s.done }">
               <span class="step-num">{{ String(i + 1).padStart(2, '0') }}</span>
-              <button v-if="name === 'Диагностика'"
-                      type="button"
-                      class="step-name step-name-link"
-                      @click="goToDiagnosticAssign"
-                      title="Перейти к назначению на диагностику">
-                {{ name }}
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
-              </button>
-              <span v-else class="step-name">{{ name }}</span>
+              <span class="step-name" :title="s.hint">{{ s.label }}</span>
+              <span class="step-hint">{{ s.hint }}</span>
             </li>
           </ol>
+          <div v-if="canAssignDiagnostic" class="stage-track-actions">
+            <button type="button"
+                    class="stage-assign-btn"
+                    :class="{ 'is-blocked': readiness && !readiness.canAssign }"
+                    @click="openAssign">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M12 14v4M10 16h4"/>
+              </svg>
+              Назначить диагностику
+            </button>
+            <span v-if="readiness && !readiness.canAssign" class="stage-assign-note">
+              {{ readiness.errors.length }} {{ blockerWord(readiness.errors.length) }} к назначению
+            </span>
+          </div>
         </div>
 
         <!-- MINI STATS -->
@@ -123,7 +157,22 @@
           :aria-selected="activeTab === t.id"
           @click="activeTab = t.id">
           {{ t.label }}
-          <span v-if="t.id === 'diagnostics' && diagCount" class="tab-count">{{ diagCount }}</span>
+          <!-- Значок уведомления о просроченных / недостающих документах.
+               Показываем в подменю «Обзор» и «Анкета и медкарта». -->
+          <span
+            v-if="docAlertCount && (t.id === 'overview' || t.id === 'profile')"
+            class="tab-alert"
+            role="img"
+            :aria-label="docAlertLabel"
+            :title="docAlertLabel"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            {{ docAlertCount }}
+          </span>
+          <span v-else-if="t.id === 'diagnostics' && diagCount" class="tab-count">{{ diagCount }}</span>
           <span v-else-if="t.id === 'lessons' && lessonsCount" class="tab-count">{{ lessonsCount }}</span>
           <span v-else-if="t.id === 'documents' && scans.length" class="tab-count">{{ scans.length }}</span>
         </button>
@@ -351,6 +400,10 @@
               <h2 class="card-title">Медкарта и документ</h2>
               <div class="card-sub">Диагноз, нозология, МСЭ и удостоверяющий документ</div>
             </div>
+            <button v-if="canEditDocs && doc" type="button" class="rd-head-btn" @click="openDocUpdate">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+              Обновить документы
+            </button>
           </div>
           <div class="card-body">
             <div v-if="!doc && !recipient.diagnosis && !recipient.crgMain && !recipient.nozologyRef" class="rd-inline-empty">Медкарта не заполнена</div>
@@ -370,6 +423,42 @@
             Прикреплённые файлы
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
+        </section>
+
+        <!-- История обновлений документов: старые данные не теряются -->
+        <section v-if="doc" class="card" style="margin-top: 1.25rem;">
+          <div class="card-head">
+            <div>
+              <h2 class="card-title">История обновлений документов</h2>
+              <div class="card-sub">Кто, когда и по какой причине менял данные</div>
+            </div>
+            <span v-if="docHistory.length" class="rd-scan-badge">{{ docHistory.length }}</span>
+          </div>
+          <div class="card-body">
+            <div v-if="historyLoading" class="rd-loading" style="min-height:80px"><div class="spinner"></div></div>
+            <div v-else-if="!docHistory.length" class="rd-inline-empty">Документы ещё не обновлялись</div>
+            <ol v-else class="rd-history">
+              <li v-for="h in docHistory" :key="h.id" class="rd-history-item">
+                <div class="rd-history-head">
+                  <span class="rd-history-date">{{ formatDateTime(h.changedAt) }}</span>
+                  <span class="rd-history-author">{{ h.authorName || 'Автор не указан' }}</span>
+                </div>
+                <div class="rd-history-reason">{{ h.reason }}</div>
+                <div v-if="h.changedFields?.length" class="rd-history-fields">
+                  Изменено: {{ h.changedFields.map(fieldLabel).join(', ') }}
+                </div>
+                <details v-if="h.snapshot" class="rd-history-prev">
+                  <summary>Прежние значения</summary>
+                  <dl class="rd-history-kv">
+                    <div v-for="f in (h.changedFields || [])" :key="f" class="rd-history-kv-row">
+                      <dt>{{ fieldLabel(f) }}</dt>
+                      <dd>{{ snapshotValue(h.snapshot, f) }}</dd>
+                    </div>
+                  </dl>
+                </details>
+              </li>
+            </ol>
+          </div>
         </section>
       </div>
 
@@ -592,6 +681,126 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
         </button>
       </div>
+
+      <!-- ===== МОДАЛКА: ОБНОВЛЕНИЕ ДОКУМЕНТОВ ===== -->
+      <div v-if="docUpdateOpen" class="du-overlay" @click.self="closeDocUpdate">
+        <div class="du-modal" role="dialog" aria-modal="true" aria-labelledby="du-title">
+          <header class="du-head">
+            <div>
+              <h3 class="du-title" id="du-title">Обновление документов</h3>
+              <p class="du-sub">Прежние данные сохранятся в истории вместе с автором и датой</p>
+            </div>
+            <button type="button" class="du-close" aria-label="Закрыть" @click="closeDocUpdate">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </header>
+
+          <div class="du-body">
+            <div class="du-grid">
+              <label class="du-field">
+                <span class="du-key">Тип документа</span>
+                <select v-model="docForm.docType" class="du-input">
+                  <option value="Свидетельство">Свидетельство</option>
+                  <option value="Паспорт">Паспорт</option>
+                </select>
+              </label>
+              <label class="du-field">
+                <span class="du-key">СНИЛС</span>
+                <input v-model="docForm.snils" class="du-input" placeholder="000-000-000 00" />
+              </label>
+              <label class="du-field">
+                <span class="du-key">Серия</span>
+                <input v-model="docForm.docSeries" class="du-input" />
+              </label>
+              <label class="du-field">
+                <span class="du-key">Номер</span>
+                <input v-model="docForm.docNumber" class="du-input" />
+              </label>
+              <label class="du-field du-field-full">
+                <span class="du-key">Кем выдан</span>
+                <input v-model="docForm.docIssuer" class="du-input" />
+              </label>
+              <label class="du-field">
+                <span class="du-key">Дата выдачи</span>
+                <input type="date" v-model="docForm.docIssuerDate" class="du-input" />
+              </label>
+              <label class="du-field">
+                <span class="du-key">МСЭ выдана</span>
+                <input type="date" v-model="docForm.mseIssueDate" class="du-input" />
+              </label>
+              <label class="du-field">
+                <span class="du-key">МСЭ действительна до</span>
+                <input type="date" v-model="docForm.mseValidDate" class="du-input" :class="{ 'is-expired': mseExpired }" />
+              </label>
+              <label class="du-field">
+                <span class="du-key">Место обучения</span>
+                <input v-model="docForm.educationPlace" class="du-input" />
+              </label>
+              <label class="du-field du-field-full">
+                <span class="du-key">Адрес регистрации</span>
+                <input v-model="docForm.regAddress" class="du-input" />
+              </label>
+              <label class="du-field du-field-full">
+                <span class="du-key">Адрес проживания</span>
+                <input v-model="docForm.factAddress" class="du-input" :disabled="docForm.factSameReg" />
+              </label>
+              <label class="du-check du-field-full">
+                <input type="checkbox" v-model="docForm.factSameReg" />
+                <span>Совпадает с адресом регистрации</span>
+              </label>
+              <label class="du-field du-field-full">
+                <span class="du-key">Особые отметки</span>
+                <textarea v-model="docForm.specialNote" class="du-input du-textarea" rows="2"></textarea>
+              </label>
+            </div>
+
+            <div class="du-reason">
+              <label class="du-field du-field-full">
+                <span class="du-key">
+                  Причина обновления <span class="du-req">— обязательно</span>
+                </span>
+                <textarea
+                  v-model="docReason"
+                  class="du-input du-textarea"
+                  :class="{ 'is-invalid': reasonTouched && !reasonValid }"
+                  rows="2"
+                  placeholder="Например: получена новая справка МСЭ до 2027 года"
+                  @blur="reasonTouched = true"
+                ></textarea>
+              </label>
+              <p v-if="reasonTouched && !reasonValid" class="du-error">
+                Укажите причину обновления (не менее 3 символов)
+              </p>
+            </div>
+
+            <p v-if="docChangedFields.length" class="du-changes">
+              Будет изменено: {{ docChangedFields.map(fieldLabel).join(', ') }}
+            </p>
+            <p v-else class="du-changes du-changes-muted">Изменений пока нет</p>
+
+            <p v-if="docSaveError" class="du-error">{{ docSaveError }}</p>
+            <p v-if="docSaveOk" class="du-success">{{ docSaveOk }}</p>
+          </div>
+
+          <footer class="du-foot">
+            <button type="button" class="du-btn du-btn-ghost" :disabled="docSaving" @click="closeDocUpdate">
+              {{ docSaveOk ? 'Закрыть' : 'Отмена' }}
+            </button>
+            <button type="button" class="du-btn du-btn-primary" :disabled="!canSaveDoc || docSaving" @click="saveDocUpdate">
+              {{ docSaving ? 'Сохранение…' : 'Сохранить обновление' }}
+            </button>
+          </footer>
+        </div>
+      </div>
+
+      <!-- Назначение диагностики из карточки -->
+      <AssignDiagnosticModal
+        v-if="assignOpen"
+        :recipient-id="recipientId"
+        :recipient-name="fullName(recipient)"
+        @close="assignOpen = false"
+        @assigned="onAssigned"
+      />
     </template>
   </div>
 </template>
@@ -602,6 +811,7 @@ import { usePageStore } from '../stores/page';
 import { useAuthStore } from '../stores/auth';
 import api from '../api';
 import { fullName, initials, recipientAge, statusLabel } from '../utils/recipient';
+import AssignDiagnosticModal from '../components/AssignDiagnosticModal.vue';
 
 const pageStore = usePageStore();
 const authStore = useAuthStore();
@@ -637,20 +847,12 @@ const scansLoading = ref(false);
 const scansLoaded = ref(false);
 const lightbox = ref(null);
 
-const directions = ref([]);
-const directionsLoading = ref(false);
-const specialists = ref([]);
-const specialistsLoading = ref(false);
+// Справочники направлений и специалистов здесь больше не нужны: назначение
+// диагностики идёт только датой через AssignDiagnosticModal, а разбирают
+// заявку сами специалисты. Карточка эти списки только показывала в старой форме.
 const assignments = ref([]);
 const assignmentsLoading = ref(false);
-const assigning = ref(false);
-const cancelingId = ref(null);
-const assignError = ref('');
-const assignForm = ref({ directionId: null, specialistId: null, date: '' });
 const todayStr = new Date().toISOString().slice(0, 10);
-const canAssign = computed(() =>
-  !!assignForm.value.directionId && !!assignForm.value.specialistId && !!assignForm.value.date
-);
 const publishedAssignments = computed(() => assignments.value.filter(a => a.published));
 const diagCount = computed(() => assignments.value.length);
 
@@ -667,13 +869,47 @@ const tabs = [
   { id: 'representative', label: 'Представитель и семья' },
 ];
 
-const stageSteps = ['Заявка', 'Заявление', 'Диагностика', 'Зачисление', 'Занятия', 'Итоги цикла'];
-const stageIndex = computed(() => {
-  const s = recipient.value?.status;
-  if (s === 'draft') return 1;
-  if (s === 'archived') return 5;
-  return 4; // active / зачислен
+// ===== Готовность реабилитанта (маршрут, документы, препятствия) =====
+// Источник: GET /recipients/:id/readiness. Отсюда карточка берёт и значок
+// уведомления о просроченных документах, и реальную заполненность маршрута.
+const readiness = ref(null);
+const readinessLoading = ref(false);
+
+const routeSteps = computed(() => readiness.value?.route?.steps || []);
+const routeDoneCount = computed(() => routeSteps.value.filter((s) => s.done).length);
+const routeComplete = computed(() => !!readiness.value?.route?.complete);
+
+const expiredDocs = computed(() => readiness.value?.docs?.expired || []);
+const expiringDocs = computed(() => readiness.value?.docs?.expiringSoon || []);
+const missingScans = computed(() => readiness.value?.docs?.missingScans || []);
+const docAlertCount = computed(() => readiness.value?.docs?.alertCount || 0);
+const docAlertLabel = computed(() => {
+  const parts = [];
+  if (expiredDocs.value.length) parts.push(`просроченных документов: ${expiredDocs.value.length}`);
+  if (missingScans.value.length) parts.push(`не загружено файлов: ${missingScans.value.length}`);
+  if (!parts.length && expiringDocs.value.length) parts.push(`истекает документов: ${expiringDocs.value.length}`);
+  return parts.length ? `Внимание — ${parts.join(', ')}` : 'Документы в порядке';
 });
+
+const canAssignDiagnostic = computed(() => authStore.isAdmin || authStore.isEmployee);
+const canEditDocs = computed(() => authStore.isAdmin || authStore.isTeacher || authStore.isEmployee);
+
+const blockerWord = (n) => {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'препятствие';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'препятствия';
+  return 'препятствий';
+};
+
+const assignOpen = ref(false);
+const openAssign = () => { assignOpen.value = true; };
+const onAssigned = () => {
+  // После назначения обновляем и ленту событий, и проверку готовности.
+  agendaLoaded.value = false;
+  loadAgenda();
+  loadReadiness();
+};
 
 const doc = computed(() => recipient.value?.docs?.[0] || null);
 const age = computed(() => recipientAge(recipient.value));
@@ -888,10 +1124,163 @@ const goBack = () => {
   pageStore.setPage('recipients', 'Реабилитанты', {});
 };
 
-// Клик по пункту «Диагностика» в маршруте реабилитанта →
-// вкладка «Диагностика» → «Назначение на диагностику».
-const goToDiagnosticAssign = () => {
-  pageStore.setPage('diagnostics', 'Диагностика', { mode: 'assign' });
+// ===== Готовность: маршрут, документы, препятствия к назначению =====
+const loadReadiness = async () => {
+  if (!recipientId) return;
+  readinessLoading.value = true;
+  try {
+    const { data } = await api.get(`/recipients/${recipientId}/readiness`);
+    readiness.value = data;
+  } catch (err) {
+    console.error('loadReadiness', err);
+    readiness.value = null;
+  } finally {
+    readinessLoading.value = false;
+  }
+};
+
+// ===== Обновление документов с сохранением истории =====
+const DOC_FORM_FIELDS = [
+  'docType', 'docSeries', 'docNumber', 'docIssuer', 'docIssuerDate', 'snils',
+  'mseIssueDate', 'mseValidDate', 'regAddress', 'factAddress', 'factSameReg',
+  'educationPlace', 'specialNote'
+];
+
+const FIELD_LABELS = {
+  docType: 'Тип документа',
+  docSeries: 'Серия',
+  docNumber: 'Номер',
+  docIssuer: 'Кем выдан',
+  docIssuerDate: 'Дата выдачи',
+  snils: 'СНИЛС',
+  mseIssueDate: 'МСЭ выдана',
+  mseValidDate: 'МСЭ действительна до',
+  regAddress: 'Адрес регистрации',
+  factAddress: 'Адрес проживания',
+  factSameReg: 'Проживание совпадает с регистрацией',
+  educationPlace: 'Место обучения',
+  specialNote: 'Особые отметки'
+};
+const fieldLabel = (key) => FIELD_LABELS[key] || key;
+
+const docUpdateOpen = ref(false);
+const docForm = ref({});
+const docReason = ref('');
+const reasonTouched = ref(false);
+const docSaving = ref(false);
+const docSaveError = ref('');
+const docSaveOk = ref('');
+const docHistory = ref([]);
+const historyLoading = ref(false);
+
+// Даты в форме — 'YYYY-MM-DD' (input[type=date] другого не принимает).
+const toInputDate = (v) => (v ? String(v).slice(0, 10) : '');
+
+const reasonValid = computed(() => docReason.value.trim().length >= 3);
+const mseExpired = computed(
+  () => !!docForm.value.mseValidDate && docForm.value.mseValidDate < todayStr
+);
+
+// Какие поля реально отличаются от текущих — показываем пользователю заранее.
+const docChangedFields = computed(() => {
+  const d = doc.value;
+  if (!d) return [];
+  return DOC_FORM_FIELDS.filter((key) => {
+    const before = /Date$/.test(key) ? toInputDate(d[key]) : d[key];
+    const after = docForm.value[key];
+    if (typeof before === 'boolean' || typeof after === 'boolean') {
+      return !!before !== !!after;
+    }
+    return String(before ?? '') !== String(after ?? '');
+  });
+});
+
+const canSaveDoc = computed(
+  () => !!doc.value && reasonValid.value && docChangedFields.value.length > 0 && !docSaveOk.value
+);
+
+const openDocUpdate = () => {
+  const d = doc.value;
+  if (!d) return;
+  const next = {};
+  for (const key of DOC_FORM_FIELDS) {
+    next[key] = /Date$/.test(key) ? toInputDate(d[key]) : (d[key] ?? '');
+  }
+  next.factSameReg = !!d.factSameReg;
+  docForm.value = next;
+  docReason.value = '';
+  reasonTouched.value = false;
+  docSaveError.value = '';
+  docSaveOk.value = '';
+  docUpdateOpen.value = true;
+  activeTab.value = 'profile';
+};
+
+const closeDocUpdate = () => {
+  if (docSaving.value) return;
+  docUpdateOpen.value = false;
+};
+
+const saveDocUpdate = async () => {
+  if (!canSaveDoc.value || docSaving.value) return;
+  docSaving.value = true;
+  docSaveError.value = '';
+  try {
+    const payload = { reason: docReason.value.trim() };
+    for (const key of docChangedFields.value) payload[key] = docForm.value[key];
+    // Пустые даты отправлять нельзя — колонки NOT NULL.
+    for (const key of Object.keys(payload)) {
+      if (/Date$/.test(key) && !payload[key]) delete payload[key];
+    }
+    const { data } = await api.put(`/documents/${doc.value.id}`, payload);
+    // Обновляем локальную копию документа, чтобы карточка сразу показала новое.
+    if (data?.doc && recipient.value?.docs?.length) {
+      recipient.value.docs[0] = { ...recipient.value.docs[0], ...data.doc };
+    }
+    docSaveOk.value = 'Документы обновлены, прежняя версия сохранена в истории.';
+    await Promise.all([loadDocHistory(true), loadReadiness()]);
+  } catch (err) {
+    console.error('saveDocUpdate', err);
+    docSaveError.value = err?.response?.data?.message || 'Не удалось сохранить обновление';
+  } finally {
+    docSaving.value = false;
+  }
+};
+
+const loadDocHistory = async (force = false) => {
+  const d = doc.value;
+  if (!d) return;
+  if (historyLoading.value) return;
+  if (docHistory.value.length && !force) return;
+  historyLoading.value = true;
+  try {
+    const { data } = await api.get(`/documents/${d.id}/history`);
+    docHistory.value = Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error('loadDocHistory', err);
+    docHistory.value = [];
+  } finally {
+    historyLoading.value = false;
+  }
+};
+
+// Значение поля из снимка прежней версии — в человекочитаемом виде.
+const snapshotValue = (snapshot, key) => {
+  const v = snapshot?.[key];
+  if (v === null || v === undefined || v === '') return '—';
+  if (typeof v === 'boolean') return v ? 'Да' : 'Нет';
+  if (/Date$/.test(key)) return formatDate(v);
+  return String(v);
+};
+
+const formatDateTime = (v) => {
+  if (!v) return '—';
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return '—';
+  return d.toLocaleString('ru-RU', {
+    day: '2-digit', month: '2-digit', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
 };
 
 const loadRecipient = async () => {
@@ -983,39 +1372,28 @@ const loadGroupMembers = async () => {
   }
 };
 
-const loadDiagnosticRefs = async () => {
-  if (!directions.value.length && !directionsLoading.value) {
-    directionsLoading.value = true;
-    try {
-      const { data } = await api.get('/lists/directions');
-      directions.value = Array.isArray(data) ? data : [];
-    } catch (err) {
-      console.error('loadDirections', err);
-      directions.value = [];
-    } finally {
-      directionsLoading.value = false;
-    }
-  }
-  if (!specialists.value.length && !specialistsLoading.value) {
-    specialistsLoading.value = true;
-    try {
-      const { data } = await api.get('/lists/curators');
-      specialists.value = Array.isArray(data) ? data : [];
-    } catch (err) {
-      console.error('loadSpecialists', err);
-      specialists.value = [];
-    } finally {
-      specialistsLoading.value = false;
-    }
-  }
-};
-
+// Диагностики реабилитанта — из заявок (DiagnosticSession + блоки специалистов).
+// Раньше здесь опрашивался легаси-эндпоинт /diagnostics (таблица ReResult), в
+// который новый порядок назначения ничего не пишет, поэтому вкладка карточки
+// всегда была пустой. Блоки приводим к прежней форме, чтобы шаблон не менялся:
+//   published — этап завершён, specialist.fullName — кто вёл.
 const loadAssignments = async () => {
   if (!recipientId) return;
   assignmentsLoading.value = true;
   try {
-    const { data } = await api.get('/diagnostics', { params: { recipientId, limit: 100 } });
-    assignments.value = Array.isArray(data?.data) ? data.data : [];
+    const { data } = await api.get('/schedule/sessions', { params: { recipientId } });
+    const sessions = Array.isArray(data) ? data : [];
+    assignments.value = sessions
+      .filter((s) => s.status !== 'cancelled')
+      .flatMap((s) => (s.blocks || []).map((b) => ({
+        id: b.id,
+        direction: b.direction || null,
+        specialist: b.specialistName ? { fullName: b.specialistName } : null,
+        date: b.date,
+        published: b.blockStatus === 'completed',
+        // Чужие результаты сервер отдаёт как null, если нет права их видеть.
+        results: b.results || null
+      })));
   } catch (err) {
     console.error('loadAssignments', err);
     assignments.value = [];
@@ -1024,42 +1402,11 @@ const loadAssignments = async () => {
   }
 };
 
-const createAssignment = async () => {
-  if (!canAssign.value || assigning.value) return;
-  assigning.value = true;
-  assignError.value = '';
-  try {
-    await api.post('/diagnostics', {
-      idRecipient: Number(recipientId),
-      idDirection: assignForm.value.directionId,
-      idSpecialist: assignForm.value.specialistId,
-      date: assignForm.value.date,
-      results: {},
-      published: false
-    });
-    assignForm.value = { directionId: null, specialistId: null, date: '' };
-    await loadAssignments();
-  } catch (err) {
-    console.error('createAssignment', err);
-    assignError.value = err?.response?.data?.message || 'Не удалось создать назначение';
-  } finally {
-    assigning.value = false;
-  }
-};
-
-const cancelAssignment = async (a) => {
-  if (cancelingId.value) return;
-  cancelingId.value = a.id;
-  try {
-    await api.delete(`/diagnostics/${a.id}`);
-    await loadAssignments();
-  } catch (err) {
-    console.error('cancelAssignment', err);
-    alert('Не удалось отменить назначение');
-  } finally {
-    cancelingId.value = null;
-  }
-};
+// cancelAssignment удалён: из шаблона он не вызывался, а после перевода списка
+// на заявки его a.id стал идентификатором DiagnosticAssignment — DELETE
+// /diagnostics/:id снёс бы постороннюю запись легаси-таблицы ReResult.
+// Отказ от взятого блока делается специалистом через POST
+// /schedule/assignments/:id/release, отмена всей заявки — /sessions/:id/cancel.
 
 const loadAgenda = async () => {
   if (!recipientId || agendaLoaded.value || agendaLoading.value) return;
@@ -1115,6 +1462,8 @@ watch(activeTab, (tab) => {
     loadAssignments();
   } else if (tab === 'documents') {
     loadScans();
+  } else if (tab === 'profile') {
+    loadDocHistory();
   }
 });
 
@@ -1122,6 +1471,10 @@ onMounted(async () => {
   await loadRecipient();
   initAttendance();
   loadAgenda();
+  loadReadiness();
+  // Вкладку можно открыть сразу нужную (например, из модалки назначения).
+  const wanted = pageStore.params?.tab;
+  if (wanted && tabs.some((t) => t.id === wanted)) activeTab.value = wanted;
 });
 </script>
 
@@ -1238,6 +1591,21 @@ onMounted(async () => {
 }
 .alert-text { font-size: 0.9375rem; color: var(--ink-strong); line-height: 1.5; }
 
+/* Баннер о просроченных / недостающих документах */
+.alert-docs { align-items: center; }
+.alert-action {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.5625rem 0.9375rem; min-height: 2.375rem;
+  border-radius: 0.5rem; white-space: nowrap;
+  font-family: inherit; font-size: 0.875rem; font-weight: 600;
+  background: var(--rose-700); color: #FDF3EF;
+  border: 0.0625rem solid var(--rose-700);
+  cursor: pointer; transition: background 0.15s, border-color 0.15s;
+}
+.alert-action:hover { background: #58211A; border-color: #58211A; }
+.alert-action:focus-visible { outline: 0.125rem solid var(--rose-500); outline-offset: 0.125rem; }
+
 /* ===== HERO ===== */
 .hero {
   position: relative; border-radius: var(--radius-xl); margin-bottom: 1.5rem;
@@ -1328,6 +1696,50 @@ onMounted(async () => {
 .step-name-link:hover { color: var(--sage-900, #3f4d2b); }
 .stage-step.current .step-name-link { color: var(--sage-900, #3f4d2b); }
 
+/* Заголовок маршрута + индикатор заполненности */
+.stage-track-head {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem;
+}
+.stage-track-head .stage-track-label { margin-bottom: 0; }
+.stage-track-state {
+  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.02em;
+  padding: 0.1875rem 0.5625rem; border-radius: 62.5rem;
+  border: 0.0625rem solid transparent; white-space: nowrap;
+}
+.stage-track-state.ok { background: var(--sage-100); color: var(--sage-700); border-color: var(--sage-100); }
+.stage-track-state.bad { background: var(--amber-50); color: var(--amber-700); border-color: var(--amber-100); }
+
+/* Незакрытый шаг маршрута */
+.stage-step.blocked::before { background: var(--line-strong); }
+.stage-step.blocked .step-num { color: var(--amber-700); }
+.step-hint {
+  font-size: 0.75rem; line-height: 1.35; color: var(--ink-subtle);
+  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+}
+.stage-step.blocked .step-hint { color: var(--amber-700); }
+
+/* Кнопка назначения диагностики прямо из маршрута */
+.stage-track-actions {
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+  margin-top: 1rem; padding-top: 0.875rem;
+  border-top: 0.0625rem solid var(--line);
+}
+.stage-assign-btn {
+  display: inline-flex; align-items: center; gap: 0.4375rem;
+  padding: 0.625rem 1.0625rem; min-height: 2.5rem;
+  border-radius: 0.625rem; font-family: inherit; font-size: 0.9375rem; font-weight: 600;
+  background: var(--sage-900); color: #F4F8EC; border: 0.0625rem solid var(--sage-900);
+  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.stage-assign-btn svg { width: 1rem; height: 1rem; flex: 0 0 1rem; }
+.stage-assign-btn:hover { background: var(--sage-800); border-color: var(--sage-800); }
+.stage-assign-btn.is-blocked {
+  background: var(--paper); color: var(--amber-700); border-color: var(--amber-100);
+}
+.stage-assign-btn.is-blocked:hover { background: var(--amber-50); border-color: var(--amber-700); }
+.stage-assign-note { font-size: 0.8125rem; font-weight: 500; color: var(--amber-700); }
+
 /* ===== MINI STATS ===== */
 .mini-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; padding: 1rem 2rem 1.5rem; }
 .mini-stat { background: var(--paper-soft); border-radius: var(--radius-md); padding: 0.85rem 1rem; min-width: 0; }
@@ -1357,6 +1769,25 @@ onMounted(async () => {
   border: 0.0625rem solid var(--line); border-radius: 62.5rem; padding: 0.0625rem 0.4375rem;
 }
 .tab[aria-selected="true"] .tab-count { background: var(--sage-100); color: var(--sage-700); border-color: var(--sage-100); }
+
+/* Значок уведомления о просроченных документах во вкладках */
+.tab-alert {
+  display: inline-flex; align-items: center; gap: 0.1875rem;
+  font-size: 0.75rem; font-weight: 700; line-height: 1;
+  color: var(--rose-700); background: var(--rose-50);
+  border: 0.0625rem solid var(--rose-100); border-radius: 62.5rem;
+  padding: 0.125rem 0.4375rem 0.125rem 0.3125rem;
+  animation: rd-alert-pulse 2.2s ease-in-out infinite;
+}
+.tab-alert svg { width: 0.75rem; height: 0.75rem; flex: 0 0 0.75rem; }
+.tab[aria-selected="true"] .tab-alert { background: var(--rose-100); border-color: var(--rose-100); }
+@keyframes rd-alert-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(176, 83, 63, 0.28); }
+  55% { box-shadow: 0 0 0 0.25rem rgba(176, 83, 63, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tab-alert { animation: none; }
+}
 
 .tabpanel { animation: rd-panel 0.35s cubic-bezier(0.2, 0.7, 0.2, 1); }
 @keyframes rd-panel { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
@@ -1617,6 +2048,162 @@ onMounted(async () => {
   padding: 0.1rem 0.4rem; border-radius: 0.25rem;
 }
 
+/* ===== КНОПКА В ШАПКЕ КАРТОЧКИ ===== */
+.rd-head-btn {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  padding: 0.5rem 0.8125rem; min-height: 2.25rem;
+  border-radius: 0.5rem; font-family: inherit; font-size: 0.8125rem; font-weight: 600;
+  background: var(--paper); color: var(--sage-700);
+  border: 0.0625rem solid var(--line-strong);
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.rd-head-btn svg { width: 0.875rem; height: 0.875rem; flex: 0 0 0.875rem; }
+.rd-head-btn:hover { background: var(--sage-50); border-color: var(--sage-500); color: var(--sage-900); }
+
+/* ===== ИСТОРИЯ ОБНОВЛЕНИЙ ДОКУМЕНТОВ ===== */
+.rd-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; }
+.rd-history-item {
+  position: relative;
+  padding: 0.8125rem 0.9375rem 0.8125rem 1.0625rem;
+  background: var(--paper-soft); border-radius: var(--radius-md);
+  border: 0.0625rem solid var(--line-soft);
+}
+.rd-history-item::before {
+  content: ''; position: absolute; left: 0; top: 0.6875rem; bottom: 0.6875rem;
+  width: 0.1875rem; border-radius: 62.5rem; background: var(--sage-500);
+}
+.rd-history-head {
+  display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.3125rem;
+}
+.rd-history-date { font-size: 0.8125rem; font-weight: 700; color: var(--ink-strong); }
+.rd-history-author {
+  font-size: 0.75rem; font-weight: 600; color: var(--sage-700);
+  background: var(--sage-50); border-radius: 62.5rem; padding: 0.0625rem 0.4375rem;
+}
+.rd-history-reason { font-size: 0.9375rem; color: var(--ink); line-height: 1.45; word-break: break-word; }
+.rd-history-fields { margin-top: 0.3125rem; font-size: 0.8125rem; color: var(--ink-muted); line-height: 1.4; }
+.rd-history-prev { margin-top: 0.5rem; }
+.rd-history-prev > summary {
+  font-size: 0.8125rem; font-weight: 600; color: var(--sage-700);
+  cursor: pointer; list-style: none; display: inline-flex; align-items: center; gap: 0.25rem;
+  border-radius: 0.25rem;
+}
+.rd-history-prev > summary::-webkit-details-marker { display: none; }
+.rd-history-prev > summary::before { content: '▸'; font-size: 0.6875rem; transition: transform 0.15s; }
+.rd-history-prev[open] > summary::before { transform: rotate(90deg); }
+.rd-history-prev > summary:hover { color: var(--sage-900); }
+.rd-history-kv {
+  margin: 0.5rem 0 0; padding: 0.5rem 0.6875rem;
+  background: var(--paper); border: 0.0625rem solid var(--line-soft); border-radius: var(--radius-sm);
+  display: flex; flex-direction: column; gap: 0.3125rem;
+}
+.rd-history-kv-row { display: grid; grid-template-columns: 11rem minmax(0, 1fr); gap: 0.625rem; }
+.rd-history-kv-row dt { font-size: 0.78125rem; color: var(--ink-muted); }
+.rd-history-kv-row dd { margin: 0; font-size: 0.8125rem; color: var(--ink-strong); word-break: break-word; }
+
+/* ===== МОДАЛКА «ОБНОВЛЕНИЕ ДОКУМЕНТОВ» ===== */
+.du-overlay {
+  position: fixed; inset: 0; z-index: 1200;
+  background: rgba(15, 20, 15, 0.5); backdrop-filter: blur(0.125rem);
+  display: flex; align-items: center; justify-content: center; padding: 1.25rem;
+  animation: du-fade 0.16s ease;
+}
+@keyframes du-fade { from { opacity: 0; } to { opacity: 1; } }
+.du-modal {
+  width: min(46rem, 100%); max-height: min(90vh, 50rem);
+  display: flex; flex-direction: column;
+  background: var(--paper); border-radius: var(--radius-lg);
+  border: 0.0625rem solid var(--line);
+  box-shadow: 0 1.5rem 3rem rgba(15, 20, 15, 0.24);
+  overflow: hidden;
+  animation: du-rise 0.2s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes du-rise { from { opacity: 0; transform: translateY(1rem); } to { opacity: 1; transform: none; } }
+.du-head {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 0.875rem;
+  padding: 1.125rem 1.375rem 0.9375rem;
+  border-bottom: 0.0625rem solid var(--line-soft);
+  background: var(--paper-soft);
+}
+.du-title {
+  margin: 0; font-family: var(--font-serif); font-size: 1.1875rem; font-weight: 600;
+  letter-spacing: -0.015em; color: var(--ink-strong); line-height: 1.2;
+}
+.du-sub { margin: 0.25rem 0 0; font-size: 0.8125rem; color: var(--ink-muted); line-height: 1.4; }
+.du-close {
+  flex: 0 0 2rem; width: 2rem; height: 2rem; display: grid; place-items: center;
+  border-radius: 0.5rem; border: 0.0625rem solid transparent;
+  background: none; color: var(--ink-muted); cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.du-close svg { width: 1rem; height: 1rem; }
+.du-close:hover { background: var(--paper-sunken); color: var(--ink-strong); }
+.du-body { padding: 1.125rem 1.375rem 1.25rem; overflow-y: auto; flex: 1; }
+.du-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem 0.875rem; }
+.du-field { display: flex; flex-direction: column; gap: 0.3125rem; min-width: 0; }
+.du-field-full { grid-column: 1 / -1; }
+.du-key {
+  font-size: 0.71875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-muted);
+}
+.du-req { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--rose-700); }
+.du-input {
+  width: 100%; padding: 0.5625rem 0.6875rem; min-height: 2.5rem;
+  font-family: inherit; font-size: 0.9375rem; color: var(--ink-strong);
+  background: var(--paper); border: 0.0625rem solid var(--line-strong); border-radius: 0.5rem;
+  transition: border-color 0.15s, box-shadow 0.15s, background 0.15s;
+}
+.du-input:focus {
+  outline: none; border-color: var(--sage-500);
+  box-shadow: 0 0 0 0.1875rem rgba(95, 126, 69, 0.16);
+}
+.du-input:disabled { background: var(--paper-sunken); color: var(--ink-subtle); cursor: not-allowed; }
+.du-input.is-expired { border-color: var(--rose-500); background: var(--rose-50); color: var(--rose-700); }
+.du-input.is-invalid { border-color: var(--rose-500); background: var(--rose-50); }
+.du-input.is-invalid:focus { box-shadow: 0 0 0 0.1875rem rgba(176, 83, 63, 0.16); }
+.du-textarea { min-height: 3.75rem; resize: vertical; line-height: 1.45; }
+.du-check {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.875rem; color: var(--ink); cursor: pointer;
+}
+.du-check input { width: 1rem; height: 1rem; accent-color: var(--sage-700); cursor: pointer; }
+.du-reason {
+  margin-top: 1rem; padding: 0.875rem 0.9375rem;
+  background: var(--amber-50); border: 0.0625rem solid var(--amber-100); border-radius: var(--radius-md);
+}
+.du-changes {
+  margin: 0.875rem 0 0; font-size: 0.8125rem; line-height: 1.45;
+  color: var(--sage-700); font-weight: 500;
+}
+.du-changes-muted { color: var(--ink-subtle); font-weight: 400; }
+.du-error {
+  margin: 0.625rem 0 0; font-size: 0.8125rem; line-height: 1.45;
+  color: var(--rose-700); font-weight: 500;
+}
+.du-success {
+  margin: 0.625rem 0 0; font-size: 0.8125rem; line-height: 1.45;
+  color: var(--sage-700); font-weight: 600;
+}
+.du-foot {
+  display: flex; align-items: center; justify-content: flex-end; gap: 0.625rem;
+  padding: 0.875rem 1.375rem; border-top: 0.0625rem solid var(--line-soft);
+  background: var(--paper-soft);
+}
+.du-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0.625rem 1.0625rem; min-height: 2.5rem;
+  border-radius: 0.5rem; font-family: inherit; font-size: 0.9375rem; font-weight: 600;
+  border: 0.0625rem solid transparent; cursor: pointer; white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.du-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.du-btn-ghost { background: var(--paper); color: var(--ink); border-color: var(--line-strong); }
+.du-btn-ghost:hover:not(:disabled) { background: var(--paper-sunken); border-color: var(--ink-muted); }
+.du-btn-primary { background: var(--sage-900); color: #F4F8EC; border-color: var(--sage-900); }
+.du-btn-primary:hover:not(:disabled) { background: var(--sage-800); border-color: var(--sage-800); }
+
 /* ===== RESPONSIVE ===== */
 @media (max-width: 75rem) {
   .grid { grid-template-columns: 1fr; }
@@ -1630,10 +2217,19 @@ onMounted(async () => {
   .stage-steps { grid-template-columns: repeat(3, 1fr); gap: 0.75rem 0.5rem; }
   .kv-grid { grid-template-columns: 1fr; }
   .rd-assign-grid { grid-template-columns: 1fr; }
+  .du-grid { grid-template-columns: 1fr; }
+  .du-modal { max-height: 94vh; }
+  .du-overlay { padding: 0.625rem; }
+  .rd-history-kv-row { grid-template-columns: 1fr; gap: 0.125rem; }
+  .alert { flex-wrap: wrap; }
+  .alert-action { width: 100%; }
 }
 @media (max-width: 30rem) {
   .mini-stats { grid-template-columns: 1fr; }
   .stage-steps { grid-template-columns: repeat(2, 1fr); }
   .hero-actions .btn { flex: 1 1 auto; }
+  .stage-assign-btn { width: 100%; justify-content: center; }
+  .du-foot { flex-direction: column-reverse; }
+  .du-foot .du-btn { width: 100%; }
 }
 </style>

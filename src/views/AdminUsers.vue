@@ -24,6 +24,28 @@
     <div class="card">
       <div class="card-header">
         <div class="card-title">Управление пользователями</div>
+        <div class="users-toolbar">
+          <div class="role-tabs" role="tablist" aria-label="Фильтр по роли">
+            <button
+              v-for="tab in roleTabs" :key="tab.id" type="button" role="tab"
+              class="role-tab" :class="{ active: roleFilter === tab.id }"
+              :aria-selected="roleFilter === tab.id"
+              @click="roleFilter = tab.id"
+            >
+              {{ tab.label }}<span class="role-tab-count">{{ tab.count }}</span>
+            </button>
+          </div>
+          <div class="users-search">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              v-model="search" type="search"
+              placeholder="Фамилия, имя, email, телефон, кабинет"
+              aria-label="Поиск пользователей"
+            >
+          </div>
+        </div>
       </div>
       <div class="table-container">
         <table class="data-table">
@@ -40,29 +62,40 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="user in paginatedUsers" :key="user.id">
-              <td>{{ user.id }}</td>
-              <td>{{ user.lastName || '—' }}</td>
-              <td>{{ user.firstName || '—' }}</td>
-              <td>{{ user.email }}</td>
-              <td>{{ user.phone || '—' }}</td>
-              <td>{{ user.cabinet || '—' }}</td>
-              <td>
-                <select v-model="user.role" @change="updateRole(user)" :disabled="user.id === authStore.user?.id">
-                  <option value="admin">Администратор</option>
-                  <option value="teacher">Преподаватель</option>
-                  <option value="employee">Сотрудник</option>
-                  <option value="recipient">Реципиент</option>
-                </select>
-               </td>
-              <td>
-                <div class="row-actions">
-                  <button class="btn-ghost-sm" @click="openEditModal(user)">Изменить</button>
-                  <button class="btn-ghost-sm" @click="resetPassword(user)">Сброс пароля</button>
-                  <button class="btn-ghost-sm btn-ghost-danger" @click="deleteUser(user.id)" v-if="user.id !== authStore.user?.id" title="Удалить">🗑</button>
-                </div>
-               </td>
-             </tr>
+            <template v-for="row in pageRows" :key="row.user.id">
+              <tr v-if="row.head" class="group-row">
+                <td colspan="8">
+                  <span class="group-title">{{ row.head === 'staff' ? 'Сотрудники центра' : 'Реабилитанты' }}</span>
+                  <span class="group-count">{{ groupCounts[row.head] }}</span>
+                </td>
+              </tr>
+              <tr>
+                <td>{{ row.user.id }}</td>
+                <td>{{ row.user.lastName || '—' }}</td>
+                <td>{{ row.user.firstName || '—' }}</td>
+                <td>{{ row.user.email }}</td>
+                <td>{{ row.user.phone || '—' }}</td>
+                <td>{{ row.user.cabinet || '—' }}</td>
+                <td>
+                  <select v-model="row.user.role" @change="updateRole(row.user)" :disabled="row.user.id === authStore.user?.id">
+                    <option value="admin">Администратор</option>
+                    <option value="teacher">Преподаватель</option>
+                    <option value="employee">Сотрудник</option>
+                    <option value="recipient">Реабилитант</option>
+                  </select>
+                 </td>
+                <td>
+                  <div class="row-actions">
+                    <button class="btn-ghost-sm" @click="openEditModal(row.user)">Изменить</button>
+                    <button class="btn-ghost-sm" @click="resetPassword(row.user)">Сброс пароля</button>
+                    <button class="btn-ghost-sm btn-ghost-danger" @click="deleteUser(row.user.id)" v-if="row.user.id !== authStore.user?.id" title="Удалить">🗑</button>
+                  </div>
+                 </td>
+               </tr>
+            </template>
+            <tr v-if="!pageRows.length" class="empty-row">
+              <td colspan="8">Ничего не найдено — измените фильтр или поисковый запрос.</td>
+            </tr>
           </tbody>
         </table>
       </div>
@@ -101,14 +134,34 @@
             </button>
           </div>
         </div>
-        <div class="form-group"><label>Роль</label><select v-model="newUser.role"><option value="admin">Администратор</option><option value="teacher">Преподаватель</option><option value="employee">Сотрудник</option><option value="recipient">Реципиент</option></select></div>
-        <div class="form-group" v-if="newUser.role === 'teacher'">
-          <label>Проф. ориентированность</label>
-          <select v-model="newUser.directionId">
-            <option :value="null" disabled>— выберите направление —</option>
-            <option v-for="dir in directions" :key="dir.id" :value="dir.id">{{ directionLabel(dir) }}</option>
-          </select>
-        </div>
+        <div class="form-group"><label>Роль</label><select v-model="newUser.role"><option value="admin">Администратор</option><option value="teacher">Преподаватель</option><option value="employee">Сотрудник</option><option value="recipient">Реабилитант</option></select></div>
+        <template v-if="newUser.role === 'teacher'">
+          <div class="form-group">
+            <label>Проф. ориентированность</label>
+            <select v-model="newUser.directionId">
+              <option :value="null" disabled>— выберите направление —</option>
+              <option v-for="dir in directions" :key="dir.id" :value="dir.id">{{ directionLabel(dir) }}</option>
+            </select>
+            <small class="form-hint">Определяет, какой блок диагностики специалист заполняет.</small>
+          </div>
+          <div class="form-group">
+            <label>Права по диагностике</label>
+            <label class="perm-check">
+              <input type="checkbox" v-model="newUser.canConclude">
+              <span>
+                Может выдавать итоговое заключение
+                <small>Право закрывать заявку заключением по всей диагностике.</small>
+              </span>
+            </label>
+            <label class="perm-check">
+              <input type="checkbox" v-model="newUser.canViewAllResults">
+              <span>
+                Видит результаты других педагогов
+                <small>Без этого специалист видит только свой блок диагностики.</small>
+              </span>
+            </label>
+          </div>
+        </template>
         <div class="modal-buttons"><button type="button" class="btn-secondary" @click="addModalVisible = false">Отмена</button><button type="submit" class="btn-primary">Создать</button></div>
       </form>
     </Modal>
@@ -130,17 +183,37 @@
             <option value="admin">Администратор</option>
             <option value="teacher">Преподаватель</option>
             <option value="employee">Сотрудник</option>
-            <option value="recipient">Реципиент</option>
+            <option value="recipient">Реабилитант</option>
           </select>
           <small v-if="editUser.id === authStore.user?.id" class="form-hint">Нельзя изменить свою собственную роль.</small>
         </div>
-        <div class="form-group" v-if="editUser.role === 'teacher'">
-          <label>Проф. ориентированность</label>
-          <select v-model="editUser.directionId">
-            <option :value="null" disabled>— выберите направление —</option>
-            <option v-for="dir in directions" :key="dir.id" :value="dir.id">{{ directionLabel(dir) }}</option>
-          </select>
-        </div>
+        <template v-if="editUser.role === 'teacher'">
+          <div class="form-group">
+            <label>Проф. ориентированность</label>
+            <select v-model="editUser.directionId">
+              <option :value="null" disabled>— выберите направление —</option>
+              <option v-for="dir in directions" :key="dir.id" :value="dir.id">{{ directionLabel(dir) }}</option>
+            </select>
+            <small class="form-hint">Определяет, какой блок диагностики специалист заполняет.</small>
+          </div>
+          <div class="form-group">
+            <label>Права по диагностике</label>
+            <label class="perm-check">
+              <input type="checkbox" v-model="editUser.canConclude">
+              <span>
+                Может выдавать итоговое заключение
+                <small>Право закрывать заявку заключением по всей диагностике.</small>
+              </span>
+            </label>
+            <label class="perm-check">
+              <input type="checkbox" v-model="editUser.canViewAllResults">
+              <span>
+                Видит результаты других педагогов
+                <small>Без этого специалист видит только свой блок диагностики.</small>
+              </span>
+            </label>
+          </div>
+        </template>
         <div class="modal-buttons"><button type="button" class="btn-secondary" @click="editModalVisible = false">Отмена</button><button type="submit" class="btn-primary">Сохранить</button></div>
       </form>
     </Modal>
@@ -156,7 +229,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import api from '../api';
 import Modal from '../components/Modal.vue';
@@ -169,12 +242,12 @@ const limit = ref(10);
 const addModalVisible = ref(false);
 const showPassword = ref(false);
 const editModalVisible = ref(false);
-const editUser = ref({ id: null, email: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null });
+const editUser = ref({ id: null, email: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null, canConclude: false, canViewAllResults: false });
 const passwordModalVisible = ref(false);
 const selectedUser = ref(null);
 const newPassword = ref('');
 const confirmPassword = ref('');
-const newUser = ref({ email: '', password: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null });
+const newUser = ref({ email: '', password: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null, canConclude: false, canViewAllResults: false });
 const directions = ref([]);
 
 // Понятные подписи для направлений (по profileKey), с запасным вариантом на name из БД.
@@ -189,11 +262,82 @@ const PROFILE_LABELS = {
 };
 const directionLabel = (dir) => PROFILE_LABELS[dir.profileKey] || dir.name;
 
-const paginatedUsers = computed(() => {
-  const start = (page.value - 1) * limit.value;
-  return users.value.slice(start, start + limit.value);
+// ============================================================
+//  СОРТИРОВКА И ПОИСК ПО ПОЛЬЗОВАТЕЛЯМ
+//  Раньше список приходил с сервера в произвольном порядке и сотрудники
+//  центра были вперемешку с реабилитантами — найти нужного работника было
+//  тяжело. Теперь сверху всегда персонал (администраторы, преподаватели,
+//  сотрудники), а реабилитанты уходят вниз; внутри группы — по алфавиту.
+//  Сортируем на клиенте, чтобы не менять контракт GET /users.
+// ============================================================
+const ROLE_ORDER = { admin: 0, teacher: 1, employee: 2, recipient: 3 };
+const ROLE_LABELS = {
+  admin: 'Администратор',
+  teacher: 'Преподаватель',
+  employee: 'Сотрудник',
+  recipient: 'Реабилитант'
+};
+const isStaff = (u) => u.role !== 'recipient';
+// Intl.Collator — правильный порядок кириллицы (иначе «Ё» уезжает в конец).
+const collator = new Intl.Collator('ru', { sensitivity: 'base', numeric: true });
+
+const roleFilter = ref('all'); // all | staff | teacher | recipient
+const search = ref('');
+
+const sortedUsers = computed(() =>
+  [...users.value].sort((a, b) => {
+    const ra = ROLE_ORDER[a.role] ?? 99;
+    const rb = ROLE_ORDER[b.role] ?? 99;
+    if (ra !== rb) return ra - rb;
+    const na = `${a.lastName || ''} ${a.firstName || ''} ${a.email || ''}`.trim();
+    const nb = `${b.lastName || ''} ${b.firstName || ''} ${b.email || ''}`.trim();
+    return collator.compare(na, nb);
+  })
+);
+
+const filteredUsers = computed(() => {
+  const needle = search.value.trim().toLowerCase();
+  return sortedUsers.value.filter((u) => {
+    if (roleFilter.value === 'staff' && !isStaff(u)) return false;
+    if (roleFilter.value === 'teacher' && u.role !== 'teacher') return false;
+    if (roleFilter.value === 'recipient' && isStaff(u)) return false;
+    if (!needle) return true;
+    const hay = [u.lastName, u.firstName, u.email, u.phone, u.cabinet, ROLE_LABELS[u.role]]
+      .filter(Boolean).join(' ').toLowerCase();
+    return hay.includes(needle);
+  });
 });
-const totalPages = computed(() => Math.ceil(users.value.length / limit.value));
+
+const roleTabs = computed(() => [
+  { id: 'all', label: 'Все', count: sortedUsers.value.length },
+  { id: 'staff', label: 'Сотрудники', count: sortedUsers.value.filter(isStaff).length },
+  { id: 'teacher', label: 'Преподаватели', count: sortedUsers.value.filter((u) => u.role === 'teacher').length },
+  { id: 'recipient', label: 'Реабилитанты', count: sortedUsers.value.filter((u) => !isStaff(u)).length }
+]);
+
+// Сколько всего в каждой группе — показываем в заголовке-разделителе,
+// чтобы было видно общее число, а не только попавших на текущую страницу.
+const groupCounts = computed(() => ({
+  staff: filteredUsers.value.filter(isStaff).length,
+  recipient: filteredUsers.value.filter((u) => !isStaff(u)).length
+}));
+
+// Строки текущей страницы; head !== null — перед строкой нужен заголовок группы.
+const pageRows = computed(() => {
+  const start = (page.value - 1) * limit.value;
+  let prev = null;
+  return filteredUsers.value.slice(start, start + limit.value).map((u) => {
+    const group = isStaff(u) ? 'staff' : 'recipient';
+    const head = group === prev ? null : group;
+    prev = group;
+    return { user: u, head };
+  });
+});
+
+const totalPages = computed(() => Math.ceil(filteredUsers.value.length / limit.value));
+
+// Фильтр/поиск меняют состав списка — иначе можно остаться на пустой странице.
+watch([roleFilter, search], () => { page.value = 1; });
 
 const loadUsers = async () => {
   const { data } = await api.get('/users');
@@ -225,7 +369,7 @@ const loadDirections = async () => {
   directions.value = data;
 };
 const openAddModal = () => {
-  newUser.value = { email: '', password: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null };
+  newUser.value = { email: '', password: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null, canConclude: false, canViewAllResults: false };
   showPassword.value = false;
   addModalVisible.value = true;
 };
@@ -238,19 +382,25 @@ const openEditModal = (user) => {
     firstName: user.firstName || '',
     phone: user.phone || '',
     cabinet: user.cabinet || '',
-    directionId: user.directionId ?? null
+    directionId: user.directionId ?? null,
+    canConclude: user.canConclude === true,
+    canViewAllResults: user.canViewAllResults === true
   };
   editModalVisible.value = true;
 };
 const saveUser = async () => {
   const u = editUser.value;
+  const isTeacher = u.role === 'teacher';
   const payload = {
     email: u.email,
     firstName: u.firstName,
     lastName: u.lastName,
     phone: u.phone,
     cabinet: u.cabinet,
-    directionId: u.role === 'teacher' ? u.directionId : null
+    directionId: isTeacher ? u.directionId : null,
+    // Права по диагностике имеют смысл только у специалиста.
+    canConclude: isTeacher ? u.canConclude === true : false,
+    canViewAllResults: isTeacher ? u.canViewAllResults === true : false
   };
   // Свою собственную роль менять нельзя (защита от самоблокировки админа).
   if (u.id !== authStore.user?.id) payload.role = u.role;
@@ -265,8 +415,12 @@ const saveUser = async () => {
 };
 const createUser = async () => {
   const payload = { ...newUser.value };
-  // Проф. ориентированность отправляем только для преподавателя.
-  if (payload.role !== 'teacher') payload.directionId = null;
+  // Проф. ориентированность и права по диагностике — только для преподавателя.
+  if (payload.role !== 'teacher') {
+    payload.directionId = null;
+    payload.canConclude = false;
+    payload.canViewAllResults = false;
+  }
   try {
     // Отдельный админский эндпоинт: не выдаёт токен, не подменяет сессию администратора.
     await api.post('/users', payload);
@@ -315,6 +469,70 @@ onUnmounted(() => {
 .card-header { padding: 1rem 1.35rem; border-bottom: 1px solid #EFEADC; }
 .card-title { font-family: 'Lora', Georgia, serif; font-weight: 600; font-size: 1.05rem; color: #0F140F; }
 
+/* Панель фильтров: слева — вкладки ролей, справа — поиск */
+.users-toolbar {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 0.75rem; flex-wrap: wrap; margin-top: 0.85rem;
+}
+.role-tabs {
+  display: flex; align-items: center; gap: 0.25rem; flex-wrap: wrap;
+  background: #F3EEE4; border: 1px solid #E4DECF; border-radius: 0.7rem; padding: 0.2rem;
+}
+.role-tab {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  background: none; border: none; cursor: pointer;
+  padding: 0.4rem 0.75rem; border-radius: 0.55rem;
+  font-family: inherit; font-size: 0.84rem; font-weight: 600; color: #6E7368;
+  transition: background 0.15s, color 0.15s;
+}
+.role-tab:hover { background: #EBE4D5; color: #2F4A2F; }
+.role-tab.active { background: #FFFFFF; color: #2F4A2F; box-shadow: 0 1px 2px rgba(47, 74, 47, 0.12); }
+.role-tab-count {
+  min-width: 1.35rem; padding: 0 0.3rem; border-radius: 999px;
+  background: #E4DECF; color: #4F564A;
+  font-size: 0.72rem; font-weight: 700; line-height: 1.35rem; text-align: center;
+}
+.role-tab.active .role-tab-count { background: #EEF4E2; color: #2F4A2F; }
+
+.users-search { position: relative; flex: 1 1 15rem; max-width: 22rem; }
+.users-search svg {
+  position: absolute; top: 50%; left: 0.65rem; transform: translateY(-50%);
+  width: 16px; height: 16px; color: #6E7368; pointer-events: none;
+}
+.users-search input {
+  width: 100%; padding: 0.5rem 0.65rem 0.5rem 2.1rem;
+  border: 1px solid #E4DECF; border-radius: 0.7rem; background: #FFFFFF; color: #1a211a;
+  font-family: inherit; font-size: 0.88rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.users-search input::placeholder { color: #9AA093; }
+.users-search input:focus {
+  outline: none; border-color: #5F7E45; box-shadow: 0 0 0 3px rgba(95, 126, 69, 0.18);
+}
+
+/* Заголовок-разделитель группы внутри таблицы */
+.data-table tbody tr.group-row:hover { background: #F3EEE4; }
+.group-row td {
+  background: #F3EEE4; padding: 0.45rem 0.9rem;
+  border-bottom: 1px solid #E4DECF;
+}
+.group-title {
+  font-size: 0.72rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.06em; color: #2F4A2F;
+}
+.group-count {
+  display: inline-block; margin-left: 0.5rem; padding: 0 0.4rem;
+  border-radius: 999px; background: #E4DECF; color: #4F564A;
+  font-size: 0.7rem; font-weight: 700; line-height: 1.1rem;
+}
+
+/* Пустой результат поиска */
+.data-table tbody tr.empty-row:hover { background: transparent; }
+.empty-row td {
+  padding: 2rem 0.9rem; text-align: center;
+  color: #6E7368; font-size: 0.9rem;
+}
+
 /* Table */
 .table-container { overflow-x: auto; max-height: 60vh; overflow-y: auto; }
 .data-table { width: 100%; border-collapse: collapse; }
@@ -334,6 +552,18 @@ onUnmounted(() => {
 .btn-ghost-danger { color: #B0533F; }
 .btn-ghost-danger:hover { background: #FAE9E0; }
 .form-hint { display: block; margin-top: 0.3rem; font-size: 0.75rem; color: #6E7368; }
+
+/* Точечные права специалиста по диагностике */
+.perm-check {
+  display: flex; align-items: flex-start; gap: 0.55rem;
+  padding: 0.55rem 0.65rem; margin-top: 0.4rem;
+  border: 1px solid #E4DECF; border-radius: 0.6rem; background: #FBF9F3;
+  cursor: pointer; font-weight: 400;
+}
+.perm-check:hover { border-color: #CBDDB4; background: #F6F8EF; }
+.perm-check input { margin-top: 0.2rem; accent-color: #5F7E45; flex-shrink: 0; }
+.perm-check > span { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.86rem; color: #1a211a; }
+.perm-check small { font-size: 0.75rem; color: #6E7368; line-height: 1.4; }
 
 select {
   padding: 0.4rem 0.55rem; border-radius: 0.6rem; border: 1px solid #E4DECF;

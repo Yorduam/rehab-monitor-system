@@ -9,6 +9,9 @@ import sequelize from '../config/database.js';
 const DiagnosticAssignment = sequelize.define('DiagnosticAssignment', {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
   sessionId: { type: DataTypes.STRING(64), allowNull: true },
+  // Ссылка на заявку (DiagnosticSession), из которой специалист «взял» себе
+  // реабилитанта. У старых назначений может быть null.
+  diagnosticSessionId: { type: DataTypes.INTEGER, allowNull: true },
   recipientId: { type: DataTypes.INTEGER, allowNull: false },
   directionId: { type: DataTypes.INTEGER, allowNull: false },
   // Специалист-исполнитель — это учётная запись преподавателя (Users.id).

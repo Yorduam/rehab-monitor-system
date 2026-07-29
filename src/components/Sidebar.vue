@@ -29,6 +29,18 @@
 
       <button
         class="s-item"
+        :class="{ 's-item--active': pageStore.current === 'schedule' }"
+        @click="go('schedule', 'Расписание')"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+          <rect x="3" y="4" width="18" height="18" rx="2"/>
+          <path d="M16 2v4M8 2v4M3 10h18"/>
+        </svg>
+        Расписание
+      </button>
+
+      <button
+        class="s-item"
         :class="{ 's-item--active': pageStore.current === 'recipients' }"
         @click="go('recipients', 'Реабилитанты')"
       >

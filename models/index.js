@@ -12,10 +12,13 @@ import Direction from './Direction.js';
 import DocType from './DocType.js';
 import Recipient from './Recipient.js';
 import RecipientDoc from './RecipientDoc.js';
+import RecipientDocVersion from './RecipientDocVersion.js';
 import RecipientScanDoc from './RecipientScanDoc.js';
 import ReResult from './ReResult.js';
 import ScheduleEvent from './ScheduleEvent.js';
 import DiagnosticAssignment from './DiagnosticAssignment.js';
+import DiagnosticSession from './DiagnosticSession.js';
+import DiagnosticConclusion from './DiagnosticConclusion.js';
 
 Recipient.belongsTo(User, { as: 'user', foreignKey: 'userId' });
 User.hasOne(Recipient, { as: 'recipient', foreignKey: 'userId' });
@@ -55,9 +58,15 @@ CRGDesc.belongsToMany(Recipient, {
 RecipientDoc.belongsTo(Recipient, { as: 'recipient', foreignKey: 'recipientId' });
 Recipient.hasMany(RecipientDoc, { as: 'docs', foreignKey: 'recipientId' });
 
+// История версий анкетных документов (кто, когда и почему обновил).
+RecipientDocVersion.belongsTo(RecipientDoc, { as: 'doc', foreignKey: 'docId' });
+RecipientDoc.hasMany(RecipientDocVersion, { as: 'versions', foreignKey: 'docId' });
+RecipientDocVersion.belongsTo(User, { as: 'author', foreignKey: 'changedBy' });
+
 RecipientScanDoc.belongsTo(Recipient, { as: 'recipient', foreignKey: 'recipId' });
 RecipientScanDoc.belongsTo(LegalRepresentative, { as: 'representative', foreignKey: 'represId' });
 RecipientScanDoc.belongsTo(DocType, { as: 'docTypeRef', foreignKey: 'docType' });
+RecipientScanDoc.belongsTo(User, { as: 'uploader', foreignKey: 'uploadedBy' });
 Recipient.hasMany(RecipientScanDoc, { as: 'scans', foreignKey: 'recipId' });
 
 ReResult.belongsTo(Recipient, { as: 'recipient', foreignKey: 'idRecipient' });
@@ -78,6 +87,21 @@ ScheduleEvent.belongsTo(Direction, { as: 'direction', foreignKey: 'directionId' 
 ScheduleEvent.belongsTo(DiagnosticAssignment, { as: 'assignment', foreignKey: 'assignmentId' });
 DiagnosticAssignment.hasOne(ScheduleEvent, { as: 'event', foreignKey: 'assignmentId' });
 
+// ---- Заявка на диагностику (назначается только датой) ----------------------
+DiagnosticSession.belongsTo(Recipient, { as: 'recipient', foreignKey: 'recipientId' });
+Recipient.hasMany(DiagnosticSession, { as: 'diagnosticSessions', foreignKey: 'recipientId' });
+DiagnosticSession.belongsTo(User, { as: 'author', foreignKey: 'createdBy' });
+
+// Блоки, которые специалисты разобрали по этой заявке.
+DiagnosticSession.hasMany(DiagnosticAssignment, { as: 'assignments', foreignKey: 'diagnosticSessionId' });
+DiagnosticAssignment.belongsTo(DiagnosticSession, { as: 'session', foreignKey: 'diagnosticSessionId' });
+
+// ---- Итоговое заключение ----------------------------------------------------
+DiagnosticConclusion.belongsTo(DiagnosticSession, { as: 'session', foreignKey: 'sessionId' });
+DiagnosticSession.hasOne(DiagnosticConclusion, { as: 'conclusion', foreignKey: 'sessionId' });
+DiagnosticConclusion.belongsTo(Recipient, { as: 'recipient', foreignKey: 'recipientId' });
+DiagnosticConclusion.belongsTo(User, { as: 'author', foreignKey: 'authorId' });
+
 export {
   sequelize,
   User,
@@ -91,8 +115,11 @@ export {
   DocType,
   Recipient,
   RecipientDoc,
+  RecipientDocVersion,
   RecipientScanDoc,
   ReResult,
   ScheduleEvent,
-  DiagnosticAssignment
+  DiagnosticAssignment,
+  DiagnosticSession,
+  DiagnosticConclusion
 };

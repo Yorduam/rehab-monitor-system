@@ -22,7 +22,10 @@ router.get('/', authMiddleware, roleMiddleware('admin'), async (req, res) => {
 // поэтому сессия администратора не подменяется на нового пользователя.
 router.post('/', authMiddleware, roleMiddleware('admin'), async (req, res) => {
   try {
-    const { email, password, role, firstName, lastName, directionId, phone, cabinet } = req.body
+    const {
+      email, password, role, firstName, lastName, directionId, phone, cabinet,
+      canConclude, canViewAllResults
+    } = req.body
     if (!email || !password) {
       return res.status(400).json({ message: 'Email и пароль обязательны' })
     }
@@ -39,7 +42,10 @@ router.post('/', authMiddleware, roleMiddleware('admin'), async (req, res) => {
       phone: phone || null,
       cabinet: cabinet || null,
       // Проф. ориентированность актуальна только для преподавателя.
-      directionId: finalRole === 'teacher' && directionId ? directionId : null
+      directionId: finalRole === 'teacher' && directionId ? directionId : null,
+      // Права по диагностике выдаются точечно и только специалистам.
+      canConclude: finalRole === 'teacher' ? canConclude === true : false,
+      canViewAllResults: finalRole === 'teacher' ? canViewAllResults === true : false
     })
     const { passwordHash, ...safeUser } = user.toJSON()
     res.status(201).json(safeUser)
@@ -69,7 +75,10 @@ router.put('/:id', authMiddleware, async (req, res) => {
     }
     const user = await User.findByPk(req.params.id)
     if (!user) return res.status(404).json({ message: 'Пользователь не найден' })
-    const { email, role, password, firstName, lastName, directionId, phone, cabinet } = req.body
+    const {
+      email, role, password, firstName, lastName, directionId, phone, cabinet,
+      canConclude, canViewAllResults
+    } = req.body
     if (email) user.email = email
     if (role && req.user.role === 'admin') user.role = role
     if (password) user.passwordHash = await bcrypt.hash(password, 10)
@@ -78,8 +87,17 @@ router.put('/:id', authMiddleware, async (req, res) => {
     if (phone !== undefined) user.phone = phone || null
     if (cabinet !== undefined) user.cabinet = cabinet || null
     if (directionId !== undefined) user.directionId = directionId || null
-    // Проф. ориентированность имеет смысл только для преподавателя.
-    if (user.role !== 'teacher') user.directionId = null
+    // Права по диагностике меняет ТОЛЬКО администратор.
+    if (req.user.role === 'admin') {
+      if (canConclude !== undefined) user.canConclude = canConclude === true
+      if (canViewAllResults !== undefined) user.canViewAllResults = canViewAllResults === true
+    }
+    // Проф. ориентированность и права по диагностике имеют смысл только у преподавателя.
+    if (user.role !== 'teacher') {
+      user.directionId = null
+      user.canConclude = false
+      user.canViewAllResults = false
+    }
     await user.save()
     const { passwordHash, ...safeUser } = user.toJSON()
     res.json(safeUser)

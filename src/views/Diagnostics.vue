@@ -2,34 +2,11 @@
   <div class="diagnostics-page" :class="{ 'diag-readonly': isEmployee }">
     <a class="skip-link" href="#stages-flow">Перейти к этапам диагностики</a>
 
-    <!-- Преподаватель (куратор) видит только заполнение карточки по своей
-         области — переключатель режимов и вкладка назначения ему недоступны. -->
-    <div v-if="!isTeacher" class="diag-modebar" role="tablist" aria-label="Режим вкладки диагностики">
-      <button
-        type="button"
-        class="diag-mode-btn"
-        role="tab"
-        :aria-selected="diagMode === 'card'"
-        :class="{ active: diagMode === 'card' }"
-        @click="diagMode = 'card'"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M9 21V9"/></svg>
-        Карточка диагностики
-      </button>
-      <button
-        type="button"
-        class="diag-mode-btn"
-        role="tab"
-        :aria-selected="diagMode === 'assign'"
-        :class="{ active: diagMode === 'assign' }"
-        @click="diagMode = 'assign'"
-      >
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
-        Назначение на диагностику
-      </button>
-    </div>
+    <!-- Переключателя режимов больше нет: назначение здесь не создаётся.
+         Заявку ставит ресепшн из раздела «Реабилитанты» — только датой,
+         без выбора направления и специалиста. -->
 
-    <div class="content" :class="{ 'is-gated': !recipientChosen }" v-show="diagMode === 'card'">
+    <div class="content" :class="{ 'is-gated': !recipientChosen }">
 
       <!-- Ворота выбора: пока реабилитант не выбран, карточка диагностики скрыта
            (см. CSS .content.is-gated), а на её месте — приглашение выбрать. -->
@@ -197,16 +174,6 @@
                   <div>
                     <div class="t">Психологическая диагностика</div>
                     <div class="s">Коммуникативное развитие, эмоц.-волевая сфера, познавательные процессы</div>
-                  </div>
-                </div>
-
-                <div class="specialists-row" style="margin-top: 0; padding-top: 0; border-top: none; margin-bottom: 1.25rem;">
-                  <div class="specialists-label">Блок заполняют</div>
-                  <div class="specialists-list" role="list">
-                    <button type="button" class="specialist-add">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true" style="width: 0.75rem; height: 0.75rem;"><path d="M12 5v14M5 12h14"/></svg>
-                      Добавить специалиста
-                    </button>
                   </div>
                 </div>
 
@@ -526,16 +493,6 @@
                   </div>
                 </div>
 
-                <div class="specialists-row" style="margin-top: 0; padding-top: 0; border-top: none; margin-bottom: 1.25rem;">
-                  <div class="specialists-label">Блок заполняют</div>
-                  <div class="specialists-list" role="list">
-                    <button type="button" class="specialist-add">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true" style="width: 0.75rem; height: 0.75rem;"><path d="M12 5v14M5 12h14"/></svg>
-                      Добавить специалиста
-                    </button>
-                  </div>
-                </div>
-
                 <fieldset class="qgroup">
                   <legend class="qlabel">
                     <span class="qlabel-text">Понимание обращённой речи</span>
@@ -808,16 +765,6 @@
             </button>
             <div class="stage-body" id="stage-afk-body">
 
-              <div class="specialists-row" style="margin-top: 0; padding-top: 0; border-top: none; margin-bottom: 1.5rem;">
-                <div class="specialists-label">Диагностику проводит</div>
-                <div class="specialists-list" role="list">
-                  <button type="button" class="specialist-add">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true" style="width: 0.75rem; height: 0.75rem;"><path d="M12 5v14M5 12h14"/></svg>
-                    Добавить специалиста
-                  </button>
-                </div>
-              </div>
-
               <div class="qgroup" style="margin-top: 0; padding-top: 0; border-top: none;">
                 <div class="qlabel"><span class="qlabel-text">Целевая группа реабилитации (ЦРГ)</span></div>
                 <input type="text" class="input" placeholder="Из таблицы целевых групп центра" />
@@ -1060,16 +1007,6 @@
                   </div>
                 </div>
 
-                <div class="specialists-row" style="margin-top: 0; padding-top: 0; border-top: none; margin-bottom: 1.25rem;">
-                  <div class="specialists-label">Блок заполняют</div>
-                  <div class="specialists-list" role="list">
-                    <button type="button" class="specialist-add">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true" style="width: 0.75rem; height: 0.75rem;"><path d="M12 5v14M5 12h14"/></svg>
-                      Добавить специалиста
-                    </button>
-                  </div>
-                </div>
-
                 <fieldset class="qgroup" style="margin-top: 0;">
                   <legend class="sr-only">Критерии оценки ИЗО</legend>
                   <div class="izo-list">
@@ -1193,16 +1130,6 @@
                   </div>
                 </div>
 
-                <div class="specialists-row" style="margin-top: 0; padding-top: 0; border-top: none; margin-bottom: 1.25rem;">
-                  <div class="specialists-label">Блок заполняют</div>
-                  <div class="specialists-list" role="list">
-                    <button type="button" class="specialist-add">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true" style="width: 0.75rem; height: 0.75rem;"><path d="M12 5v14M5 12h14"/></svg>
-                      Добавить специалиста
-                    </button>
-                  </div>
-                </div>
-
                 <fieldset class="qgroup" style="margin-top: 0;">
                   <legend class="sr-only">Критерии оценки театрального блока</legend>
 
@@ -1311,16 +1238,6 @@
                   <div class="right">
                     <div class="pp">0 <span class="of">/ 50</span></div>
                     <div class="pl">сумма баллов</div>
-                  </div>
-                </div>
-
-                <div class="specialists-row" style="margin-top: 0; padding-top: 0; border-top: none; margin-bottom: 1.25rem;">
-                  <div class="specialists-label">Блок заполняют</div>
-                  <div class="specialists-list" role="list">
-                    <button type="button" class="specialist-add">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true" style="width: 0.75rem; height: 0.75rem;"><path d="M12 5v14M5 12h14"/></svg>
-                      Добавить специалиста
-                    </button>
                   </div>
                 </div>
 
@@ -1606,76 +1523,7 @@
 
     </div>
 
-    <!-- ===================== РЕЖИМ: НАЗНАЧЕНИЕ НА ДИАГНОСТИКУ ===================== -->
-    <div class="diag-assign-view" v-show="diagMode === 'assign'">
-      <div class="da-head">
-        <h1 class="da-title">Назначение на диагностику</h1>
-        <p class="da-sub">Выберите реабилитанта, направление и специалиста, затем назначьте диагностику. Это единственное место в системе, где создаются назначения.</p>
-      </div>
-
-      <div class="da-card">
-        <div class="da-grid">
-          <label class="da-field">
-            <span class="da-key">Реабилитант</span>
-            <select v-model.number="assignForm.recipientId" class="da-input" :disabled="refsLoading || assigning">
-              <option :value="null" disabled>{{ refsLoading ? 'Загрузка…' : 'Выберите реабилитанта' }}</option>
-              <option v-for="r in assignRecipients" :key="r.id" :value="r.id">{{ recipientOptionLabel(r) }}</option>
-            </select>
-          </label>
-          <label class="da-field">
-            <span class="da-key">Направление</span>
-            <select v-model.number="assignForm.directionId" class="da-input" :disabled="refsLoading || assigning">
-              <option :value="null" disabled>{{ refsLoading ? 'Загрузка…' : 'Выберите направление' }}</option>
-              <option v-for="d in directions" :key="d.id" :value="d.id">{{ d.name }}</option>
-            </select>
-          </label>
-          <label class="da-field">
-            <span class="da-key">Специалист</span>
-            <select v-model.number="assignForm.specialistId" class="da-input" :disabled="refsLoading || assigning">
-              <option :value="null" disabled>{{ refsLoading ? 'Загрузка…' : 'Выберите специалиста' }}</option>
-              <option v-for="s in specialists" :key="s.id" :value="s.id">{{ s.fullName }}{{ s.cabinet ? ' · каб. ' + s.cabinet : '' }}</option>
-            </select>
-          </label>
-          <label class="da-field">
-            <span class="da-key">Дата</span>
-            <input type="date" v-model="assignForm.date" :min="todayStr" class="da-input" :disabled="assigning" />
-          </label>
-          <div class="da-action">
-            <button type="button" class="btn btn-primary" :disabled="!canAssign || assigning" @click="createAssignment">
-              {{ assigning ? 'Назначение…' : 'Назначить' }}
-            </button>
-          </div>
-        </div>
-        <p v-if="assignError" class="da-error">{{ assignError }}</p>
-      </div>
-
-      <div class="da-card">
-        <h2 class="da-subtitle">Назначенные диагностики</h2>
-        <div v-if="!assignForm.recipientId" class="da-empty">Выберите реабилитанта, чтобы увидеть назначения.</div>
-        <div v-else-if="assignmentsLoading" class="da-empty">Загрузка…</div>
-        <div v-else-if="!assignments.length" class="da-empty">Пока нет назначений.</div>
-        <table v-else class="da-table">
-          <thead>
-            <tr><th>Направление</th><th>Специалист</th><th>Дата</th><th>Статус</th><th></th></tr>
-          </thead>
-          <tbody>
-            <tr v-for="a in assignments" :key="a.id">
-              <td>{{ a.direction?.name || '—' }}</td>
-              <td>{{ a.specialist?.fullName || '—' }}</td>
-              <td>{{ formatAssignDate(a.date) }}</td>
-              <td><span class="da-status" :class="a.published ? 'done' : 'planned'">{{ a.published ? 'Проведена' : 'Назначена' }}</span></td>
-              <td>
-                <button v-if="!a.published" type="button" class="da-cancel" :disabled="cancelingId === a.id" @click="cancelAssignment(a)">
-                  {{ cancelingId === a.id ? '…' : 'Отменить' }}
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="save-bar" role="region" aria-label="Действия по диагностике" v-show="diagMode === 'card' && recipientChosen">
+    <div class="save-bar" role="region" aria-label="Действия по диагностике" v-show="recipientChosen">
       <div class="save-bar-assign">
         <label for="assignment-target" class="save-bar-assign-label">Сохранить в назначение</label>
         <select id="assignment-target" class="save-bar-assign-select">
@@ -1804,128 +1652,10 @@ function openRecipientPicker() {
   if (typeof window.__openRecipientPicker === 'function') window.__openRecipientPicker()
 }
 
-/* =====================================================================
-   Переключатель режимов вкладки «Диагностика»:
-     • 'card'   — полная карточка диагностики реабилитанта (маршрут, этапы);
-     • 'assign' — назначение на диагностику (единственное место в системе,
-                  где создаётся назначение — из карточки реабилитанта оно убрано).
-   ===================================================================== */
+// Режим вкладки всегда один — карточка диагностики. Старый режим
+// «Назначение на диагностику» (выбор направления и специалиста, POST /diagnostics)
+// упразднён: заявка ставится только датой из раздела «Реабилитанты».
 const diagMode = ref('card')
-
-const assignRecipients = ref([])
-const directions = ref([])
-const specialists = ref([])
-const refsLoaded = ref(false)
-const refsLoading = ref(false)
-
-const assignments = ref([])
-const assignmentsLoading = ref(false)
-
-const assignForm = ref({ recipientId: null, directionId: null, specialistId: null, date: '' })
-const assigning = ref(false)
-const assignError = ref('')
-const cancelingId = ref(null)
-
-const todayStr = computed(() => new Date().toISOString().slice(0, 10))
-const canAssign = computed(() =>
-  !!assignForm.value.recipientId &&
-  !!assignForm.value.directionId &&
-  !!assignForm.value.specialistId &&
-  !!assignForm.value.date
-)
-const publishedAssignments = computed(() => assignments.value.filter((a) => a.published))
-
-function formatAssignDate(value) {
-  if (!value) return '—'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return String(value)
-  return d.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' })
-}
-
-async function loadAssignRefs() {
-  if (refsLoaded.value || refsLoading.value) return
-  refsLoading.value = true
-  try {
-    const [recRes, dirRes, specRes] = await Promise.all([
-      api.get('/recipients', { params: { page: 1, limit: 500 } }),
-      api.get('/lists/directions'),
-      api.get('/lists/curators')
-    ])
-    assignRecipients.value = recRes.data?.data || []
-    directions.value = Array.isArray(dirRes.data) ? dirRes.data : []
-    specialists.value = Array.isArray(specRes.data) ? specRes.data : []
-    refsLoaded.value = true
-  } catch (err) {
-    console.error('loadAssignRefs', err)
-  } finally {
-    refsLoading.value = false
-  }
-}
-
-async function loadRecipientAssignments() {
-  const rid = assignForm.value.recipientId
-  if (!rid) { assignments.value = []; return }
-  assignmentsLoading.value = true
-  try {
-    const { data } = await api.get('/diagnostics', { params: { recipientId: rid, limit: 100 } })
-    assignments.value = Array.isArray(data?.data) ? data.data : []
-  } catch (err) {
-    console.error('loadRecipientAssignments', err)
-    assignments.value = []
-  } finally {
-    assignmentsLoading.value = false
-  }
-}
-
-async function createAssignment() {
-  if (!canAssign.value || assigning.value) return
-  assigning.value = true
-  assignError.value = ''
-  try {
-    await api.post('/diagnostics', {
-      idRecipient: Number(assignForm.value.recipientId),
-      idDirection: assignForm.value.directionId,
-      idSpecialist: assignForm.value.specialistId,
-      date: assignForm.value.date,
-      results: {},
-      published: false
-    })
-    assignForm.value = {
-      recipientId: assignForm.value.recipientId,
-      directionId: null, specialistId: null, date: ''
-    }
-    await loadRecipientAssignments()
-  } catch (err) {
-    console.error('createAssignment', err)
-    assignError.value = err?.response?.data?.message || 'Не удалось создать назначение'
-  } finally {
-    assigning.value = false
-  }
-}
-
-async function cancelAssignment(a) {
-  if (cancelingId.value) return
-  cancelingId.value = a.id
-  try {
-    await api.delete(`/diagnostics/${a.id}`)
-    await loadRecipientAssignments()
-  } catch (err) {
-    console.error('cancelAssignment', err)
-    alert('Не удалось отменить назначение')
-  } finally {
-    cancelingId.value = null
-  }
-}
-
-function recipientOptionLabel(r) {
-  const name = fullName(r)
-  return r.diagnosis ? `${name} · ${r.diagnosis}` : name
-}
-
-watch(diagMode, (mode) => {
-  if (mode === 'assign') loadAssignRefs()
-})
-watch(() => assignForm.value.recipientId, () => { loadRecipientAssignments() })
 
 function handleMobileStageChange(event) {
   const value = event?.target?.value
@@ -1966,15 +1696,7 @@ onMounted(() => {
   // сессии (например, если до этого страницу открывал преподаватель).
   window.__forcedProfileKey = '';
 
-  // Если на вкладку «Диагностика» перешли с запросом назначения
-  // (из поповера после создания реабилитанта или из карточки реабилитанта) —
-  // сразу открываем режим «Назначение на диагностику».
-  // Преподавателю назначение недоступно — для него всегда карточка.
-  if (pageStore.params?.mode === 'assign' && !authStore.isTeacher) {
-    diagMode.value = 'assign'
-  }
   if (authStore.isTeacher) {
-    diagMode.value = 'card';
     lockTeacherProfile();
   }
 
@@ -2037,7 +1759,16 @@ onMounted(() => {
       currentRecipient: FALLBACK_RECIPIENTS[0],
       completed: false,
       lastReportData: null,
-      assignments: []
+      assignments: [],
+      // Заявка на диагностику выбранного реабилитанта и её итоговое
+      // заключение. Нужны этапу 04 «Сводное заключение»: он сохраняется
+      // не в блок специалиста, а в отдельную запись заключения по заявке.
+      sessionId: null,
+      conclusion: null,
+      // Этапы 01–03, которые ещё не пройдены. Пока список не пуст, этап 04
+      // закрыт: заключение — итог маршрута, а не отдельная самостоятельная
+      // запись. Считает сервер, здесь только держим ответ.
+      conclusionBlockers: []
     };
     window.__diagnosticsRuntime = diagnosticsRuntime;
 
@@ -2166,16 +1897,56 @@ onMounted(() => {
       if (typeof window.__resetFormState === 'function') {
         window.__resetFormState(document.querySelector('.diagnostics-page .content'));
       }
+      // И снимаем отметки «завершено» предыдущего реабилитанта: пока блок
+      // помечен завершённым, его поля заблокированы и значения следующего
+      // человека в них просто не попадут.
+      if (typeof window.__clearCompletionMarks === 'function') window.__clearCompletionMarks();
+
       const recipientId = diagnosticsRuntime.currentRecipient?.id;
       if (!recipientId) return;
       if (typeof window.__applyFormState !== 'function') return;
       try {
-        const { data } = await api.get('/diagnostics', { params: { recipientId, limit: 100 } });
-        const rows = Array.isArray(data?.data) ? data.data : [];
-        // Только завершённые (published) записи содержат финальные данные блока.
-        rows
-          .filter(r => r.published && r.results && r.results.formState)
-          .forEach(r => window.__applyFormState(r.results.formState));
+        // Источник тот же, что и у нижней панели, — блоки заявок на диагностику.
+        // Легаси-таблица ReResult (/diagnostics) пуста: новый порядок в неё не
+        // пишет, и заполненные преподавателем поля отсюда не возвращались.
+        //
+        // Чужие блоки сервер отдаёт с results = null, если у пользователя нет
+        // права видеть результаты коллег, — доступ фильтруется на бэкенде.
+        const { data } = await api.get('/schedule/sessions', { params: { recipientId } });
+        const sessions = Array.isArray(data) ? data : [];
+        const live = sessions.filter(s => s.status !== 'cancelled');
+        const blocks = live.flatMap(s => s.blocks || []);
+        blocks
+          .filter(b => b.blockStatus === 'completed' && b.results && b.results.formState)
+          .forEach(b => window.__applyFormState(b.results.formState));
+
+        // Этап 04 «Сводное заключение» живёт не в блоке специалиста, а в
+        // отдельной записи заключения по заявке. Раньше карточка его вообще
+        // не читала: специалист с правом заключать вердикт сохранял текст,
+        // он ложился в базу, но администратор в карточке видел пустую форму.
+        // Берём самую свежую действующую заявку — по ней и оформляется итог.
+        const target = live.length
+          ? live.reduce((a, b) => (Number(b.id) > Number(a.id) ? b : a))
+          : null;
+        diagnosticsRuntime.sessionId = target?.id ?? null;
+        diagnosticsRuntime.conclusion = target?.conclusion || null;
+        // Непройденные этапы 01–03 считает сервер — он же и откажет в выдаче
+        // заключения. Держим тот же список, чтобы этап 04 был закрыт заранее,
+        // а не отбивался ошибкой уже после того, как вердикт написали.
+        diagnosticsRuntime.conclusionBlockers = Array.isArray(target?.missingStages)
+          ? target.missingStages
+          : [];
+        if (typeof window.__applyConclusion === 'function') {
+          window.__applyConclusion(diagnosticsRuntime.conclusion);
+        }
+        // Маршрут диагностики должен показывать РЕАЛЬНОЕ состояние: этап
+        // горит зелёным, когда специалисты действительно сдали свои блоки.
+        // Делаем это после восстановления значений — завершённый блок
+        // блокируется на чтение, и клики восстановления в него уже не пройдут.
+        if (typeof window.__applyCompletedBlocks === 'function') window.__applyCompletedBlocks(blocks);
+        // Замок этапа 04 ставим последним: applyCompletedBlocks перевешивает
+        // обработчики кнопок этапов и могла бы сбросить состояние кнопки.
+        if (typeof window.__updateConclusionGate === 'function') window.__updateConclusionGate();
       } catch (err) {
         console.warn('Не удалось загрузить сохранённые результаты диагностики', err);
       }
@@ -2218,9 +1989,14 @@ onMounted(() => {
       }
     }
 
-    // Список для преподавателя: только реабилитанты, которых направили на
-    // диагностику лично к нему (ReResult.idSpecialist = его userId и запись ещё
-    // не опубликована). Пока таких нет — список пуст и «ворота» это показывают.
+    // Список для преподавателя: только реабилитанты, которых он ВЗЯЛ СЕБЕ
+    // в разделе «Расписание» → «Заявки на диагностику».
+    //
+    // Источник — GET /schedule/sessions: роли teacher сервер отдаёт только те
+    // заявки, где есть её собственный блок (DiagnosticAssignment). Раньше здесь
+    // опрашивался легаси-эндпоинт /diagnostics (таблица ReResult), в который
+    // новый порядок назначения вообще ничего не пишет, поэтому список всегда
+    // оставался пустым — сколько бы реабилитантов специалист ни взял.
     async function loadTeacherAssignedRecipients() {
       const specialistId = authStore.user?.id;
       if (!specialistId) {
@@ -2230,13 +2006,15 @@ onMounted(() => {
         return;
       }
       try {
-        const { data } = await api.get('/diagnostics', { params: { specialistId, limit: 500 } });
-        const rows = Array.isArray(data?.data) ? data.data : [];
-        const pending = rows.filter((r) => !r.published);
-        // Уникальные реабилитанты (порядок сохраняем) с базовой инфой из назначения.
+        const { data } = await api.get('/schedule/sessions');
+        const sessions = Array.isArray(data) ? data : [];
+        // Уникальные реабилитанты (порядок сохраняем) с базовой инфой из заявки.
         const byId = new Map();
-        for (const r of pending) {
-          const rec = r.recipient;
+        for (const s of sessions) {
+          // Закрытая или отменённая заявка работы уже не требует.
+          if (s.status === 'cancelled' || s.status === 'completed') continue;
+          if (!(s.blocks || []).some((b) => b.isMine)) continue;
+          const rec = s.recipient;
           if (rec && rec.id != null && !byId.has(rec.id)) byId.set(rec.id, rec);
         }
         // Обогащаем полными данными (возраст/диагноз/группа) через /recipients/:id.
@@ -2267,11 +2045,16 @@ onMounted(() => {
 
     function assignmentLabel(a) {
       const dir = a?.direction?.name || 'Направление не указано';
-      const spec = a?.specialist?.fullName || 'специалист не указан';
+      const spec = a?.specialistName || a?.specialist?.fullName || 'специалист не указан';
       const date = a?.date ? formatDateRu(a.date) : '';
-      return [dir, spec, date].filter(Boolean).join(' · ');
+      const done = a?.blockStatus === 'completed' ? 'этап завершён' : '';
+      return [dir, spec, date, done].filter(Boolean).join(' · ');
     }
 
+    // Блоки заявки, в которые можно писать результат. Раньше список брался из
+    // легаси-таблицы ReResult (/diagnostics) — новый порядок туда не пишет,
+    // поэтому в нижней панели всегда было «нет ожидающих назначений», и
+    // результат сохранить было некуда.
     async function loadAssignmentsForRecipient() {
       const select = document.getElementById('assignment-target');
       if (!select) return;
@@ -2284,12 +2067,22 @@ onMounted(() => {
         return;
       }
       try {
-        const response = await api.get('/diagnostics', { params: { recipientId, limit: 100 } });
-        const rows = Array.isArray(response?.data?.data) ? response.data.data : [];
-        let pending = rows.filter(r => !r.published);
+        const response = await api.get('/schedule/sessions', { params: { recipientId } });
+        const sessions = Array.isArray(response?.data) ? response.data : [];
+        const isTeacher = authStore.isTeacher;
+        let pending = [];
+        for (const s of sessions) {
+          if (s.status === 'cancelled') continue;
+          for (const b of (s.blocks || [])) {
+            // Специалист пишет только в свой блок — чужой доступен лишь на чтение,
+            // и сервер всё равно отклонит запись (403).
+            if (isTeacher && !b.isMine) continue;
+            pending.push(b);
+          }
+        }
         // Преподаватель сохраняет результат только в назначения своей области.
         if (window.__forcedProfileKey) {
-          pending = pending.filter(r => !r.direction || r.direction.profileKey === window.__forcedProfileKey);
+          pending = pending.filter(b => !b.profileKey || b.profileKey === window.__forcedProfileKey);
         }
         diagnosticsRuntime.assignments = pending;
         if (!pending.length) {
@@ -2323,7 +2116,7 @@ onMounted(() => {
         // Профиль назначения определяет, состояние КАКОГО блока карточки
         // сохранять (и куда потом восстанавливать у администратора).
         const assignment = (diagnosticsRuntime.assignments || []).find(a => String(a.id) === String(assignmentId));
-        const profileKey = assignment?.direction?.profileKey || '';
+        const profileKey = assignment?.profileKey || assignment?.direction?.profileKey || '';
         const reportData = diagnosticsRuntime.lastReportData
           || (typeof window.__collectReportData === 'function' ? window.__collectReportData() : {});
         // Полный снимок заполненных полей блока — чтобы данные преподавателя
@@ -2332,11 +2125,11 @@ onMounted(() => {
           ? window.__snapshotFormState(profileKey)
           : null;
         const results = Object.assign({}, reportData, formState ? { formState } : {});
-        await api.put('/diagnostics/' + assignmentId, {
-          results,
-          published: true
-        });
-        showToast('Результаты сохранены в карточке реабилитанта. <strong>Назначение отмечено как проведённое.</strong>', 4600);
+        // Завершаем свой этап заявки: сервер проставит blockStatus=completed,
+        // время завершения и синхронизирует событие в расписании. Писать можно
+        // только в собственный блок — чужой отдаёт 403.
+        await api.post('/schedule/assignments/' + assignmentId + '/complete', { results });
+        showToast('Результаты сохранены в карточке реабилитанта. <strong>Этап диагностики завершён.</strong>', 4600);
         await loadAssignmentsForRecipient();
         return true;
       } catch (err) {
@@ -3009,7 +2802,7 @@ onMounted(() => {
 
           if (btn.dataset.bound === '1') return;
           btn.dataset.bound = '1';
-          btn.addEventListener('click', () => {
+          btn.addEventListener('click', async () => {
 
             if (btn.disabled) return;
             const card = btn.closest('.stage-card');
@@ -3017,6 +2810,17 @@ onMounted(() => {
             const stageKey = card.dataset.stage;
             const stageTitle = card.querySelector('.stage-info .title');
             const title = stageTitle ? stageTitle.textContent.trim() : 'Этап';
+
+            // Этап 04 — не косметика: это реальная выдача заключения по заявке.
+            // Раньше кнопка лишь перекрашивала карточку, ничего не отправляя, —
+            // отсюда и «написал вердикт, сохранил, а изменений нет».
+            // Не сохранилось (нет права, не сданы блоки, пустая форма) —
+            // этап не закрываем, чтобы не создавать видимость успеха.
+            if (stageKey === 'final') {
+              const saved = await window.__submitConclusion?.(btn);
+              if (!saved) return;
+            }
+
             setStageStatus(stageKey, 'done');
 
             lockStageBody(card);
@@ -3289,6 +3093,22 @@ onMounted(() => {
       };
       const ALL_STAGES = ['psy', 'afk', 'soc', 'final'];
 
+      // Этап 04 «Сводное заключение» не принадлежит ни одному профилю: его
+      // оформляет тот, кому администратор выдал право заключать вердикт
+      // (флаг User.canConclude), и сам администратор. Ограничение по профилю
+      // раньше прятало этот этап у ЛЮБОГО преподавателя — в том числе у того,
+      // у кого право есть. Из-за этого специалист вместо нормальной формы
+      // заключения («Решение по итогам» + обоснование) видел только урезанный
+      // вариант в «Расписании», и формы у него и у администратора расходились.
+      function viewerCanConclude() {
+        const u = authStore.user;
+        return !!u && (u.role === 'admin' || u.canConclude === true);
+      }
+
+      // Три варианта решения этапа 04 в порядке их следования в разметке.
+      // Тот же порядок задаёт обработчик клика (idx 0 → yes, 1 → trial, 2 → no).
+      const VERDICT_KEYS = ['recommended', 'trial', 'rejected'];
+
       function q(selector, root = document) { return root.querySelector(selector); }
       function qa(selector, root = document) { return Array.from(root.querySelectorAll(selector)); }
       function text(el) { return normalizeSpaces(el?.textContent || ''); }
@@ -3371,14 +3191,15 @@ onMounted(() => {
         const recipient = diagnosticsRuntime.currentRecipient || FALLBACK_RECIPIENTS[0];
         const reportDate = new Date();
 
-        function specialistsArrayFrom(selector) {
-          const root = q(selector) || null;
-          if (!root) return [];
-          const names = qa('.specialist-chip', root).map(chip => {
-            const clone = chip.cloneNode(true);
-            clone.querySelectorAll('button, svg, .av').forEach(el => el.remove());
-            return text(clone);
-          }).filter(Boolean);
+        // Кто заполняет блок — берём из заявки на диагностику. Блок закреплён за
+        // тем специалистом, который взял его себе в «Расписании», и заполнить его
+        // может только он со своего аккаунта. Раньше имена набирались руками через
+        // «Блок заполняют» → «+ Добавить специалиста»; этот выбор убран, поэтому
+        // подпись под блоком берётся из самого назначения.
+        function blockSpecialists(profileKey) {
+          const names = (diagnosticsRuntime.assignments || [])
+            .filter(a => (a.profileKey || a.direction?.profileKey || '') === profileKey)
+            .map(a => a.specialistName || a.specialist?.fullName || '');
           return unique(names);
         }
 
@@ -3395,13 +3216,13 @@ onMounted(() => {
         }
 
         const blocks = [
-          { id: 'psy',        dirGroup: 'soc-psy', direction: 'Социально-\nпсихологическая\nреабилитация', sub: 'Психолог',         pos: 'психолог\nв социальной\nсфере',         specialists: specialistsArrayFrom('#subpanel-psy'),        recs: textareaRecsFrom('#subpanel-psy') },
-          { id: 'log',        dirGroup: 'soc-ped', direction: 'Социально-\nпедагогическая\nреабилитация',  sub: 'Логопед',          pos: 'логопед',                               specialists: specialistsArrayFrom('#subpanel-log'),        recs: textareaRecsFrom('#subpanel-log') },
-          { id: 'izo',        dirGroup: 'soc-cul', direction: 'Социокультурная\nреабилитация',              sub: 'Художественное',   pos: 'Специалист по\nреабилитации\nинвалидов', specialists: specialistsArrayFrom('#subpanel-izo'),        recs: textareaRecsFrom('#subpanel-izo') },
-          { id: 'theatre',    dirGroup: 'soc-cul', direction: null,                                          sub: 'Театральное',      pos: 'Специалист по\nреабилитации\nинвалидов', specialists: specialistsArrayFrom('#subpanel-theatre'),    recs: textareaRecsFrom('#subpanel-theatre') },
-          { id: 'vocal',      dirGroup: 'soc-cul', direction: null,                                          sub: 'Вокальное',        pos: 'Специалист по\nреабилитации\nинвалидов', specialists: specialistsArrayFrom('#subpanel-vocal'),      recs: textareaRecsFrom('#subpanel-vocal') },
-          { id: 'instrument', dirGroup: 'soc-cul', direction: null,                                          sub: 'Инструментальное', pos: 'Специалист по\nреабилитации\nинвалидов', specialists: specialistsArrayFrom('#subpanel-instrument'), recs: textareaRecsFrom('#subpanel-instrument') },
-          { id: 'afk',        dirGroup: 'afk',     direction: 'Физкультурно-\nоздоровительная\n(АФК)',       sub: null,               pos: 'Специалист по\nреабилитации\nинвалидов', specialists: specialistsArrayFrom('#stage-afk'),           recs: textareaRecsFromStage('afk') },
+          { id: 'psy',        dirGroup: 'soc-psy', direction: 'Социально-\nпсихологическая\nреабилитация', sub: 'Психолог',         pos: 'психолог\nв социальной\nсфере',         specialists: blockSpecialists('psy'),        recs: textareaRecsFrom('#subpanel-psy') },
+          { id: 'log',        dirGroup: 'soc-ped', direction: 'Социально-\nпедагогическая\nреабилитация',  sub: 'Логопед',          pos: 'логопед',                               specialists: blockSpecialists('log'),        recs: textareaRecsFrom('#subpanel-log') },
+          { id: 'izo',        dirGroup: 'soc-cul', direction: 'Социокультурная\nреабилитация',              sub: 'Художественное',   pos: 'Специалист по\nреабилитации\nинвалидов', specialists: blockSpecialists('izo'),        recs: textareaRecsFrom('#subpanel-izo') },
+          { id: 'theatre',    dirGroup: 'soc-cul', direction: null,                                          sub: 'Театральное',      pos: 'Специалист по\nреабилитации\nинвалидов', specialists: blockSpecialists('theatre'),    recs: textareaRecsFrom('#subpanel-theatre') },
+          { id: 'vocal',      dirGroup: 'soc-cul', direction: null,                                          sub: 'Вокальное',        pos: 'Специалист по\nреабилитации\nинвалидов', specialists: blockSpecialists('vocal'),      recs: textareaRecsFrom('#subpanel-vocal') },
+          { id: 'instrument', dirGroup: 'soc-cul', direction: null,                                          sub: 'Инструментальное', pos: 'Специалист по\nреабилитации\nинвалидов', specialists: blockSpecialists('instrument'), recs: textareaRecsFrom('#subpanel-instrument') },
+          { id: 'afk',        dirGroup: 'afk',     direction: 'Физкультурно-\nоздоровительная\n(АФК)',       sub: null,               pos: 'Специалист по\nреабилитации\nинвалидов', specialists: blockSpecialists('afk'),        recs: textareaRecsFromStage('afk') },
         ];
 
         return { recipient, reportDate, blocks };
@@ -3427,6 +3248,10 @@ onMounted(() => {
       function autoFinishStage(stageKey) {
         const card = q('.stage-card[data-stage="' + stageKey + '"]');
         if (!card || card.dataset.status === 'done') return;
+        // Сводное заключение нельзя закрыть визуально, пока оно не сохранено
+        // на сервере: иначе этап выглядит завершённым, а в базе пусто —
+        // ровно та ситуация «сохранил, а изменений нет».
+        if (stageKey === 'final' && !diagnosticsRuntime.conclusion) return;
 
         qa(':scope > .stage-body > .subpanel', card).filter(panel => !panel.classList.contains('profile-hidden')).forEach(panel => {
           if (hasMeaningfulData(panel) && !panel.classList.contains('is-locked') && typeof window.__lockSubpanel === 'function') {
@@ -3451,6 +3276,139 @@ onMounted(() => {
         if (typeof window.__bindFinishButtons === 'function') window.__bindFinishButtons();
         if (typeof window.__updateStageReadiness === 'function') window.__updateStageReadiness(card);
       }
+
+      // ============================================================
+      //  РЕАЛЬНЫЕ СТАТУСЫ «МАРШРУТА ДИАГНОСТИКИ»
+      //  Плитки этапов (01 · Психолог + логопед и т.д.) были статической
+      //  разметкой: этап загорался зелёным только у того, кто прямо сейчас,
+      //  в этой же вкладке, нажал «Завершить этап». Поэтому администратор,
+      //  открывая карточку, всегда видел оранжевое «В работе», хотя психолог
+      //  и логопед свои блоки уже сдали. Теперь статус считается по блокам
+      //  заявок из БД (DiagnosticAssignment.blockStatus) — и он одинаков для
+      //  всех, кто открыл карточку.
+      // ============================================================
+      const EDIT_SUBBLOCK_BTN =
+        '<button type="button" class="btn btn-secondary btn-sm" data-action="edit-subblock">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="width: 0.9375rem; height: 0.9375rem;">' +
+        '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Отредактировать блок</button>';
+      const FINISH_SUBBLOCK_BTN =
+        '<button type="button" class="btn btn-primary btn-sm" data-action="finish-subblock">Завершить блок</button>';
+
+      // Исходный вид индикаторов (значки этапов и точки подразделов). Нужен,
+      // чтобы при переключении на другого реабилитанта вернуть маршрут в
+      // стартовое состояние: иначе на карточке следующего человека остались
+      // бы зелёные отметки предыдущего.
+      const pristineMarks = new Map();
+      function rememberPristineMarks() {
+        if (pristineMarks.size) return;
+        qa('.stage-info .badge:not(.mine)').forEach(el => pristineMarks.set(el, { cls: el.className, text: el.textContent }));
+        qa('.subtab .sub-status').forEach(el => pristineMarks.set(el, { cls: el.className }));
+      }
+
+      function stagePendingHint(card) {
+        return q(':scope > .stage-body > .stage-actions [data-role="pending-hint"]', card);
+      }
+
+      // Снимает отметки «завершено», проставленные по данным БД.
+      function clearCompletionMarks() {
+        rememberPristineMarks();
+
+        qa('.subpanel').forEach(panel => {
+          if (typeof window.__unlockSubpanel === 'function') window.__unlockSubpanel(panel);
+          const editBtn = q('[data-action="edit-subblock"]', panel);
+          if (editBtn) editBtn.outerHTML = FINISH_SUBBLOCK_BTN;
+        });
+
+        qa('.stage-card').forEach(card => {
+          if (typeof window.__unlockStageBody === 'function') window.__unlockStageBody(card);
+          if (card.dataset.status === 'done') {
+            if (typeof window.__setStageStatus === 'function') window.__setStageStatus(card.dataset.stage, 'progress');
+            if (typeof window.__replaceFinishButton === 'function') window.__replaceFinishButton(card, 'finish');
+          }
+        });
+
+        // Возвращаем подписи и точки ровно к исходным (setStageStatus умеет
+        // вернуть цвет, но не исходный текст «В работе» / «В процессе · 62 %»).
+        pristineMarks.forEach((snap, el) => {
+          el.className = snap.cls;
+          if (snap.text !== undefined) el.textContent = snap.text;
+        });
+
+        if (typeof window.__attachSubblockBtnHandlers === 'function') window.__attachSubblockBtnHandlers();
+        if (typeof window.__bindFinishButtons === 'function') window.__bindFinishButtons();
+        qa('.stage-card').forEach(card => {
+          if (typeof window.__updateStageReadiness === 'function') window.__updateStageReadiness(card);
+        });
+      }
+      window.__clearCompletionMarks = clearCompletionMarks;
+
+      // Раскрашивает маршрут по блокам заявок реабилитанта.
+      // assignments — блоки (DiagnosticAssignment) всех незакрытых заявок.
+      function applyCompletedBlocks(assignments) {
+        const list = Array.isArray(assignments) ? assignments : [];
+        if (!list.length) return;
+        rememberPristineMarks();
+
+        // Раскладываем блоки заявок по этапам формы через профиль специалиста.
+        const stages = new Map();
+        list.forEach(a => {
+          const key = a.profileKey || a.direction?.profileKey || '';
+          const place = PROFILE_BLOCKS[key];
+          if (!place) return;
+          if (!stages.has(place.stage)) stages.set(place.stage, { subs: new Map(), total: 0, done: 0 });
+          const bucket = stages.get(place.stage);
+          const isDone = a.blockStatus === 'completed';
+          bucket.total += 1;
+          if (isDone) bucket.done += 1;
+          // Один и тот же подраздел мог назначаться повторно — «завершён»
+          // побеждает, иначе новая заявка снимала бы уже готовую отметку.
+          if (place.sub) bucket.subs.set(place.sub, (bucket.subs.get(place.sub) || false) || isDone);
+        });
+
+        stages.forEach((bucket, stageKey) => {
+          const card = q('.stage-card[data-stage="' + stageKey + '"]');
+          if (!card) return;
+
+          // 1. Сданный подраздел: зелёная точка, поля только на чтение,
+          //    кнопка «Отредактировать блок» (свой блок специалист может
+          //    открыть заново, чужой — уже нет, это решает сервер).
+          bucket.subs.forEach((isDone, sub) => {
+            if (!isDone) return;
+            const panel = q('#subpanel-' + sub, card);
+            if (panel && typeof window.__lockSubpanel === 'function') window.__lockSubpanel(panel);
+            const dot = q('.subtab[data-subtab="' + sub + '"] .sub-status', card);
+            if (dot) { dot.classList.remove('progress'); dot.classList.add('done'); }
+            const finishSub = panel && q('[data-action="finish-subblock"]', panel);
+            if (finishSub) finishSub.outerHTML = EDIT_SUBBLOCK_BTN;
+          });
+
+          // 2. Этап зелёный, когда сданы ВСЕ назначенные по нему блоки.
+          //    Считаем именно по назначениям, а не по числу подразделов формы:
+          //    в этапе 03 их три, но заявка почти никогда не включает все.
+          const stageDone = bucket.total > 0 && bucket.done === bucket.total;
+          if (!stageDone) {
+            if (typeof window.__updateStageReadiness === 'function') window.__updateStageReadiness(card);
+          } else {
+            // АФК — единственный этап без подразделов, там нечего блокировать
+            // по частям. Где подразделы есть, второй слой блокировки не ставим:
+            // lockSubpanel и lockStageBody пишут в один data-locked-prev и
+            // после этого поля уже не разблокировать.
+            const panels = qa(':scope > .stage-body > .subpanel', card);
+            if (!panels.length && typeof window.__lockStageBody === 'function') window.__lockStageBody(card);
+            if (typeof window.__setStageStatus === 'function') window.__setStageStatus(stageKey, 'done');
+            if (typeof window.__replaceFinishButton === 'function') window.__replaceFinishButton(card, 'edit');
+            // Подсказка «осталось N подразделов» считает все подразделы формы,
+            // включая те, которых в заявке не было, — на завершённом этапе она
+            // только путает.
+            const hint = stagePendingHint(card);
+            if (hint) hint.style.display = 'none';
+          }
+        });
+
+        if (typeof window.__attachSubblockBtnHandlers === 'function') window.__attachSubblockBtnHandlers();
+        if (typeof window.__bindFinishButtons === 'function') window.__bindFinishButtons();
+      }
+      window.__applyCompletedBlocks = applyCompletedBlocks;
 
       function firstProblemStage(problems) {
         if (!problems.length) return null;
@@ -3506,6 +3464,8 @@ onMounted(() => {
         // Прячем все «чужие» этапы: карточки, плитки маршрута, боковую навигацию, мобильный список.
         ALL_STAGES.forEach(stage => {
           if (stage === block.stage) return;
+          // …кроме сводного заключения, если у специалиста есть право его выдать.
+          if (stage === 'final' && viewerCanConclude()) return;
           q('.stage-card[data-stage="' + stage + '"]')?.classList.add('profile-hidden');
           q('.stage-tile[data-stage="' + stage + '"]')?.classList.add('profile-hidden');
           document.querySelector('.side-nav-item[href="#stage-' + stage + '"]')?.classList.add('profile-hidden');
@@ -3661,6 +3621,191 @@ onMounted(() => {
         injectSpecialists(root, fs.specialists);
       }
       window.__applyFormState = applyFormState;
+
+      // ============================================================
+      //  ЭТАП 04 «СВОДНОЕ ЗАКЛЮЧЕНИЕ»
+      //  Заключение — не блок специалиста: оно одно на заявку и хранится
+      //  отдельной записью (DiagnosticConclusions), а не внутри results
+      //  назначения. Раньше карточка этого не знала: кнопки этапа были
+      //  чисто косметическими, на сервер ничего не уходило и оттуда ничего
+      //  не читалось. Поэтому специалист с правом заключать вердикт писал
+      //  текст в «Расписании», он ложился в базу — а администратор в
+      //  карточке по-прежнему видел пустую форму и «изменений нет».
+      // ============================================================
+      const DEFAULT_SIGNED_NOTE = 'Финальное заключение по диагностике';
+
+      function formatIssuedAt(value) {
+        const d = new Date(value);
+        if (Number.isNaN(d.getTime())) return '';
+        return d.toLocaleString('ru-RU', {
+          day: '2-digit', month: '2-digit', year: 'numeric',
+          hour: '2-digit', minute: '2-digit'
+        });
+      }
+
+      // Подпись под формой: кто и когда выдал заключение.
+      function updateSignedNote(concl) {
+        const note = q('#stage-final .stage-actions .signed-note');
+        if (!note) return;
+        if (!concl) { note.textContent = DEFAULT_SIGNED_NOTE; return; }
+        const who = concl.authorName || 'Специалист';
+        const when = concl.issuedAt ? formatIssuedAt(concl.issuedAt) : '';
+        note.textContent = 'Заключение выдал: ' + who + (when ? ', ' + when : '');
+      }
+
+      // Что сейчас выбрано и написано в форме заключения.
+      function readConclusionForm() {
+        const card = q('#stage-final');
+        if (!card) return null;
+        const opts = qa('.verdict-option', card);
+        const idx = opts.findIndex(o => o.classList.contains('selected'));
+        const ta = q('textarea', card);
+        return {
+          verdict: idx >= 0 ? (VERDICT_KEYS[idx] || '') : '',
+          summary: normalizeSpaces(ta?.value || '')
+        };
+      }
+
+      // Замок этапа 04. Заключение — итог маршрута, а не самостоятельная
+      // запись: пока по какому-то из этапов 01–03 нет ни одного сданного
+      // блока, форму заполнять нельзя. Именно этого не хватало — специалист
+      // с правом заключать вердикт мог выдать заключение, когда из троих
+      // этапов пройден был только его собственный.
+      function updateConclusionGate() {
+        const card = q('#stage-final');
+        if (!card) return;
+        // Заключение уже выдано — этап закрыт своим замком, тут ничего не решаем.
+        if (diagnosticsRuntime.conclusion) return;
+
+        const blockers = diagnosticsRuntime.conclusionBlockers || [];
+        // Нет заявки — заключение выдавать вообще не по чему; это тоже замок.
+        const reason = !diagnosticsRuntime.sessionId
+          ? 'У реабилитанта нет действующей заявки на диагностику.'
+          : (blockers.length
+              ? 'Ещё не пройдены: ' + escapeHtml(blockers.map(b => b.title).join(', ')) + '.'
+              : '');
+        const blocked = !!reason;
+        const body = q(':scope > .stage-body', card);
+        const badge = q('.stage-info .title-row .badge:not(.mine)', card);
+        const finishBtn = q(':scope > .stage-body > .stage-actions [data-action="finish-stage"]', card);
+
+        if (badge) {
+          badge.classList.remove('done', 'progress', 'empty', 'locked');
+          badge.classList.add(blocked ? 'locked' : 'empty');
+          badge.textContent = blocked ? 'Ожидает этапов 01–03' : 'Можно заключать';
+        }
+        if (finishBtn) {
+          finishBtn.disabled = blocked;
+          if (blocked) finishBtn.setAttribute('title', 'Сначала должны быть пройдены этапы 01–03');
+          else finishBtn.removeAttribute('title');
+        }
+
+        // Пояснение прямо в этапе: какие именно этапы ещё не пройдены.
+        let note = body && q(':scope > .stage-gate-banner', body);
+        if (!blocked) { if (note) note.remove(); return; }
+        if (!body) return;
+        if (!note) {
+          note = document.createElement('div');
+          note.className = 'stage-gate-banner';
+          note.setAttribute('role', 'status');
+          body.insertBefore(note, body.firstChild);
+        }
+        note.innerHTML =
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" aria-hidden="true">' +
+            '<rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 018 0v3"/>' +
+          '</svg>' +
+          '<span class="slb-text"><strong>Заключение выдаётся после этапов 01–03.</strong> ' +
+          reason + '</span>';
+      }
+      window.__updateConclusionGate = updateConclusionGate;
+
+      // Восстановление сохранённого заключения в форму (при открытии карточки).
+      // Вердикт «проигрываем» кликом, чтобы отработала штатная подсветка.
+      function applyConclusion(concl) {
+        const card = q('#stage-final');
+        if (!card) return;
+        if (!concl) { updateSignedNote(null); updateConclusionGate(); return; }
+
+        const opts = qa('.verdict-option', card);
+        const idx = VERDICT_KEYS.indexOf(concl.verdict);
+        if (idx >= 0 && opts[idx]) opts[idx].click();
+
+        const ta = q('textarea', card);
+        if (ta && concl.summary) {
+          ta.value = concl.summary;
+          ta.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        updateSignedNote(concl);
+
+        // Заключение уже выдано — этап закрыт. Переоткрыть его можно
+        // штатной кнопкой «Отредактировать этап».
+        if (typeof window.__setStageStatus === 'function') window.__setStageStatus('final', 'done');
+        if (typeof window.__lockStageBody === 'function') window.__lockStageBody(card);
+        if (typeof window.__replaceFinishButton === 'function') window.__replaceFinishButton(card, 'edit');
+      }
+      window.__applyConclusion = applyConclusion;
+
+      // Выдача заключения на сервер. Возвращает true, только если сохранилось, —
+      // иначе кнопка «Завершить этап» не должна закрывать этап.
+      async function submitConclusion(btn) {
+        const form = readConclusionForm();
+        if (!form) return false;
+
+        const sessionId = diagnosticsRuntime.sessionId;
+        if (!sessionId) {
+          showToast('У реабилитанта нет действующей заявки на диагностику — заключение сохранить некуда.', 5200);
+          return false;
+        }
+        // Этап 04 — итог этапов 01–03. Ту же проверку делает сервер; здесь она
+        // нужна, чтобы отказ был сразу и с понятным перечнем, а не 422 после
+        // того, как вердикт уже написан.
+        const blockers = diagnosticsRuntime.conclusionBlockers || [];
+        if (blockers.length) {
+          showToast('Заключение выдаётся после этапов 01–03. Ещё не пройдены: <strong>' +
+                    escapeHtml(blockers.map(b => b.title).join(', ')) + '</strong>.', 6000);
+          return false;
+        }
+        if (!form.verdict) {
+          showToast('Выберите решение по итогам диагностики.', 3600);
+          return false;
+        }
+        if (form.summary.length < 10) {
+          showToast('Заполните обоснование — минимум 10 символов.', 3600);
+          return false;
+        }
+
+        const wasDisabled = btn ? btn.disabled : false;
+        if (btn) btn.disabled = true;
+        try {
+          const { data } = await api.post('/schedule/sessions/' + sessionId + '/conclusion', {
+            verdict: form.verdict,
+            summary: form.summary
+          });
+          diagnosticsRuntime.conclusion = data?.conclusion || null;
+          diagnosticsRuntime.conclusionBlockers = Array.isArray(data?.missingStages)
+            ? data.missingStages
+            : [];
+          // Косметику (замок, статус, кнопку) доделает общий обработчик этапа —
+          // здесь обновляем только подпись «кто и когда».
+          updateSignedNote(diagnosticsRuntime.conclusion);
+          return true;
+        } catch (err) {
+          // 403 — нет права заключать; 422 — этапы 01–03 не пройдены;
+          // 400 — слишком короткий текст. Сообщение сервера показываем как есть.
+          const payload = err?.response?.data || {};
+          // Сервер вернул актуальный перечень непройденных этапов — забираем его
+          // и закрываем этап, чтобы кнопка сразу перестала обещать невозможное.
+          if (Array.isArray(payload.missingStages)) {
+            diagnosticsRuntime.conclusionBlockers = payload.missingStages;
+            updateConclusionGate();
+          }
+          showToast(payload.message || 'Не удалось сохранить заключение.', 5200);
+          return false;
+        } finally {
+          if (btn) btn.disabled = wasDisabled;
+        }
+      }
+      window.__submitConclusion = submitConclusion;
 
       function finishDiagnostic() {
         const activeStages = stageOrder.filter(stage => {
@@ -4087,6 +4232,16 @@ onMounted(() => {
       }
 
       q('[data-action="finish-diagnostic"]')?.addEventListener('click', async () => {
+        // Сводное заключение сохраняем отдельно и ДО общего завершения: у него
+        // собственный адрес на сервере (заключение по заявке, а не результат
+        // блока). Если этап 04 не показан — права заключать нет, шаг пропускаем;
+        // если уже закрыт кнопкой «Завершить этап» — повторно не отправляем.
+        const finalCard = q('.stage-card[data-stage="final"]');
+        if (finalCard &&
+            !finalCard.classList.contains('profile-hidden') &&
+            finalCard.dataset.status !== 'done') {
+          if (!(await submitConclusion(null))) return;
+        }
         const ok = finishDiagnostic();
         if (!ok) return;
         // Преподаватель: жёстко закрепляем его профиль ДО сохранения результата.
@@ -5983,6 +6138,29 @@ onUnmounted(() => {
     }
     .diagnostics-page .stage-locked-banner strong{ font-weight: 600; }
     .diagnostics-page .stage-locked-banner .slb-text{ flex: 1; min-width: 0; }
+
+    /* Этап 04 закрыт, пока не пройдены этапы 01–03. Не «завершён», а «рано» —
+       поэтому янтарный, а не зелёный, как у баннера завершённого этапа. */
+    .diagnostics-page .stage-gate-banner{
+      display: flex;
+      align-items: center;
+      gap: 0.625rem;
+      padding: 0.75rem 1rem;
+      margin: 0 0 1rem;
+      background: var(--amber-50);
+      border: 0.0625rem solid var(--amber-100);
+      border-radius: var(--radius-md);
+      color: var(--amber-700);
+      font-size: 0.875rem;
+      line-height: 1.4;
+    }
+    .diagnostics-page .stage-gate-banner svg{
+      width: 1.125rem; height: 1.125rem;
+      flex: 0 0 1.125rem;
+      color: var(--amber-500);
+    }
+    .diagnostics-page .stage-gate-banner strong{ font-weight: 600; }
+    .diagnostics-page .stage-gate-banner .slb-text{ flex: 1; min-width: 0; }
 
     .diagnostics-page .stage-card.is-current{
       border-color: var(--sage-400);
