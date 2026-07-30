@@ -120,16 +120,27 @@ const REQUIRED_STAGES = [
   { key: 'soc', title: '03 Социокультурная' }
 ];
 
-// Этапы, по которым нет ни одного ЗАВЕРШЁННОГО блока. Взятый, но не сданный
-// блок этап не закрывает — иначе «в работе» засчитывалось бы за «пройдено».
+// Незакрытые этапы. Этап пройден, когда сданы ВСЕ его блоки в заявке.
+//
+// Раньше хватало одного завершённого блока на этап, и этап 01 закрывался
+// психологом в одиночку — логопед оставался «в работе», но сервер считал
+// этап пройденным. Отсюда и расхождение: карточка (она требует все блоки)
+// показывала одно, сервер — другое, и у разных специалистов «пройденные
+// этапы» не совпадали. Теперь правило одно и то же с обеих сторон.
 function missingStages(assignments) {
-  const done = new Set();
+  const byStage = new Map();
   for (const a of assignments || []) {
-    if (a.blockStatus !== 'completed') continue;
     const stage = STAGE_BY_PROFILE[a.direction?.profileKey || ''];
-    if (stage) done.add(stage);
+    if (!stage) continue;
+    if (!byStage.has(stage)) byStage.set(stage, []);
+    byStage.get(stage).push(a);
   }
-  return REQUIRED_STAGES.filter((s) => !done.has(s.key));
+  return REQUIRED_STAGES.filter((s) => {
+    const blocks = byStage.get(s.key) || [];
+    // Ни одного блока — этап вообще никто не взял, он точно не пройден.
+    if (!blocks.length) return true;
+    return !blocks.every((a) => a.blockStatus === 'completed');
+  });
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -141,6 +152,10 @@ function serializeBlock(a, viewer) {
   const visible = mine || canSeeAllResults(viewer);
   return {
     id: a.id,
+    // Заявка, которой принадлежит блок. Без неё карточка не может отличить
+    // блоки текущей диагностики от блоков прошлых, уже закрытых заявок
+    // того же реабилитанта — и рискует записать результат не в ту.
+    diagnosticSessionId: a.diagnosticSessionId,
     directionId: a.directionId,
     direction: a.direction || null,
     specialistUserId: a.specialistUserId,

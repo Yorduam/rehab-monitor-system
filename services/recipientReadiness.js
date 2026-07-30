@@ -1,8 +1,13 @@
 // Готовность реабилитанта к назначению диагностики.
 //
-// Собирает три группы сведений:
-//   route  — «Маршрут реабилитанта»: заполнена ли анкета, медкарта, сканы, группа.
-//            Диагностику назначаем только когда маршрут заполнен полностью.
+// Собирает четыре группы сведений:
+//   route  — чек-лист заполненности карточки: анкета, медкарта, документы, сканы.
+//            Диагностику назначаем только когда все пункты закрыты. Это НЕ то же
+//            самое, что маршрут реабилитанта ниже: здесь — «что заполнено».
+//   lifecycle — «Маршрут реабилитанта»: шесть этапов жизненного цикла человека
+//            в центре (заявка → заявление → диагностика → зачисление → занятия →
+//            итоги цикла). Каждый этап считается по реальным данным, а не по
+//            галочкам: группа, события расписания, заявки и заключения.
 //   docs   — просроченные и скоро истекающие документы + недостающие обязательные
 //            сканы. Именно отсюда карточка берёт значок уведомления на вкладках
 //            «Обзор» и «Анкета и медкарта».
@@ -14,8 +19,9 @@
 //   POST /schedule/assignments               — серверная валидация перед записью
 import { Op } from '@sequelize/core';
 import {
-  Recipient, RecipientDoc, RecipientScanDoc, DocType,
-  DiagnosticAssignment, DiagnosticSession, ScheduleEvent, ReResult, Direction, User
+  Recipient, RecipientDoc, RecipientScanDoc, DocType, ReGroup,
+  DiagnosticAssignment, DiagnosticSession, DiagnosticConclusion,
+  ScheduleEvent, ReResult, Direction, User
 } from '../models/index.js';
 
 // Сколько дней «до истечения» считаем предупреждением.
@@ -30,6 +36,34 @@ const dayStr = (offset = 0) => {
   d.setDate(d.getDate() + offset);
   return fmtDate(d);
 };
+
+// Дата человеку: '2026-07-30' / Date → '30.07.2026'. Подписи этапов маршрута
+// читает не программист, а куратор, поэтому ISO здесь не годится.
+const fmtRu = (v) => {
+  if (!v) return '';
+  const iso = String(v).match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[3]}.${iso[2]}.${iso[1]}`;
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
+};
+
+// Короткие подписи вердикта заключения. Полные формулировки — в
+// DiagnosticBoardModal.vue; в строке этапа нужен именно короткий вариант.
+const VERDICT_SHORT = {
+  recommended: 'рекомендован к зачислению',
+  trial: 'пробные занятия',
+  rejected: 'не рекомендован'
+};
+
+// Склонение слова «занятие» для подписи этапа «Занятия в группе».
+function lessonWord(n) {
+  const mod10 = n % 10;
+  const mod100 = n % 100;
+  if (mod10 === 1 && mod100 !== 11) return 'занятие';
+  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'занятия';
+  return 'занятий';
+}
 
 const filled = (v) => v !== null && v !== undefined && String(v).trim() !== '';
 
@@ -58,6 +92,183 @@ function intervalsOverlap(aStart, aEnd, bStart, bEnd) {
 // Человекочитаемое имя реабилитанта/специалиста.
 const personName = (p) =>
   p ? [p.lastName, p.firstName, p.middleName].filter(Boolean).join(' ').trim() : '';
+
+// ============================================================================
+// МАРШРУТ РЕАБИЛИТАНТА — шесть этапов жизненного цикла (макет «Карточка v3»)
+//
+//   01 Заявка           → обращение принято, карточка заведена
+//   02 Заявление        → пакет документов собран, заявление подписано
+//   03 Диагностика      → комплексная диагностика закрыта заключением
+//   04 Зачисление       → реабилитант зачислен в группу
+//   05 Занятия в группе → идут занятия по расписанию
+//   06 Итоги цикла      → цикл закрыт итоговой диагностикой
+//
+// Ни один этап не «отмечается вручную»: каждый вычисляется по данным, которые
+// и так есть в базе. Поэтому карточка не может разойтись с реальностью — нельзя
+// показать «зачислен», если группы нет, или «занятия идут», если в расписании
+// пусто. Функция чистая (никаких запросов), чтобы её можно было проверить на
+// выдуманных данных, не трогая боевую базу.
+//
+// @param {object} ctx
+// @param {object} ctx.recipient            — запись реабилитанта
+// @param {Array}  ctx.steps                — чек-лист заполненности (route.steps)
+// @param {Array}  ctx.docTypes             — справочник типов документов
+// @param {Set}    ctx.currentScanTypeIds   — id типов, по которым есть актуальный скан
+// @param {Array}  ctx.missingScans         — недостающие обязательные сканы
+// @param {Array}  ctx.assignments          — блоки диагностики реабилитанта
+// @param {Array}  ctx.sessions             — ВСЕ заявки на диагностику, по дате ASC
+// @param {Array}  ctx.conclusions          — заключения реабилитанта
+// @param {object|null} ctx.group           — группа с куратором (или null)
+// @param {Array}  ctx.lessons              — занятия реабилитанта, по дате ASC
+// @param {string} ctx.today                — сегодняшняя дата 'YYYY-MM-DD'
+// ============================================================================
+export function buildLifecycle({
+  recipient, steps, docTypes, currentScanTypeIds, missingScans,
+  assignments, sessions, conclusions, group, lessons, today
+}) {
+  const concBySession = new Map((conclusions || []).map((c) => [c.sessionId, c]));
+  const stepBy = Object.fromEntries((steps || []).map((s) => [s.key, s]));
+
+  // --- 01 Заявка ---
+  // Черновик — карточка ещё не подтверждена, заявка не оформлена.
+  const intakeMissing = [];
+  if (!stepBy.profile?.done) intakeMissing.push('анкета');
+  if (!stepBy.medical?.done) intakeMissing.push('медкарта');
+  if (!stepBy.representative?.done) intakeMissing.push('представитель');
+  const intakeDone = recipient.status !== 'draft' && intakeMissing.length === 0;
+  const intakeHint = recipient.status === 'draft'
+    ? 'Карточка не завершена — черновик'
+    : (intakeMissing.length
+        ? `Не заполнено: ${intakeMissing.join(', ')}`
+        : 'Карточка заведена · анкета, медкарта и представитель заполнены');
+
+  // --- 02 Заявление ---
+  // Подписанное заявление на диагностику лежит сканом (DocType 'signed-diag').
+  // В обязательные оно не входит, поэтому в missingScans его нет — проверяем
+  // отдельно, иначе этап закрывался бы без единственного документа, который
+  // его и означает.
+  const signedDiagType = (docTypes || []).find((t) => t.code === 'signed-diag') || null;
+  const signedDiagOk = !signedDiagType || currentScanTypeIds.has(signedDiagType.id);
+  const paperMissing = [];
+  if (!stepBy.documents?.done) paperMissing.push('реквизиты документов');
+  if (!stepBy.scans?.done) paperMissing.push(`сканы (${(missingScans || []).length})`);
+  if (!stepBy.docsValid?.done) paperMissing.push('просроченные документы');
+  if (!signedDiagOk) paperMissing.push('подписанное заявление');
+  const paperDone = paperMissing.length === 0;
+  const paperHint = paperDone
+    ? 'Пакет документов собран · заявление подписано'
+    : `Не хватает: ${paperMissing.join(', ')}`;
+
+  // --- 03 Диагностика ---
+  const liveSessions = (sessions || []).filter((s) => s.status !== 'cancelled');
+  // Первичная диагностика — самая ранняя заявка, по которой выдано заключение.
+  const primarySession = liveSessions.find((s) => concBySession.has(s.id)) || null;
+  const primaryConclusion = primarySession ? concBySession.get(primarySession.id) : null;
+  const diagDone = !!primaryConclusion;
+  let diagHint;
+  if (diagDone) {
+    const verdict = VERDICT_SHORT[primaryConclusion.verdict] || '';
+    diagHint = `Заключение от ${fmtRu(primaryConclusion.issuedAt)}` + (verdict ? ` · ${verdict}` : '');
+  } else if (liveSessions.length) {
+    const last = liveSessions[liveSessions.length - 1];
+    const blocks = (assignments || []).filter((a) => a.diagnosticSessionId === last.id);
+    const doneBlocks = blocks.filter((a) => a.blockStatus === 'completed').length;
+    diagHint = blocks.length
+      ? `Заявка от ${fmtRu(last.date)} · сдано блоков: ${doneBlocks} из ${blocks.length}`
+      : `Заявка от ${fmtRu(last.date)} — специалисты ещё не разобрали`;
+  } else {
+    diagHint = 'Диагностика не назначена';
+  }
+
+  // --- 04 Зачисление ---
+  const curatorName = personName(group?.curatorUser) || group?.curatorUser?.fullName || '';
+  const enrolled = !!recipient.groupId;
+  const enrollHint = enrolled
+    ? `Группа «${group?.groupName || '—'}»` + (curatorName ? ` · куратор ${curatorName}` : ' · куратор не назначен')
+    : (diagDone ? 'Заключение есть — осталось назначить группу' : 'Зачисление — после заключения диагностики');
+
+  // --- 05 Занятия в группе ---
+  const lessonDates = (lessons || []).map((e) => String(e.date).slice(0, 10));
+  const firstLesson = lessonDates[0] || null;
+  const lessonsPast = lessonDates.filter((d) => d <= today).length;
+  // Неделя цикла — как в макете («12-я неделя цикла»).
+  const weekNo = firstLesson
+    ? Math.floor((Date.parse(today) - Date.parse(firstLesson)) / 604800000) + 1
+    : null;
+  // Итоговая диагностика — заявка, назначенная уже после начала занятий.
+  // Её появление и означает, что цикл занятий подошёл к концу.
+  const finalSession = firstLesson
+    ? ([...liveSessions].reverse().find((s) =>
+        String(s.date).slice(0, 10) >= firstLesson &&
+        (!primarySession || s.id !== primarySession.id)) || null)
+    : null;
+  const lessonsDone = !!finalSession;
+  let lessonsHint;
+  if (lessonsDone) {
+    lessonsHint = `Цикл занятий завершён · проведено ${lessonsPast} ${lessonWord(lessonsPast)}`;
+  } else if (lessonDates.length) {
+    lessonsHint = `${lessonsPast} из ${lessonDates.length} ${lessonWord(lessonDates.length)}` +
+                  (weekNo ? ` · ${weekNo}-я неделя цикла` : '');
+  } else if (enrolled) {
+    lessonsHint = 'Занятия ещё не поставлены в расписание';
+  } else {
+    lessonsHint = 'Начинается после зачисления в группу';
+  }
+
+  // --- 06 Итоги цикла ---
+  const finalConclusion = finalSession ? (concBySession.get(finalSession.id) || null) : null;
+  const cycleDone = !!finalConclusion;
+  let cycleHint;
+  if (cycleDone) {
+    const verdict = VERDICT_SHORT[finalConclusion.verdict] || '';
+    cycleHint = `Итоги подведены ${fmtRu(finalConclusion.issuedAt)}` + (verdict ? ` · ${verdict}` : '');
+  } else if (finalSession) {
+    cycleHint = `Итоговая диагностика назначена на ${fmtRu(finalSession.date)}`;
+  } else {
+    cycleHint = 'Подводится итоговой диагностикой в конце цикла';
+  }
+
+  // warn стоит только там, где этап держат незаполненные данные и это можно
+  // прямо сейчас исправить. «Ещё не наступило» предупреждением не считаем.
+  const rawStages = [
+    { key: 'intake',     num: '01', label: 'Заявка',           done: intakeDone,  hint: intakeHint,  warn: !intakeDone },
+    { key: 'statement',  num: '02', label: 'Заявление',        done: paperDone,   hint: paperHint,   warn: !paperDone },
+    { key: 'diagnostic', num: '03', label: 'Диагностика',      done: diagDone,    hint: diagHint,    warn: false },
+    { key: 'enrollment', num: '04', label: 'Зачисление',       done: enrolled,    hint: enrollHint,  warn: false },
+    { key: 'lessons',    num: '05', label: 'Занятия в группе', done: lessonsDone, hint: lessonsHint, warn: false },
+    { key: 'cycle',      num: '06', label: 'Итоги цикла',      done: cycleDone,   hint: cycleHint,   warn: false }
+  ];
+
+  // Текущий этап — первый незакрытый. Более поздние этапы, которые всё-таки
+  // закрыты, так и показываем закрытыми: прятать факт ради красивой лесенки
+  // нельзя, иначе карточка соврёт.
+  const currentIdx = rawStages.findIndex((s) => !s.done);
+  const stages = rawStages.map((s, i) => ({
+    ...s,
+    state: s.done ? 'done' : (i === currentIdx ? 'current' : 'todo')
+  }));
+
+  return {
+    stages,
+    doneCount: stages.filter((s) => s.done).length,
+    complete: currentIdx === -1,
+    current: currentIdx === -1 ? null : {
+      key: rawStages[currentIdx].key,
+      num: rawStages[currentIdx].num,
+      label: rawStages[currentIdx].label
+    },
+    // Сводка по циклу — для подписи в шапке карточки.
+    cycle: {
+      groupId: recipient.groupId || null,
+      groupName: group?.groupName || '',
+      curatorName,
+      firstLesson,
+      lessonsTotal: lessonDates.length,
+      lessonsPast,
+      weekNo
+    }
+  };
+}
 
 /**
  * Полный отчёт о готовности реабилитанта.
@@ -101,7 +312,9 @@ export async function getRecipientReadiness(recipientId) {
     else if (v <= soon) expiringSoon.push(row);
   }
 
-  // ---- Шаги маршрута -------------------------------------------------------
+  // ---- Чек-лист заполненности карточки (route) -----------------------------
+  // Это не этапы маршрута, а условия допуска к диагностике: пока хоть один
+  // пункт открыт, назначить диагностику нельзя (см. блокеры route:*).
   const steps = [
     {
       key: 'profile',
@@ -198,15 +411,52 @@ export async function getRecipientReadiness(recipientId) {
     direction: r.direction?.name || null
   }));
 
-  // Незакрытые заявки на диагностику (назначенные датой).
-  const openSessions = (await DiagnosticSession.findAll({
-    where: { recipientId: id, status: { [Op.in]: ['open', 'in_progress'] } },
+  // Все заявки на диагностику (назначаются только датой). Забираем разом:
+  // из них собирается и список незакрытых — он блокирует повторное назначение,
+  // — и этапы 03/06 маршрута реабилитанта.
+  const allSessions = await DiagnosticSession.findAll({
+    where: { recipientId: id },
+    order: [['date', 'ASC'], ['id', 'ASC']]
+  });
+  const openSessions = allSessions
+    .filter((s) => s.status === 'open' || s.status === 'in_progress')
+    .map((s) => ({
+      id: s.id,
+      date: String(s.date).slice(0, 10),
+      status: s.status
+    }));
+
+  // ---- Маршрут реабилитанта -------------------------------------------------
+  // Данные для этапов. Сам расчёт — в buildLifecycle(): он чистый, поэтому
+  // проверяется на выдуманных данных, без записи в боевую базу.
+
+  // Группа и куратор — подпись этапа «Зачисление».
+  const group = recipient.groupId
+    ? await ReGroup.findByPk(recipient.groupId, {
+        include: [{
+          model: User, as: 'curatorUser',
+          attributes: ['id', 'firstName', 'lastName', 'middleName', 'fullName']
+        }]
+      })
+    : null;
+
+  // Занятия реабилитанта. Отменённые не считаем: они не состоялись.
+  const lessons = await ScheduleEvent.findAll({
+    where: { recipientId: id, type: 'lesson', status: { [Op.ne]: 'cancelled' } },
+    attributes: ['id', 'date', 'status'],
     order: [['date', 'ASC']]
-  })).map((s) => ({
-    id: s.id,
-    date: String(s.date).slice(0, 10),
-    status: s.status
-  }));
+  });
+
+  // Заключения по всем заявкам реабилитанта.
+  const conclusions = await DiagnosticConclusion.findAll({
+    where: { recipientId: id },
+    order: [['issuedAt', 'ASC']]
+  });
+
+  const lifecycle = buildLifecycle({
+    recipient, steps, docTypes, currentScanTypeIds, missingScans,
+    assignments, sessions: allSessions, conclusions, group, lessons, today
+  });
 
   // ---- Собираем блокеры ----------------------------------------------------
   const blockers = [];
@@ -290,6 +540,7 @@ export async function getRecipientReadiness(recipientId) {
     recipientName: personName(recipient),
     status: recipient.status,
     route: { complete: routeComplete, steps },
+    lifecycle,
     docs: {
       hasDoc: !!doc,
       docId: doc?.id || null,

@@ -76,8 +76,15 @@
             </div>
           </div>
 
+          <!-- Преподаватель заполняет диагностику только во вкладке
+               «Диагностика»: там маршрут этапов, подразделы и полный чек-лист.
+               Здесь, в расписании, ему остаётся просмотр. -->
+          <div v-if="hideOwnBlock" class="dm-notice dm-notice--info">
+            Заполнение — во вкладке <strong>«Диагностика»</strong>. Здесь показан ход этапов.
+          </div>
+
           <!-- access notice -->
-          <div v-if="!data.canEdit" class="dm-notice dm-notice--lock">
+          <div v-else-if="!data.canEdit" class="dm-notice dm-notice--lock">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             Это блок другого специалиста. Вы можете просматривать, но редактировать может только назначенный специалист.
           </div>
@@ -85,8 +92,11 @@
             Этап завершён. Чтобы внести изменения — верните его в работу.
           </div>
 
-          <!-- the specialist's own block -->
-          <div class="dm-block" :style="{ '--accent': blockAccent }">
+          <!-- Свой блок с оценкой по пятибалльной шкале. Преподавателям не
+               показываем: он дублирует вкладку «Диагностика», а сохранение
+               отсюда переписывает результат целиком — заполненный на вкладке
+               чек-лист заменился бы этими оценками. -->
+          <div v-if="!hideOwnBlock" class="dm-block" :style="{ '--accent': blockAccent }">
             <div class="dm-block-head">
               <span class="dm-block-dot"></span>
               <span class="dm-block-name">{{ blockLabel }}</span>
@@ -132,7 +142,11 @@
           </div>
           <div class="dm-foot-actions">
             <button class="dm-btn dm-btn--ghost" @click="close">Закрыть</button>
-            <template v-if="data.canEdit">
+            <!-- Кнопки сохранения отправляют ровно то, что набрано в блоке
+                 выше. Без него они ушли бы с пустыми оценками и затёрли
+                 результат, сданный во вкладке «Диагностика», — поэтому у
+                 преподавателя здесь только просмотр. -->
+            <template v-if="data.canEdit && !hideOwnBlock">
               <template v-if="assignment.blockStatus === 'completed'">
                 <button class="dm-btn dm-btn--secondary" :disabled="saving" @click="reopen">Вернуть в работу</button>
               </template>
@@ -153,8 +167,15 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import api from '../api';
+import { useAuthStore } from '../stores/auth';
 import { fullName } from '../utils/recipient';
 import { SCALE, getBlock, profileLabel, averageScore } from '../utils/diagnosticBlocks';
+
+const authStore = useAuthStore();
+// Быстрая оценка по пятибалльной шкале — только для координаторов.
+// Преподаватель ведёт диагностику во вкладке «Диагностика», а этот блок
+// её дублировал и при сохранении переписывал результат целиком.
+const hideOwnBlock = computed(() => authStore.isTeacher);
 
 // Как часто подтягиваем этапы коллег, пока модалка открыта.
 const POLL_MS = 15000;
@@ -429,6 +450,7 @@ onUnmounted(() => { if (poller) clearInterval(poller); });
 }
 .dm-notice--lock { background: #FAE9E0; color: #8A3A28; }
 .dm-notice--done { background: #F3EEE4; color: #4F564A; }
+.dm-notice--info { background: #ECF1E7; color: #3F6E3F; }
 
 .dm-block {
   background: #FFFFFF; border: 1px solid #E4DECF; border-radius: 0.9rem;

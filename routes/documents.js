@@ -143,7 +143,9 @@ router.get('/:id/history', authMiddleware, async (req, res, next) => {
 // Обновление документа. Старые данные НЕ теряются: перед записью снимаем
 // снимок прежних значений в RecipientDocVersions вместе с автором, датой и
 // обязательной причиной обновления.
-router.put('/:id', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
+// Менять документы могут только сотрудник и администратор — преподаватель
+// работает с диагностикой, делопроизводство не его зона ответственности.
+router.put('/:id', authMiddleware, roleMiddleware('admin', 'employee'), async (req, res, next) => {
   try {
     const doc = await RecipientDoc.findByPk(req.params.id);
     if (!doc) return res.status(404).json({ message: 'Документ не найден' });
@@ -181,7 +183,7 @@ router.put('/:id', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'
   }
 });
 
-router.delete('/:id', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
+router.delete('/:id', authMiddleware, roleMiddleware('admin', 'employee'), async (req, res, next) => {
   try {
     const doc = await RecipientDoc.findByPk(req.params.id);
     if (!doc) return res.status(404).json({ message: 'Документ не найден' });

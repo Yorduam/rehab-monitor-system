@@ -69,7 +69,9 @@
               <span class="id-chip">R-{{ recipientCode }}</span>
               <span class="status-dot" :class="statusDotClass" aria-hidden="true"></span>
               <span class="status-label" :class="statusDotClass">{{ statusLabel(recipient.status) }}</span>
-              <span v-if="groupName" class="stage-chip">{{ groupName }}</span>
+              <!-- Как в макете: «12-я неделя цикла · группа «Средние»».
+                   Неделю считает маршрут по дате первого занятия. -->
+              <span v-if="stageChip" class="stage-chip">{{ stageChip }}</span>
             </div>
             <h1 class="hero-name">{{ fullName(recipient) }}</h1>
             <div class="hero-tags">
@@ -91,35 +93,63 @@
           </div>
         </div>
 
-        <!-- STAGE TRACK — реальная заполненность маршрута (из /readiness).
-             Диагностику можно назначить только когда все шаги закрыты. -->
+        <!-- STAGE TRACK — маршрут реабилитанта из макета «Карточка v3»:
+             шесть этапов жизненного цикла (заявка → заявление → диагностика →
+             зачисление → занятия → итоги цикла).
+
+             Ни один этап не отмечается вручную: состояние приходит из
+             /readiness → lifecycle и считается по реальным данным — группе,
+             событиям расписания, заявкам и заключениям. Поэтому маршрут не
+             может разойтись с тем, что видно во вкладках.
+
+             Каждый этап кликабельный и ведёт на ту вкладку карточки, где его
+             закрывают: заявку правят в анкете, заявление — в документах,
+             зачисление и занятия — в группе. -->
         <div class="stage-track">
           <div class="stage-track-head">
             <div class="stage-track-label">Маршрут реабилитанта</div>
-            <span class="stage-track-state" :class="routeComplete ? 'ok' : 'bad'">
-              {{ routeDoneCount }} / {{ routeSteps.length }} · {{ routeComplete ? 'заполнен' : 'не заполнен' }}
+            <span v-if="lifecycle" class="stage-track-state" :class="lifecycle.complete ? 'ok' : 'cur'">
+              <template v-if="lifecycle.complete">Маршрут пройден · {{ lifecycle.doneCount }} / 6</template>
+              <template v-else>Этап {{ lifecycle.current.num }} · {{ lifecycle.current.label }}</template>
             </span>
           </div>
-          <ol class="stage-steps">
-            <li v-for="(s, i) in routeSteps" :key="s.key"
+
+          <ol v-if="lifecycleStages.length" class="stage-steps">
+            <li v-for="s in lifecycleStages" :key="s.key"
                 class="stage-step"
-                :class="{ done: s.done, blocked: !s.done }">
-              <span class="step-num">{{ String(i + 1).padStart(2, '0') }}</span>
-              <span class="step-name" :title="s.hint">{{ s.label }}</span>
+                :class="[s.state, { warn: s.warn }]">
+              <span class="step-num">{{ s.num }}</span>
+              <button type="button"
+                      class="step-name step-name-link"
+                      :title="`${s.hint} — открыть «${stageTabLabel(s.key)}»`"
+                      @click="goStage(s.key)">
+                {{ s.label }}
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+              </button>
               <span class="step-hint">{{ s.hint }}</span>
             </li>
           </ol>
-          <div v-if="canAssignDiagnostic" class="stage-track-actions">
-            <button type="button"
+          <div v-else class="stage-track-load">
+            {{ readinessLoading ? 'Считаем маршрут…' : 'Маршрут пока не рассчитан' }}
+          </div>
+
+          <div v-if="readiness" class="stage-track-actions">
+            <button v-if="canAssignDiagnostic"
+                    type="button"
                     class="stage-assign-btn"
-                    :class="{ 'is-blocked': readiness && !readiness.canAssign }"
+                    :class="{ 'is-blocked': !readiness.canAssign }"
                     @click="openAssign">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M12 14v4M10 16h4"/>
               </svg>
               Назначить диагностику
             </button>
-            <span v-if="readiness && !readiness.canAssign" class="stage-assign-note">
+            <!-- Заполненность карточки — отдельная от маршрута проверка: пока
+                 она неполная, диагностику (этап 03) назначить нельзя. -->
+            <span class="stage-ready" :class="routeComplete ? 'ok' : 'bad'" :title="routeReadyTitle">
+              Готовность к диагностике: {{ routeDoneCount }} / {{ routeSteps.length }}
+            </span>
+            <span v-if="canAssignDiagnostic && !readiness.canAssign" class="stage-assign-note">
               {{ readiness.errors.length }} {{ blockerWord(readiness.errors.length) }} к назначению
             </span>
           </div>
@@ -465,10 +495,14 @@
       <!-- PANEL: ДОКУМЕНТЫ -->
       <div v-else-if="activeTab === 'documents'" class="tabpanel">
 
-        <!-- Прикреплённые сканы -->
+        <!-- Прикреплённые сканы. Файл можно заменить: старая версия остаётся
+             в истории вместе с причиной замены, автором и датой. -->
         <section class="card" style="margin-top: 1.25rem;">
           <div class="card-head">
-            <h2 class="card-title">Прикреплённые файлы</h2>
+            <div>
+              <h2 class="card-title">Прикреплённые файлы</h2>
+              <div class="card-sub">Скан можно заменить — прежние версии сохраняются в истории</div>
+            </div>
             <span v-if="scans.length" class="rd-scan-badge">{{ scans.length }}</span>
           </div>
           <div class="card-body">
@@ -483,18 +517,149 @@
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                   <span class="rd-scan-ext">{{ fileExt(s) }}</span>
                 </a>
+                <span v-if="versionCount(s) > 1" class="rd-scan-ver" title="Файл заменялся">
+                  вер. {{ versionCount(s) }}
+                </span>
                 <div class="rd-scan-meta">
                   <div class="rd-scan-name" :title="scanLabel(s)">{{ scanLabel(s) }}</div>
                   <div class="rd-scan-sub" :title="s.originalName">{{ s.originalName }} · {{ formatSize(s.sizeBytes) }}</div>
-                  <a :href="scanFileUrl(s)" target="_blank" rel="noopener" class="rd-scan-open">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                    Открыть
-                  </a>
+                  <div class="rd-scan-actions">
+                    <a :href="scanFileUrl(s)" target="_blank" rel="noopener" class="rd-scan-open">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                      Открыть
+                    </a>
+                    <button v-if="canEditDocs" type="button" class="rd-scan-act" @click="openScanReplace(s)" title="Загрузить новую версию файла">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+                      Заменить
+                    </button>
+                    <button type="button" class="rd-scan-act" @click="openScanHistory(s)" title="Кто, когда и почему менял этот файл">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                      История<template v-if="versionCount(s) > 1"> ({{ versionCount(s) }})</template>
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
         </section>
+
+        <!-- ===== МОДАЛКА: ЗАМЕНА ФАЙЛА ===== -->
+        <div v-if="replaceScan" class="du-overlay" @click.self="closeScanReplace">
+          <div class="du-modal du-modal-sm" role="dialog" aria-modal="true" aria-labelledby="rs-title">
+            <header class="du-head">
+              <div>
+                <h3 class="du-title" id="rs-title">Замена файла</h3>
+                <p class="du-sub">Прежняя версия не удаляется — она останется в истории с автором и датой</p>
+              </div>
+              <button type="button" class="du-close" aria-label="Закрыть" @click="closeScanReplace">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </header>
+
+            <div class="du-body">
+              <div class="rs-current">
+                <div class="rs-current-key">Заменяемый документ</div>
+                <div class="rs-current-name">{{ scanLabel(replaceScan) }}</div>
+                <div class="rs-current-sub">
+                  {{ replaceScan.originalName }} · {{ formatSize(replaceScan.sizeBytes) }}
+                  <template v-if="replaceScan.uploadedAt"> · загружен {{ formatDateTime(replaceScan.uploadedAt) }}</template>
+                </div>
+              </div>
+
+              <label class="du-field du-field-full" style="margin-top: 0.875rem;">
+                <span class="du-key">Новый файл <span class="du-req">— обязательно</span></span>
+                <input
+                  ref="fileInputRef"
+                  type="file"
+                  class="rs-file"
+                  accept="image/*,application/pdf"
+                  :disabled="replaceSaving || !!replaceOk"
+                  @change="pickReplaceFile"
+                />
+              </label>
+              <p class="rs-hint">Изображение или PDF, не больше {{ MAX_SCAN_MB }} МБ</p>
+
+              <div v-if="replaceFile" class="rs-picked">
+                <img v-if="replacePreview" :src="replacePreview" alt="" class="rs-preview" />
+                <div class="rs-picked-meta">
+                  <div class="rs-picked-name">{{ replaceFile.name }}</div>
+                  <div class="rs-picked-sub">{{ formatSize(replaceFile.size) }}</div>
+                </div>
+              </div>
+
+              <div class="du-reason">
+                <label class="du-field du-field-full">
+                  <span class="du-key">Причина замены <span class="du-req">— обязательно</span></span>
+                  <textarea
+                    v-model="replaceReason"
+                    class="du-input du-textarea"
+                    :class="{ 'is-invalid': replaceTouched && !replaceReasonValid }"
+                    rows="2"
+                    placeholder="Например: прежний скан нечитаемый, загружен качественный"
+                    :disabled="replaceSaving || !!replaceOk"
+                    @blur="replaceTouched = true"
+                  ></textarea>
+                </label>
+                <p v-if="replaceTouched && !replaceReasonValid" class="du-error">
+                  Укажите причину замены (не менее 3 символов)
+                </p>
+              </div>
+
+              <p v-if="replaceError" class="du-error">{{ replaceError }}</p>
+              <p v-if="replaceOk" class="du-success">{{ replaceOk }}</p>
+            </div>
+
+            <footer class="du-foot">
+              <button type="button" class="du-btn du-btn-ghost" :disabled="replaceSaving" @click="closeScanReplace">
+                {{ replaceOk ? 'Закрыть' : 'Отмена' }}
+              </button>
+              <button type="button" class="du-btn du-btn-primary" :disabled="!canSaveReplace || replaceSaving" @click="saveScanReplace">
+                {{ replaceSaving ? 'Загрузка…' : 'Заменить файл' }}
+              </button>
+            </footer>
+          </div>
+        </div>
+
+        <!-- ===== МОДАЛКА: ИСТОРИЯ ВЕРСИЙ ФАЙЛА ===== -->
+        <div v-if="historyScan" class="du-overlay" @click.self="closeScanHistory">
+          <div class="du-modal du-modal-sm" role="dialog" aria-modal="true" aria-labelledby="sh-title">
+            <header class="du-head">
+              <div>
+                <h3 class="du-title" id="sh-title">История файла</h3>
+                <p class="du-sub">{{ scanLabel(historyScan) }} · версий: {{ scanHistoryRows.length }}</p>
+              </div>
+              <button type="button" class="du-close" aria-label="Закрыть" @click="closeScanHistory">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </header>
+
+            <div class="du-body">
+              <ol class="rd-history">
+                <li v-for="(v, i) in scanHistoryRows" :key="v.id" class="rd-history-item">
+                  <div class="rd-history-head">
+                    <span class="rd-history-date">{{ v.uploadedAt ? formatDateTime(v.uploadedAt) : 'Дата не записана' }}</span>
+                    <span class="rd-history-author">{{ uploaderName(v) }}</span>
+                    <span class="rs-ver-tag" :class="v.isCurrent !== false ? 'is-cur' : ''">
+                      {{ v.isCurrent !== false ? 'Актуальная' : 'Заменена' }}
+                    </span>
+                  </div>
+                  <div class="rd-history-reason">{{ scanReasonText(v) }}</div>
+                  <div class="rd-history-fields">
+                    Версия {{ scanHistoryRows.length - i }} · {{ v.originalName }} · {{ formatSize(v.sizeBytes) }}
+                    <a :href="scanFileUrl(v)" target="_blank" rel="noopener" class="rs-ver-open">Открыть</a>
+                  </div>
+                </li>
+              </ol>
+            </div>
+
+            <footer class="du-foot">
+              <button type="button" class="du-btn du-btn-ghost" @click="closeScanHistory">Закрыть</button>
+              <button v-if="canEditDocs" type="button" class="du-btn du-btn-primary" @click="openScanReplace(historyScan); closeScanHistory()">
+                Заменить файл
+              </button>
+            </footer>
+          </div>
+        </div>
 
         <!-- Лайтбокс просмотра изображения -->
         <div v-if="lightbox" class="rd-lightbox" @click="lightbox = null">
@@ -806,7 +971,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { usePageStore } from '../stores/page';
 import { useAuthStore } from '../stores/auth';
 import api from '../api';
@@ -841,11 +1006,22 @@ const groupsLoading = ref(false);
 const selectedGroupId = ref(null);
 const savingGroup = ref(false);
 
-// Прикреплённые сканы/файлы реабилитанта
-const scans = ref([]);
+// Прикреплённые сканы/файлы реабилитанта.
+// scanRows — ВСЕ версии (включая заменённые), их отдаёт GET /scans?all=1.
+// Заменённые файлы не удаляются, поэтому историю показываем без доп. запросов.
+const scanRows = ref([]);
 const scansLoading = ref(false);
 const scansLoaded = ref(false);
 const lightbox = ref(null);
+
+// В сетке показываем только актуальные версии.
+const scans = computed(() => scanRows.value.filter((s) => s.isCurrent !== false));
+// Все версии одного документа (одного docType), сверху — свежие.
+const versionsOf = (s) =>
+  scanRows.value
+    .filter((r) => r.docType === s.docType)
+    .sort((a, b) => b.id - a.id);
+const versionCount = (s) => versionsOf(s).length;
 
 // Справочники направлений и специалистов здесь больше не нужны: назначение
 // диагностики идёт только датой через AssignDiagnosticModal, а разбирают
@@ -875,9 +1051,48 @@ const tabs = [
 const readiness = ref(null);
 const readinessLoading = ref(false);
 
+// route — чек-лист заполненности карточки (анкета, документы, сканы). Это
+// условие допуска к диагностике, а не этап маршрута: маршрут ниже.
 const routeSteps = computed(() => readiness.value?.route?.steps || []);
 const routeDoneCount = computed(() => routeSteps.value.filter((s) => s.done).length);
 const routeComplete = computed(() => !!readiness.value?.route?.complete);
+const routeReadyTitle = computed(() => {
+  const open = routeSteps.value.filter((s) => !s.done);
+  return open.length
+    ? `Не закрыто: ${open.map((s) => s.label.toLowerCase()).join(', ')}`
+    : 'Карточка заполнена — диагностику можно назначать';
+});
+
+// ===== Маршрут реабилитанта (шесть этапов жизненного цикла) =====
+// Считает сервер (services/recipientReadiness.js → lifecycle) по реальным
+// данным: группе, событиям расписания, заявкам и заключениям. Карточка только
+// показывает результат — своей арифметики этапов здесь нет намеренно, иначе
+// она разошлась бы с сервером, как это уже было с этапами диагностики.
+const lifecycle = computed(() => readiness.value?.lifecycle || null);
+const lifecycleStages = computed(() => lifecycle.value?.stages || []);
+
+// «Связи» маршрута: с какого этапа на какую вкладку карточки уходим — туда,
+// где этот этап и закрывают.
+const STAGE_TAB = {
+  intake: 'profile',        // анкета, медкарта, представитель
+  statement: 'documents',   // сканы, согласия, подписанное заявление
+  diagnostic: 'diagnostics',// заявки и заключения
+  enrollment: 'lessons',    // выбор группы
+  lessons: 'lessons',       // расписание занятий и состав группы
+  cycle: 'diagnostics'      // итоговая диагностика
+};
+const stageTabLabel = (key) => tabs.find((t) => t.id === STAGE_TAB[key])?.label || 'карточку';
+const goStage = (key) => {
+  const tab = STAGE_TAB[key];
+  if (tab) activeTab.value = tab;
+};
+
+// Подпись в шапке — как в макете: «12-я неделя цикла · группа «Средние»».
+const stageChip = computed(() => {
+  if (!groupName.value) return '';
+  const w = lifecycle.value?.cycle?.weekNo;
+  return (w ? `${w}-я неделя цикла · ` : '') + `группа «${groupName.value}»`;
+});
 
 const expiredDocs = computed(() => readiness.value?.docs?.expired || []);
 const expiringDocs = computed(() => readiness.value?.docs?.expiringSoon || []);
@@ -892,7 +1107,11 @@ const docAlertLabel = computed(() => {
 });
 
 const canAssignDiagnostic = computed(() => authStore.isAdmin || authStore.isEmployee);
-const canEditDocs = computed(() => authStore.isAdmin || authStore.isTeacher || authStore.isEmployee);
+// Документы ведут сотрудник и администратор. Преподаватель их только смотрит:
+// он специалист по диагностике, а не по делопроизводству. Правило продублировано
+// на сервере (PUT /documents/:id и режим update в POST /recipients/:id/scans),
+// иначе запрет обходился бы прямым запросом к API.
+const canEditDocs = computed(() => authStore.isAdmin || authStore.isEmployee);
 
 const blockerWord = (n) => {
   const mod10 = n % 10;
@@ -1296,16 +1515,18 @@ const loadRecipient = async () => {
   }
 };
 
-const loadScans = async () => {
-  if (!recipientId || scansLoaded.value || scansLoading.value) return;
+const loadScans = async (force = false) => {
+  if (!recipientId || scansLoading.value) return;
+  if (scansLoaded.value && !force) return;
   scansLoading.value = true;
   try {
-    const { data } = await api.get(`/recipients/${recipientId}/scans`);
-    scans.value = Array.isArray(data) ? data : [];
+    // all=1 — вместе с заменёнными версиями: из них строится история файла.
+    const { data } = await api.get(`/recipients/${recipientId}/scans`, { params: { all: 1 } });
+    scanRows.value = Array.isArray(data) ? data : [];
     scansLoaded.value = true;
   } catch (err) {
     console.error('loadScans', err);
-    scans.value = [];
+    scanRows.value = [];
   } finally {
     scansLoading.value = false;
   }
@@ -1326,6 +1547,124 @@ const formatSize = (bytes) => {
   return (b / (1024 * 1024)).toFixed(1) + ' МБ';
 };
 const openLightbox = (s) => { lightbox.value = scanFileUrl(s); };
+
+// ===== Замена прикреплённого файла =========================================
+// Работает как «Обновление документов» в медкарте: старая версия не удаляется,
+// причина замены обязательна и сохраняется вместе с автором и датой.
+const MAX_SCAN_MB = 15;
+
+const replaceScan = ref(null);       // какой документ заменяем
+const replaceFile = ref(null);       // выбранный файл
+const replacePreview = ref('');      // object URL превью для картинок
+const replaceReason = ref('');
+const replaceTouched = ref(false);
+const replaceSaving = ref(false);
+const replaceError = ref('');
+const replaceOk = ref('');
+const fileInputRef = ref(null);
+
+const replaceReasonValid = computed(() => replaceReason.value.trim().length >= 3);
+const canSaveReplace = computed(
+  () => !!replaceFile.value && replaceReasonValid.value && !replaceOk.value
+);
+
+const revokePreview = () => {
+  if (replacePreview.value) URL.revokeObjectURL(replacePreview.value);
+  replacePreview.value = '';
+};
+
+const openScanReplace = (s) => {
+  replaceScan.value = s;
+  replaceFile.value = null;
+  revokePreview();
+  replaceReason.value = '';
+  replaceTouched.value = false;
+  replaceError.value = '';
+  replaceOk.value = '';
+};
+
+const closeScanReplace = () => {
+  if (replaceSaving.value) return;
+  revokePreview();
+  replaceScan.value = null;
+  replaceFile.value = null;
+};
+
+const pickReplaceFile = (event) => {
+  const file = event.target.files?.[0] || null;
+  replaceError.value = '';
+  revokePreview();
+  if (!file) { replaceFile.value = null; return; }
+  if (file.size > MAX_SCAN_MB * 1024 * 1024) {
+    replaceFile.value = null;
+    replaceError.value = `Файл больше ${MAX_SCAN_MB} МБ — выберите файл меньшего размера`;
+    if (fileInputRef.value) fileInputRef.value.value = '';
+    return;
+  }
+  replaceFile.value = file;
+  if (/^image\//i.test(file.type)) replacePreview.value = URL.createObjectURL(file);
+};
+
+const fileToBase64 = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+  reader.onerror = reject;
+  reader.readAsDataURL(file);
+});
+
+const saveScanReplace = async () => {
+  if (!canSaveReplace.value || replaceSaving.value) return;
+  const target = replaceScan.value;
+  const docKey = target?.docTypeRef?.code;
+  if (!docKey) {
+    replaceError.value = 'У документа не указан тип — замена невозможна';
+    return;
+  }
+  replaceSaving.value = true;
+  replaceError.value = '';
+  try {
+    const file = replaceFile.value;
+    await api.post(`/recipients/${recipientId}/scans`, {
+      mode: 'update',
+      reason: replaceReason.value.trim(),
+      scans: [{
+        docKey,
+        // Тип владельца берём у заменяемой строки, иначе паспорт представителя
+        // мог бы переехать на реабилитанта.
+        entityType: target.entityType,
+        originalName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        base64: await fileToBase64(file)
+      }]
+    });
+    replaceOk.value = 'Файл заменён, прежняя версия сохранена в истории.';
+    await Promise.all([loadScans(true), loadReadiness()]);
+  } catch (err) {
+    console.error('saveScanReplace', err);
+    replaceError.value = err?.response?.data?.message || 'Не удалось заменить файл';
+  } finally {
+    replaceSaving.value = false;
+  }
+};
+
+// ===== История версий файла ================================================
+const historyScan = ref(null);
+const openScanHistory = (s) => { historyScan.value = s; };
+const closeScanHistory = () => { historyScan.value = null; };
+const scanHistoryRows = computed(() =>
+  historyScan.value ? versionsOf(historyScan.value) : []
+);
+
+const uploaderName = (row) => {
+  const u = row?.uploader;
+  if (!u) return 'Автор не указан';
+  return u.fullName || [u.lastName, u.firstName].filter(Boolean).join(' ').trim() || u.email || 'Автор не указан';
+};
+// Причина лежит на НОВОЙ строке: она объясняет, зачем её загрузили.
+const scanReasonText = (row) => row?.updateReason || 'Первичная загрузка при заведении карточки';
+
+// Превью выбранного файла живёт в object URL — отпускаем его при уходе со страницы.
+onUnmounted(revokePreview);
 
 const loadGroups = async () => {
   if (allGroups.value.length || groupsLoading.value) return;
@@ -1350,6 +1689,9 @@ const saveGroup = async () => {
     selectedGroupId.value = data.groupId ?? null;
     groupMembers.value = [];
     await loadGroupMembers();
+    // Зачисление в группу — этап 04 маршрута. Пересчитываем, иначе маршрут
+    // будет показывать «группа не назначена» до перезагрузки страницы.
+    loadReadiness();
   } catch (err) {
     console.error('saveGroup', err);
     alert('Не удалось сохранить группу');
@@ -1675,6 +2017,9 @@ onMounted(async () => {
 .stage-step .step-name { font-size: 0.9375rem; color: var(--ink-muted); line-height: 1.3; }
 .stage-step.current .step-name { color: var(--ink-strong); font-weight: 600; }
 .stage-step.done .step-name { color: var(--ink); }
+/* Название этапа — кнопка перехода на «свою» вкладку карточки. Подчёркивание
+   только на наведении: шесть постоянно подчёркнутых ссылок подряд рябят и
+   ломают спокойный вид дорожки из макета. */
 .step-name-link {
   display: inline-flex;
   align-items: center;
@@ -1685,18 +2030,20 @@ onMounted(async () => {
   font: inherit;
   text-align: left;
   cursor: pointer;
-  color: var(--sage-700, #5a6e3f);
-  font-weight: 600;
-  text-decoration: underline;
-  text-underline-offset: 0.15rem;
-  text-decoration-thickness: 0.08em;
+  color: inherit;
+  text-decoration: none;
   transition: color 0.12s;
 }
-.step-name-link svg { flex: none; opacity: 0.75; }
-.step-name-link:hover { color: var(--sage-900, #3f4d2b); }
-.stage-step.current .step-name-link { color: var(--sage-900, #3f4d2b); }
+.step-name-link svg {
+  width: 0.75rem; height: 0.75rem; flex: none;
+  opacity: 0; transition: opacity 0.12s;
+}
+.step-name-link:hover { color: var(--sage-700); text-decoration: underline; text-underline-offset: 0.15rem; }
+.step-name-link:hover svg,
+.step-name-link:focus-visible svg { opacity: 0.65; }
+.step-name-link:focus-visible { outline: 0.125rem solid var(--sage-500); outline-offset: 0.1875rem; border-radius: 0.25rem; }
 
-/* Заголовок маршрута + индикатор заполненности */
+/* Заголовок маршрута + текущий этап */
 .stage-track-head {
   display: flex; align-items: center; justify-content: space-between;
   gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem;
@@ -1709,15 +2056,21 @@ onMounted(async () => {
 }
 .stage-track-state.ok { background: var(--sage-100); color: var(--sage-700); border-color: var(--sage-100); }
 .stage-track-state.bad { background: var(--amber-50); color: var(--amber-700); border-color: var(--amber-100); }
+/* «Вы здесь» — текущий этап маршрута */
+.stage-track-state.cur { background: var(--sage-900); color: #F4F8EC; border-color: var(--sage-900); }
 
-/* Незакрытый шаг маршрута */
-.stage-step.blocked::before { background: var(--line-strong); }
-.stage-step.blocked .step-num { color: var(--amber-700); }
+/* Этап, до которого ещё не дошли */
+.stage-step.todo .step-name { color: var(--ink-subtle); }
+.stage-step.todo .step-hint { color: var(--ink-subtle); opacity: 0.8; }
+/* Текущий этап, который держат незаполненные данные */
+.stage-step.warn .step-num,
+.stage-step.warn .step-hint { color: var(--amber-700); }
+.stage-step.current.warn::before { background: var(--amber-700); }
 .step-hint {
   font-size: 0.75rem; line-height: 1.35; color: var(--ink-subtle);
   overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
 }
-.stage-step.blocked .step-hint { color: var(--amber-700); }
+.stage-track-load { font-size: 0.8125rem; color: var(--ink-subtle); padding: 0.5rem 0; }
 
 /* Кнопка назначения диагностики прямо из маршрута */
 .stage-track-actions {
@@ -1725,6 +2078,14 @@ onMounted(async () => {
   margin-top: 1rem; padding-top: 0.875rem;
   border-top: 0.0625rem solid var(--line);
 }
+/* Заполненность карточки — условие допуска к этапу 03 */
+.stage-ready {
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.01em;
+  padding: 0.25rem 0.625rem; border-radius: 62.5rem;
+  border: 0.0625rem solid transparent; white-space: nowrap; cursor: default;
+}
+.stage-ready.ok { background: var(--sage-50); color: var(--sage-700); border-color: var(--sage-100); }
+.stage-ready.bad { background: var(--amber-50); color: var(--amber-700); border-color: var(--amber-100); }
 .stage-assign-btn {
   display: inline-flex; align-items: center; gap: 0.4375rem;
   padding: 0.625rem 1.0625rem; min-height: 2.5rem;
@@ -1873,6 +2234,7 @@ onMounted(async () => {
   gap: 1rem;
 }
 .rd-scan {
+  position: relative;
   border: 0.0625rem solid var(--line); border-radius: var(--radius-md);
   background: var(--paper); overflow: hidden;
   display: flex; flex-direction: column;
@@ -1899,6 +2261,77 @@ onMounted(async () => {
 }
 .rd-scan-open svg { width: 0.85rem; height: 0.85rem; }
 .rd-scan-open:hover { color: var(--sage-900); text-decoration: underline; }
+
+/* Метка «файл заменялся» поверх миниатюры */
+.rd-scan-ver {
+  position: absolute; top: 0.4rem; right: 0.4rem;
+  font-size: 0.6875rem; font-weight: 700; line-height: 1;
+  color: var(--sage-900); background: rgba(244, 248, 236, 0.94);
+  border: 0.0625rem solid var(--sage-100); border-radius: 62.5rem;
+  padding: 0.1875rem 0.4375rem;
+}
+.rd-scan-actions {
+  margin-top: 0.35rem; display: flex; flex-wrap: wrap; align-items: center; gap: 0.25rem 0.625rem;
+}
+.rd-scan-actions .rd-scan-open { margin-top: 0; }
+.rd-scan-act {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  padding: 0; border: none; background: none; cursor: pointer;
+  font-family: inherit; font-size: 0.8rem; font-weight: 600; color: var(--ink-muted);
+  transition: color 0.15s ease;
+}
+.rd-scan-act svg { width: 0.85rem; height: 0.85rem; }
+.rd-scan-act:hover { color: var(--sage-900); text-decoration: underline; }
+.rd-scan-act:focus-visible { outline: 0.125rem solid var(--sage-700); outline-offset: 0.125rem; border-radius: 0.25rem; }
+
+/* ===== МОДАЛКИ ЗАМЕНЫ ФАЙЛА И ЕГО ИСТОРИИ ===== */
+.du-modal-sm { width: min(34rem, 100%); }
+.rs-current {
+  padding: 0.75rem 0.875rem; border-radius: var(--radius-md);
+  background: var(--paper-soft); border: 0.0625rem solid var(--line-soft);
+}
+.rs-current-key {
+  font-size: 0.71875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
+  color: var(--ink-muted);
+}
+.rs-current-name { margin-top: 0.25rem; font-size: 0.9375rem; font-weight: 600; color: var(--ink-strong); }
+.rs-current-sub { margin-top: 0.1875rem; font-size: 0.8125rem; color: var(--ink-muted); line-height: 1.4; word-break: break-word; }
+.rs-file {
+  width: 100%; padding: 0.5rem; font-family: inherit; font-size: 0.875rem; color: var(--ink);
+  background: var(--paper); border: 0.0625rem dashed var(--line-strong); border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+.rs-file::file-selector-button {
+  margin-right: 0.625rem; padding: 0.375rem 0.75rem;
+  font-family: inherit; font-size: 0.8125rem; font-weight: 600; color: var(--ink);
+  background: var(--paper-sunken); border: 0.0625rem solid var(--line-strong);
+  border-radius: 0.375rem; cursor: pointer;
+}
+.rs-file:disabled { opacity: 0.55; cursor: not-allowed; }
+.rs-hint { margin: 0.375rem 0 0; font-size: 0.78125rem; color: var(--ink-subtle); }
+.rs-picked {
+  margin-top: 0.75rem; display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.625rem 0.75rem; border-radius: var(--radius-md);
+  background: var(--sage-50, var(--paper-soft)); border: 0.0625rem solid var(--sage-100);
+}
+.rs-preview {
+  width: 3.25rem; height: 3.25rem; flex: 0 0 3.25rem;
+  object-fit: cover; border-radius: 0.375rem; border: 0.0625rem solid var(--line);
+}
+.rs-picked-meta { min-width: 0; }
+.rs-picked-name {
+  font-size: 0.875rem; font-weight: 600; color: var(--ink-strong);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rs-picked-sub { font-size: 0.78125rem; color: var(--ink-muted); }
+.rs-ver-tag {
+  margin-left: auto; font-size: 0.6875rem; font-weight: 700; line-height: 1;
+  color: var(--ink-muted); background: var(--paper-sunken);
+  border: 0.0625rem solid var(--line); border-radius: 62.5rem; padding: 0.1875rem 0.4375rem;
+}
+.rs-ver-tag.is-cur { color: var(--sage-700); background: var(--sage-100); border-color: var(--sage-100); }
+.rs-ver-open { margin-left: 0.5rem; font-weight: 600; color: var(--sage-700); text-decoration: none; }
+.rs-ver-open:hover { color: var(--sage-900); text-decoration: underline; }
 
 /* ===== ЛАЙТБОКС ===== */
 .rd-lightbox {

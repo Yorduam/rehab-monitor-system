@@ -468,6 +468,17 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
     // Старые версии не удаляются — им проставляется isCurrent=false, а причина
     // обновления обязательна и сохраняется вместе с автором и датой.
     const isUpdate = req.body.mode === 'update' || req.body.replace === true;
+
+    // Заменять уже приложенные сканы вправе только сотрудник и администратор.
+    // Преподавателю маршрут оставлен ради первичной загрузки: он заводит
+    // карточку мастером, и там файлов ещё нет.
+    const canReplace = req.user.role === 'admin' || req.user.role === 'employee';
+    if (isUpdate && !canReplace) {
+      return res.status(403).json({
+        message: 'Заменять приложенные документы могут только сотрудник и администратор'
+      });
+    }
+
     const reason = String(req.body.reason ?? '').trim();
     if (isUpdate && reason.length < 3) {
       return res.status(400).json({
@@ -478,6 +489,25 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
 
     const docTypes = await DocType.findAll();
     const codeToId = new Map(docTypes.map((d) => [d.code, d.id]));
+
+    // Замена бывает и без флага mode: если по такому типу файл уже есть, старая
+    // версия всё равно уйдёт в архив. Проверяем это ДО создания строк, чтобы
+    // запрет нельзя было обойти, просто не передав mode.
+    if (!canReplace) {
+      const requestedTypeIds = scans
+        .map((s) => codeToId.get(s.docKey))
+        .filter((v) => v !== undefined);
+      const alreadyAttached = requestedTypeIds.length
+        ? await RecipientScanDoc.count({
+            where: { recipId: recipient.id, docType: { [Op.in]: requestedTypeIds }, isCurrent: true }
+          })
+        : 0;
+      if (alreadyAttached > 0) {
+        return res.status(403).json({
+          message: 'Заменять приложенные документы могут только сотрудник и администратор'
+        });
+      }
+    }
 
     const now = new Date();
     const created = [];

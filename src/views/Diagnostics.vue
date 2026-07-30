@@ -1760,6 +1760,11 @@ onMounted(() => {
       completed: false,
       lastReportData: null,
       assignments: [],
+      // Блоки ВСЕХ действующих заявок реабилитанта — как их отдал сервер.
+      // assignments выше урезан до блоков текущего пользователя, поэтому
+      // «пройден ли этап целиком» по нему считать нельзя: у преподавателя
+      // там лежит только его собственный блок.
+      blocks: [],
       // Заявка на диагностику выбранного реабилитанта и её итоговое
       // заключение. Нужны этапу 04 «Сводное заключение»: он сохраняется
       // не в блок специалиста, а в отдельную запись заключения по заявке.
@@ -1887,6 +1892,18 @@ onMounted(() => {
       hydrateResultsForRecipient();
     }
 
+    // Карточка показывает ОДНУ диагностику — самую свежую действующую заявку
+    // реабилитанта. У одного человека таких заявок может быть несколько:
+    // прошлый круг диагностики закрыт (status = completed), новый идёт.
+    // Смешивать их блоки нельзя: от закрытой заявки подразделы приезжали бы
+    // уже запертыми, а кнопка «Завершить блок» могла записать результат в
+    // блок старой заявки поверх того, что специалист сдал в прошлый раз.
+    function pickCurrentSession(sessions) {
+      const live = (Array.isArray(sessions) ? sessions : []).filter((s) => s.status !== 'cancelled');
+      if (!live.length) return null;
+      return live.reduce((a, b) => (Number(b.id) > Number(a.id) ? b : a));
+    }
+
     // Подгружаем в карточку ранее сохранённые (завершённые) результаты диагностики
     // выбранного реабилитанта. Каждая завершённая запись (по одной на профиль/
     // направление) восстанавливается в свой блок — так администратор (и любой,
@@ -1913,9 +1930,14 @@ onMounted(() => {
         // Чужие блоки сервер отдаёт с results = null, если у пользователя нет
         // права видеть результаты коллег, — доступ фильтруется на бэкенде.
         const { data } = await api.get('/schedule/sessions', { params: { recipientId } });
-        const sessions = Array.isArray(data) ? data : [];
-        const live = sessions.filter(s => s.status !== 'cancelled');
-        const blocks = live.flatMap(s => s.blocks || []);
+        // Строго блоки ТЕКУЩЕЙ заявки. Раньше здесь складывались блоки всех
+        // незакрытых заявок разом, включая уже завершённые: карточка второго
+        // круга диагностики открывалась с чужими, прошлогодними отметками.
+        const target = pickCurrentSession(data);
+        const blocks = target ? (target.blocks || []) : [];
+        // Держим полный список блоков заявки: по нему считается, пройден ли
+        // этап целиком, — и считается ОДИНАКОВО у всех, кто открыл карточку.
+        diagnosticsRuntime.blocks = blocks;
         blocks
           .filter(b => b.blockStatus === 'completed' && b.results && b.results.formState)
           .forEach(b => window.__applyFormState(b.results.formState));
@@ -1924,10 +1946,8 @@ onMounted(() => {
         // отдельной записи заключения по заявке. Раньше карточка его вообще
         // не читала: специалист с правом заключать вердикт сохранял текст,
         // он ложился в базу, но администратор в карточке видел пустую форму.
-        // Берём самую свежую действующую заявку — по ней и оформляется итог.
-        const target = live.length
-          ? live.reduce((a, b) => (Number(b.id) > Number(a.id) ? b : a))
-          : null;
+        // Заявка та же, что дала блоки выше, — итог и этапы 01–03 должны
+        // считаться по одному и тому же кругу диагностики.
         diagnosticsRuntime.sessionId = target?.id ?? null;
         diagnosticsRuntime.conclusion = target?.conclusion || null;
         // Непройденные этапы 01–03 считает сервер — он же и откажет в выдаче
@@ -2068,17 +2088,17 @@ onMounted(() => {
       }
       try {
         const response = await api.get('/schedule/sessions', { params: { recipientId } });
-        const sessions = Array.isArray(response?.data) ? response.data : [];
+        // Только блоки текущей заявки. Прежде сюда попадали блоки ВСЕХ
+        // незакрытых заявок реабилитанта, в том числе давно завершённых, —
+        // и запись результата могла уйти в блок прошлой диагностики.
+        const target = pickCurrentSession(response?.data);
         const isTeacher = authStore.isTeacher;
         let pending = [];
-        for (const s of sessions) {
-          if (s.status === 'cancelled') continue;
-          for (const b of (s.blocks || [])) {
-            // Специалист пишет только в свой блок — чужой доступен лишь на чтение,
-            // и сервер всё равно отклонит запись (403).
-            if (isTeacher && !b.isMine) continue;
-            pending.push(b);
-          }
+        for (const b of (target?.blocks || [])) {
+          // Специалист пишет только в свой блок — чужой доступен лишь на чтение,
+          // и сервер всё равно отклонит запись (403).
+          if (isTeacher && !b.isMine) continue;
+          pending.push(b);
         }
         // Преподаватель сохраняет результат только в назначения своей области.
         if (window.__forcedProfileKey) {
@@ -2105,6 +2125,113 @@ onMounted(() => {
       }
     }
 
+    // Профиль специалиста (Direction.profileKey) → место в карточке.
+    // Та же таблица продублирована в PROFILE_BLOCKS ниже по файлу и в
+    // STAGE_BY_PROFILE в routes/schedule.js — менять их можно только вместе.
+    const BLOCK_BY_PROFILE = {
+      psy:     { stage: 'psy', sub: 'psy' },
+      log:     { stage: 'psy', sub: 'log' },
+      izo:     { stage: 'soc', sub: 'izo' },
+      theatre: { stage: 'soc', sub: 'theatre' },
+      vocal:   { stage: 'soc', sub: 'vocal' },
+      afk:     { stage: 'afk', sub: null }
+    };
+    const blockPlace = (b) => BLOCK_BY_PROFILE[b?.profileKey || b?.direction?.profileKey || ''] || null;
+
+    // Собственные блоки пользователя в этом месте карточки. Чужие сюда не
+    // попадают намеренно: в этап 01 пишут двое (психолог и логопед), и если
+    // закрывать его «за всех» одним снимком формы, результат одного
+    // специалиста лёг бы поверх результата другого.
+    // Кроме того, пишем только в блоки ТЕКУЩЕЙ заявки: у реабилитанта может
+    // быть уже закрытая диагностика прошлого круга с точно таким же блоком
+    // того же специалиста, и запись ушла бы в неё — поверх прошлых результатов.
+    function ownBlocksAt(stageKey, subKey) {
+      const sid = diagnosticsRuntime.sessionId;
+      return (diagnosticsRuntime.assignments || []).filter((a) => {
+        const place = blockPlace(a);
+        if (!place || place.stage !== stageKey) return false;
+        if (subKey && place.sub !== subKey) return false;
+        if (a.isMine !== true) return false;
+        // Сервер отдаёт заявку блока; если он её не назвал — не рискуем.
+        return sid != null && String(a.diagnosticSessionId) === String(sid);
+      });
+    }
+
+    // Этап пройден, когда сданы ВСЕ блоки заявки по нему. Считаем по полному
+    // списку с сервера, а не по своим назначениям, — иначе каждый видел бы
+    // «пройдено» по своему кусочку.
+    function stageIsDone(stageKey) {
+      const inStage = (diagnosticsRuntime.blocks || []).filter((b) => blockPlace(b)?.stage === stageKey);
+      return inStage.length > 0 && inStage.every((b) => b.blockStatus === 'completed');
+    }
+
+    // Сдать свои блоки этапа/подраздела в БД.
+    //
+    // Раньше кнопки «Завершить блок» и «Завершить этап» ничего не отправляли:
+    // они красили карточку, писали «Этап завершён» и на этом всё. Запись шла
+    // только через нижнюю панель «Завершить диагностику», где нужно вручную
+    // выбрать назначение. Поэтому зелёный этап видел лишь тот, кто нажал, у
+    // остальных он оставался «в работе», а этап 04 не открывался никогда.
+    //
+    // Возвращает { ok, stageDone }. Красить карточку можно только при ok:
+    // раскраску всё равно делает сервер через hydrateResultsForRecipient.
+    async function persistStageBlocks(stageKey, subKey, btn) {
+      if (!diagnosticsRuntime.currentRecipient?.id) {
+        showToast('Сначала выберите реабилитанта.', 4200);
+        return { ok: false, stageDone: false };
+      }
+      // Заявку определяет hydrateResultsForRecipient. Без неё непонятно, в
+      // какой круг диагностики писать, — лучше отказать, чем угадывать.
+      if (!diagnosticsRuntime.sessionId) {
+        showToast('Не удалось определить заявку на диагностику — выберите реабилитанта заново.', 5200);
+        return { ok: false, stageDone: false };
+      }
+      const mine = ownBlocksAt(stageKey, subKey);
+      if (!mine.length) {
+        showToast(authStore.isTeacher
+          ? 'У вас нет назначения на этот блок у выбранного реабилитанта — сдавать нечего.'
+          : 'Блок закрывает специалист, который его вёл: из карточки отметить за него нельзя.', 5600);
+        return { ok: false, stageDone: false };
+      }
+
+      const wasDisabled = btn ? btn.disabled : false;
+      if (btn) btn.disabled = true;
+      try {
+        for (const a of mine) {
+          const profileKey = a.profileKey || a.direction?.profileKey || '';
+          // Без профиля снимок вышел бы на всю карточку (scope = null), и при
+          // восстановлении такой снимок стёр бы блоки других специалистов.
+          if (!profileKey) {
+            showToast('У назначения не указана область специалиста — обратитесь к администратору.', 5600);
+            return { ok: false, stageDone: false };
+          }
+          const formState = typeof window.__snapshotFormState === 'function'
+            ? window.__snapshotFormState(profileKey)
+            : null;
+          const reportData = typeof window.__collectReportData === 'function'
+            ? window.__collectReportData()
+            : {};
+          const results = Object.assign({}, reportData, formState ? { formState } : {});
+          // Сервер проставит blockStatus=completed, время завершения и
+          // синхронизирует событие в расписании. Чужой блок отдаёт 403.
+          await api.post('/schedule/assignments/' + a.id + '/complete', { results });
+        }
+      } catch (err) {
+        console.error('Не удалось сдать блок диагностики', err);
+        showToast(err?.response?.data?.message || 'Не удалось сохранить блок в БД. Попробуйте ещё раз.', 5200);
+        return { ok: false, stageDone: false };
+      } finally {
+        if (btn && btn.isConnected) btn.disabled = wasDisabled;
+      }
+
+      // Перечитываем состояние с сервера и перекрашиваем карточку по нему.
+      // Так «пройденные этапы» совпадают у всех, кто её открыл.
+      await loadAssignmentsForRecipient();
+      await hydrateResultsForRecipient();
+      return { ok: true, stageDone: stageIsDone(stageKey) };
+    }
+    window.__persistStageBlocks = persistStageBlocks;
+
     async function persistResultToAssignment() {
       const select = document.getElementById('assignment-target');
       const assignmentId = select && select.value ? Number(select.value) : null;
@@ -2117,6 +2244,13 @@ onMounted(() => {
         // сохранять (и куда потом восстанавливать у администратора).
         const assignment = (diagnosticsRuntime.assignments || []).find(a => String(a.id) === String(assignmentId));
         const profileKey = assignment?.profileKey || assignment?.direction?.profileKey || '';
+        // Без профиля снимок делается со всей карточки (scope = null). Такая
+        // запись при восстановлении перетирает блоки других специалистов,
+        // поэтому лучше честно отказать, чем испортить чужие результаты.
+        if (!profileKey) {
+          showToast('Не удалось определить область специалиста у выбранного назначения — результат не сохранён.', 5600);
+          return false;
+        }
         const reportData = diagnosticsRuntime.lastReportData
           || (typeof window.__collectReportData === 'function' ? window.__collectReportData() : {});
         // Полный снимок заполненных полей блока — чтобы данные преподавателя
@@ -2819,11 +2953,23 @@ onMounted(() => {
             if (stageKey === 'final') {
               const saved = await window.__submitConclusion?.(btn);
               if (!saved) return;
+              setStageStatus(stageKey, 'done');
+              lockStageBody(card);
+            } else {
+              // Этапы 01–03 тоже не косметика: кнопка сдаёт блок специалиста
+              // в БД. Раньше она лишь перекрашивала карточку — поэтому
+              // «завершённый» этап видел только тот, кто нажал, а у коллег и
+              // у администратора он оставался «в работе».
+              const res = await window.__persistStageBlocks?.(stageKey, null, btn);
+              if (!res || !res.ok) return;
+              // Дальше карточку красит сервер (hydrate → applyCompletedBlocks),
+              // здесь ничего не выставляем: этап закрывают все его специалисты
+              // вместе, и один сданный блок его ещё не завершает.
+              if (!res.stageDone) {
+                showToast('Ваш блок сохранён. <strong>Этап ждёт остальных специалистов.</strong>', 4600);
+                return;
+              }
             }
-
-            setStageStatus(stageKey, 'done');
-
-            lockStageBody(card);
 
             card.classList.add('just-finished');
             setTimeout(() => card.classList.remove('just-finished'), 800);
@@ -3012,25 +3158,22 @@ onMounted(() => {
         document.querySelectorAll('[data-action="finish-subblock"]').forEach(btn => {
           if (btn.dataset.bound === '1') return;
           btn.dataset.bound = '1';
-          btn.addEventListener('click', () => {
+          btn.addEventListener('click', async () => {
             const panel = btn.closest('.subpanel');
             const stageCard = btn.closest('.stage-card');
             if (!panel || !stageCard) return;
             const key = panel.id.replace('subpanel-', '');
-
-            const dot = stageCard.querySelector('.subtab[data-subtab="' + key + '"] .sub-status');
-            if (dot) {
-              dot.classList.remove('progress');
-              dot.classList.add('done');
-            }
-
-            lockSubpanel(panel);
-
-            btn.outerHTML = '<button type="button" class="btn btn-secondary btn-sm" data-action="edit-subblock"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="width: 0.9375rem; height: 0.9375rem;"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>Отредактировать блок</button>';
-
-            attachSubblockBtnHandlers();
-            updateStageReadiness(stageCard);
             const blockTitle = panel.querySelector('.subpanel-head .t');
+
+            // Сначала запись в БД, и только потом отметка «сдано». Раньше
+            // кнопка ничего не отправляла: блок закрывался лишь на экране
+            // нажавшего, а в базе оставался незаполненным — из-за этого у
+            // разных преподавателей карточка показывала разные этапы.
+            const res = await window.__persistStageBlocks?.(stageCard.dataset.stage, key, btn);
+            if (!res || !res.ok) return;
+
+            // Зелёную точку, замок панели и кнопку «Отредактировать блок»
+            // расставляет hydrate по ответу сервера — здесь только сообщение.
             if (typeof showToast === 'function') {
               showToast('Блок завершён: <strong>' + (blockTitle ? blockTitle.textContent.trim() : '') + '</strong>');
             }
@@ -3610,7 +3753,12 @@ onMounted(() => {
         if (!fs) return;
         const root = blockRootForProfile(fs.scope);
         if (!root) return;
-        resetFormState(root);
+        // Снимок без области (scope = null) относится ко ВСЕЙ карточке — так
+        // сохранялись записи, у которых не удалось определить профиль
+        // специалиста. Сбрасывать по нему форму нельзя: блоки коллег в
+        // карточке уже восстановлены, и сброс стёр бы их. Чистим только
+        // тогда, когда точно знаем свой блок.
+        if (fs.scope) resetFormState(root);
         const selEls = qa(FORM_SEL, root);
         (fs.sel || []).forEach((on, i) => { if (on && selEls[i]) selEls[i].click(); });
         const txtEls = qa(FORM_TXT, root);
