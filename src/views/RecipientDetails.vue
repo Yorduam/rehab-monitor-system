@@ -144,11 +144,9 @@
               </svg>
               Назначить диагностику
             </button>
-            <!-- Заполненность карточки — отдельная от маршрута проверка: пока
-                 она неполная, диагностику (этап 03) назначить нельзя. -->
-            <span class="stage-ready" :class="routeComplete ? 'ok' : 'bad'" :title="routeReadyTitle">
-              Готовность к диагностике: {{ routeDoneCount }} / {{ routeSteps.length }}
-            </span>
+            <!-- Плашка «Готовность к диагностике: N / N» удалена. Сама проверка
+                 работает по-прежнему: если карточка не заполнена, об этом скажет
+                 счётчик препятствий ниже и окно назначения диагностики. -->
             <span v-if="canAssignDiagnostic && !readiness.canAssign" class="stage-assign-note">
               {{ readiness.errors.length }} {{ blockerWord(readiness.errors.length) }} к назначению
             </span>
@@ -634,7 +632,9 @@
             </header>
 
             <div class="du-body">
-              <ol class="rd-history">
+              <!-- rd-history-flat: без зелёной полоски слева. Здесь актуальность
+                   версии и так видна по метке «Актуальная», полоска дублировала бы её. -->
+              <ol class="rd-history rd-history-flat">
                 <li v-for="(v, i) in scanHistoryRows" :key="v.id" class="rd-history-item">
                   <div class="rd-history-head">
                     <span class="rd-history-date">{{ v.uploadedAt ? formatDateTime(v.uploadedAt) : 'Дата не записана' }}</span>
@@ -1051,17 +1051,10 @@ const tabs = [
 const readiness = ref(null);
 const readinessLoading = ref(false);
 
-// route — чек-лист заполненности карточки (анкета, документы, сканы). Это
-// условие допуска к диагностике, а не этап маршрута: маршрут ниже.
-const routeSteps = computed(() => readiness.value?.route?.steps || []);
-const routeDoneCount = computed(() => routeSteps.value.filter((s) => s.done).length);
-const routeComplete = computed(() => !!readiness.value?.route?.complete);
-const routeReadyTitle = computed(() => {
-  const open = routeSteps.value.filter((s) => !s.done);
-  return open.length
-    ? `Не закрыто: ${open.map((s) => s.label.toLowerCase()).join(', ')}`
-    : 'Карточка заполнена — диагностику можно назначать';
-});
+// Computed-свойства routeSteps/routeDoneCount/routeComplete/routeReadyTitle
+// удалены вместе с плашкой «Готовность к диагностике» — их использовала
+// только она. Данные readiness.route по-прежнему приходят с сервера и
+// используются при проверке допуска к назначению диагностики.
 
 // ===== Маршрут реабилитанта (шесть этапов жизненного цикла) =====
 // Считает сервер (services/recipientReadiness.js → lifecycle) по реальным
@@ -1814,6 +1807,13 @@ onMounted(async () => {
   initAttendance();
   loadAgenda();
   loadReadiness();
+  // Счётчики на вкладках должны быть верны сразу, а не после первого клика.
+  // Раньше assignments и scans грузились только в watch(activeTab), поэтому
+  // цифра появлялась лишь у «Занятия и группа» — её данные даёт loadAgenda(),
+  // который и так вызывается при монтировании. Список сканов приходит без
+  // fileData (роут исключает поле), так что запрос дешёвый.
+  loadAssignments();
+  loadScans();
   // Вкладку можно открыть сразу нужную (например, из модалки назначения).
   const wanted = pageStore.params?.tab;
   if (wanted && tabs.some((t) => t.id === wanted)) activeTab.value = wanted;
@@ -2078,14 +2078,7 @@ onMounted(async () => {
   margin-top: 1rem; padding-top: 0.875rem;
   border-top: 0.0625rem solid var(--line);
 }
-/* Заполненность карточки — условие допуска к этапу 03 */
-.stage-ready {
-  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.01em;
-  padding: 0.25rem 0.625rem; border-radius: 62.5rem;
-  border: 0.0625rem solid transparent; white-space: nowrap; cursor: default;
-}
-.stage-ready.ok { background: var(--sage-50); color: var(--sage-700); border-color: var(--sage-100); }
-.stage-ready.bad { background: var(--amber-50); color: var(--amber-700); border-color: var(--amber-100); }
+/* Стили .stage-ready удалены вместе с плашкой «Готовность к диагностике». */
 .stage-assign-btn {
   display: inline-flex; align-items: center; gap: 0.4375rem;
   padding: 0.625rem 1.0625rem; min-height: 2.5rem;
@@ -2363,10 +2356,12 @@ onMounted(async () => {
   gap: 0.6rem;
   margin: 0 0 1.5rem;
   padding: 0.75rem 1rem;
-  background: var(--blue-50);
-  border: 0.0625rem solid var(--blue-100);
+  /* Зелёная гамма проекта вместо синей. Токены --blue-* оставлены: ими
+     пользуются .tag-blue и .lesson-type.is-diag на этой же странице. */
+  background: var(--sage-50);
+  border: 0.0625rem solid var(--sage-100);
   border-radius: var(--radius-md);
-  color: var(--blue-700);
+  color: var(--sage-700);
   font-size: 0.875rem;
 }
 .rd-assign-moved svg { width: 1.1rem; height: 1.1rem; flex: 0 0 auto; }
@@ -2507,6 +2502,11 @@ onMounted(async () => {
   content: ''; position: absolute; left: 0; top: 0.6875rem; bottom: 0.6875rem;
   width: 0.1875rem; border-radius: 62.5rem; background: var(--sage-500);
 }
+/* Вариант списка без полоски — история версий файла (Документы → История).
+   Там актуальность версии показывает зелёная метка «Актуальная», и полоска
+   у каждой строки лишь дублировала её. Отступ слева возвращаем к обычному. */
+.rd-history-flat .rd-history-item::before { content: none; }
+.rd-history-flat .rd-history-item { padding-left: 0.9375rem; }
 .rd-history-head {
   display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.3125rem;
 }

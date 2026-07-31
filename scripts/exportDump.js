@@ -19,7 +19,8 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, '..');
 
 // 1) Карта имён таблиц из моделей:  lower(tableName) -> точный tableName.
@@ -49,6 +50,42 @@ function resolveMysqldump() {
     }
   } catch { /* каталога может не быть — не Windows/другая установка */ }
   return 'mysqldump'; // расчёт на то, что он в PATH
+}
+
+// 3) Самопроверка готового дампа. Раньше скрипт молча отдавал файл, каким бы он
+// ни получился: если в БД заводили таблицу без модели (например, миграцией),
+// её регистр выправить было нечем — она уезжала строчной, и заказчик ловил
+// «обращается к CRG, а таблица crg». Теперь такой дамп не сохраняется вовсе.
+function verify(sql, map) {
+  const found = [...sql.matchAll(/^CREATE TABLE `([^`]+)`/gm)].map((m) => m[1]);
+  const problems = [];
+
+  // (а) Таблица есть в дампе, но модели для неё нет — правильный регистр неизвестен.
+  const unknown = found.filter((t) => !map.has(t.toLowerCase()));
+  if (unknown.length) {
+    problems.push(
+      `нет модели в models/ для таблиц: ${unknown.join(', ')}. ` +
+      'Регистр таких имён выправить нечем — заведите модель или добавьте имя вручную.'
+    );
+  }
+
+  // (б) Имя осталось не в том регистре, что задан в модели.
+  const wrong = found.filter((t) => {
+    const proper = map.get(t.toLowerCase());
+    return proper && proper !== t;
+  });
+  if (wrong.length) problems.push(`неверный регистр в CREATE TABLE: ${wrong.join(', ')}`);
+
+  // (в) Любое другое упоминание таблицы строчными — REFERENCES, LOCK TABLES,
+  //     INSERT INTO, ALTER TABLE и т. п.
+  for (const [lower, proper] of map) {
+    if (lower === proper) continue;
+    if (sql.includes('`' + lower + '`')) {
+      problems.push(`в тексте осталось \`${lower}\` вместо \`${proper}\``);
+    }
+  }
+
+  return { found, problems };
 }
 
 function run() {
@@ -94,12 +131,29 @@ function run() {
     }
   }
 
+  // 4) Проверяем результат ДО записи файла: битый дамп не должен попасть на диск,
+  // иначе его легко отправить заказчику, не заметив подвоха.
+  const { found, problems } = verify(sql, map);
+  if (problems.length) {
+    console.error('\nДамп НЕ сохранён — проблемы с регистром имён таблиц:');
+    for (const p of problems) console.error('  ! ' + p);
+    process.exit(1);
+  }
+
   fs.writeFileSync(out, sql, 'utf8');
 
   console.log(`\nДамп сохранён: ${out}`);
   console.log(`Таблиц в карте моделей: ${map.size}`);
+  console.log(`Таблиц в дампе: ${found.length}`);
   console.log(`Переименовано под код: ${changed.length}`);
   for (const c of changed) console.log('  ' + c);
+  console.log('Проверка регистра пройдена: все имена совпадают с models/*.js.');
 }
 
-run();
+// Запускаем только при прямом вызове (node scripts/exportDump.js), чтобы
+// проверку регистра можно было импортировать и протестировать отдельно.
+if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
+  run();
+}
+
+export { verify, collectTableNameMap };

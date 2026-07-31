@@ -128,6 +128,18 @@ onUnmounted(() => {
   --accent-soft: #e0f0f9;
   --accent-text: #073450;
   --accent-border: #b0d0e6;
+  /* Зелёная шкала проекта. Раньше её объявляла у себя каждая страница
+     (Диагностика, карточка реабилитанта, кабинет сотрудника), из-за чего
+     экраны вне этих страниц — вход, чат-бот, модалки — красились старым
+     синим --accent. Выносим в :root как общие токены; локальные объявления
+     внутри страниц по-прежнему перекрывают эти значения. */
+  --sage-900: #1E2F1E;
+  --sage-800: #2A4129;
+  --sage-700: #2F4A2F;
+  --sage-500: #5F7E45;
+  --sage-400: #8AAB6A;
+  --sage-100: #E0EBD1;
+  --sage-50: #EEF4E2;
   --amber: #f5b042;
   --amber-soft: #fff0df;
   --amber-text: #7a5900;
@@ -145,29 +157,9 @@ onUnmounted(() => {
   --shadow-lg: 0 12px 32px rgba(0,0,0,0.1);
   --transition: 0.2s ease;
 }
-body.dark {
-  --bg-app: #0a1620;
-  --bg-sidebar: #05141f;
-  --bg-surface: #15232e;
-  --bg-surface-sunken: #0e1a24;
-  --text-primary: #e2e8f0;
-  --text-secondary: #9bb4c9;
-  --text-tertiary: #6b8aa6;
-  --border: #2d4255;
-  --border-light: #1f3140;
-  --accent: #2c7da0;
-  --accent-hover: #1f5e7a;
-  --accent-soft: rgba(44,125,160,0.15);
-  --accent-text: #7fc1e0;
-}
-body.high-contrast {
-  --bg-app: #000;
-  --bg-surface: #111;
-  --text-primary: #fff;
-  --text-secondary: #ff0;
-  --border: #ff0;
-  --accent: #0ff;
-}
+/* Тёмная тема (body.dark) и режим высокой контрастности (body.high-contrast)
+   удалены — сайт работает только в светлой теме. Вместе с ними убраны
+   переключатель темы и окно «Настройки» в Topbar.vue. */
 body.large-text { font-size: 1.125rem; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }

@@ -77,12 +77,28 @@ h2 {
 }
 .form-group input:focus {
   outline: none;
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(26,93,143,0.2);
+  border-color: var(--sage-500);
+  box-shadow: 0 0 0 2px rgba(95, 126, 69, 0.25);
 }
+/* Кнопка входа — в зелёной гамме проекта. Глобальная .btn-primary красится
+   от var(--accent), а он остался синим от прежней темы, поэтому перекрываем
+   локально: правило scoped-стиля выигрывает по специфичности. */
 .btn-primary {
   width: 100%;
   margin-top: 0.5rem;
+  background: var(--sage-700);
+  border: 1px solid var(--sage-700);
+  color: #F4F8EC;
+}
+.btn-primary:hover:not(:disabled) {
+  background: var(--sage-900);
+  border-color: var(--sage-900);
+}
+/* Во время входа кнопка заблокирована — гасим и подъём из глобального :hover. */
+.btn-primary:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+  transform: none;
 }
 .error {
   margin-top: 1rem;

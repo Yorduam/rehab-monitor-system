@@ -22,35 +22,12 @@
 
         <template v-else-if="readiness">
 
-          <!-- ===== ШАГ 1. Заполненность карточки =====
-               Раньше называлось «Маршрут реабилитанта», но маршрутом на
-               карточке теперь зовутся этапы жизненного цикла (заявка →
-               заявление → диагностика → зачисление → занятия → итоги).
-               Здесь же — условие допуска к диагностике: заполнены ли анкета,
-               документы и сканы. Два разных списка под одним названием
-               путали: «маршрут заполнен», а маршрут на карточке — на 03. -->
-          <section class="ad-section">
-            <div class="ad-section-head">
-              <h4 class="ad-section-title">Заполненность карточки</h4>
-              <span class="ad-pill" :class="readiness.route.complete ? 'ok' : 'bad'">
-                {{ doneSteps }} / {{ readiness.route.steps.length }}
-              </span>
-            </div>
-            <ul class="ad-steps">
-              <li v-for="s in readiness.route.steps" :key="s.key" class="ad-step" :class="{ done: s.done }">
-                <span class="ad-step-ico" aria-hidden="true">
-                  <svg v-if="s.done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><line x1="12" y1="8" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/><circle cx="12" cy="12" r="9"/></svg>
-                </span>
-                <span class="ad-step-body">
-                  <span class="ad-step-label">{{ s.label }}</span>
-                  <span class="ad-step-hint">{{ s.hint }}</span>
-                </span>
-              </li>
-            </ul>
-          </section>
+          <!-- Блок «Заполненность карточки» (чек-лист анкеты, документов и
+               сканов) убран: он лишь дублировал сведения из самой карточки
+               реабилитанта. Проверка при этом никуда не делась — если чего-то
+               не хватает, это попадёт в «Нельзя назначить» ниже. -->
 
-          <!-- ===== ШАГ 2. Препятствия ===== -->
+          <!-- ===== ШАГ 1. Препятствия ===== -->
           <section v-if="readiness.errors.length" class="ad-section">
             <h4 class="ad-section-title">Нельзя назначить</h4>
             <ul class="ad-blockers">
@@ -83,7 +60,7 @@
             </p>
           </section>
 
-          <!-- ===== ШАГ 3. Форма назначения ===== -->
+          <!-- ===== ШАГ 2. Форма назначения ===== -->
           <section class="ad-section" :class="{ 'is-locked': !formEnabled }">
             <h4 class="ad-section-title">Дата диагностики</h4>
 
@@ -184,10 +161,6 @@ const isAdmin = computed(() => authStore.isAdmin);
 const recipientLabel = computed(() =>
   props.recipientName || readiness.value?.recipientName || `Реабилитант #${props.recipientId}`
 );
-const doneSteps = computed(() =>
-  readiness.value ? readiness.value.route.steps.filter((s) => s.done).length : 0
-);
-
 // Форма доступна, когда нет жёстких препятствий и (при наличии предупреждений)
 // администратор подтвердил назначение.
 const formEnabled = computed(() => {
@@ -262,7 +235,17 @@ onMounted(() => {
 </script>
 
 <style scoped>
+/* Модалка идёт в зелёной гамме проекта. Акцентные токены переопределяем на
+   оверлее — всё внутреннее (кнопка «Назначить», фокус полей, галочка,
+   плашка-пояснение, спиннер) наследует их автоматически. Глобальный синий
+   --accent не трогаем: им ещё пользуются другие экраны. */
 .ad-overlay {
+  --accent: var(--sage-700);
+  --accent-hover: var(--sage-900);
+  --accent-soft: var(--sage-50);
+  --accent-text: var(--sage-900);
+  --accent-border: var(--sage-100);
+
   position: fixed; inset: 0; z-index: 1200;
   background: rgba(20, 18, 16, .55);
   backdrop-filter: blur(3px);
@@ -309,31 +292,12 @@ onMounted(() => {
 .ad-section { padding-bottom: 1.1rem; margin-bottom: 1.1rem; border-bottom: 1px dashed var(--border-light); }
 .ad-section:last-child { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
 .ad-section.is-locked { opacity: .55; }
-.ad-section-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
 .ad-section-title {
   font-size: .72rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
   color: var(--text-tertiary); margin-bottom: .65rem;
 }
-.ad-section-head .ad-section-title { margin-bottom: .65rem; }
-.ad-pill {
-  font-size: .72rem; font-weight: 700; padding: .12rem .5rem; border-radius: 999px;
-  border: 1px solid transparent; margin-bottom: .65rem;
-}
-.ad-pill.ok { background: var(--accent-soft); color: var(--accent-text); border-color: var(--accent-border); }
-.ad-pill.bad { background: #fdf0ea; color: #a34a22; border-color: #f0cfbe; }
-
-.ad-steps { display: grid; gap: .4rem; }
-.ad-step { display: flex; align-items: flex-start; gap: .55rem; }
-.ad-step-ico {
-  flex-shrink: 0; width: 18px; height: 18px; display: grid; place-items: center;
-  color: #b4593a;
-}
-.ad-step.done .ad-step-ico { color: var(--accent); }
-.ad-step-ico svg { width: 14px; height: 14px; }
-.ad-step-body { display: flex; flex-direction: column; gap: .05rem; min-width: 0; }
-.ad-step-label { font-size: .86rem; font-weight: 600; color: var(--text-primary); }
-.ad-step.done .ad-step-label { color: var(--text-secondary); font-weight: 500; }
-.ad-step-hint { font-size: .76rem; color: var(--text-tertiary); line-height: 1.35; }
+/* Стили .ad-section-head/.ad-pill/.ad-step* удалены вместе с блоком
+   «Заполненность карточки» — больше в разметке не встречаются. */
 
 .ad-blockers { display: grid; gap: .4rem; }
 .ad-blockers-tight { margin-top: .6rem; }

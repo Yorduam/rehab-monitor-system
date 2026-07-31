@@ -644,6 +644,19 @@ const sendMessage = async () => {
 </script>
 
 <style scoped>
+/* Помощник работает в зелёной гамме проекта. Вместо правки двух десятков
+   правил переопределяем акцентные токены на корнях компонента: все вложенные
+   var(--accent…) наследуют новые значения. Глобальный синий --accent при этом
+   не трогаем — им ещё пользуются другие экраны. */
+.fab,
+.chat-window {
+  --accent: var(--sage-700);
+  --accent-hover: var(--sage-900);
+  --accent-soft: var(--sage-50);
+  --accent-text: var(--sage-900);
+  --accent-border: var(--sage-100);
+}
+
 .fab {
   position: fixed;
   bottom: calc(1.5rem + var(--fab-offset, 0rem));
@@ -657,14 +670,14 @@ const sendMessage = async () => {
   display: grid;
   place-items: center;
   cursor: pointer;
-  box-shadow: 0 6px 18px rgba(26, 93, 143, 0.35);
+  box-shadow: 0 6px 18px rgba(47, 74, 47, 0.35);
   z-index: 95;
   transition: background 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
 }
 .fab:hover {
   background: var(--accent-hover);
   transform: translateY(-2px);
-  box-shadow: 0 10px 26px rgba(26, 93, 143, 0.42);
+  box-shadow: 0 10px 26px rgba(47, 74, 47, 0.42);
 }
 .fab.open { background: var(--accent-hover); }
 

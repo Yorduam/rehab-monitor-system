@@ -123,9 +123,9 @@ const renderRadar = () => {
       selectedRecipient.value.creativityScore || 0
     ];
     const targetScores = [4, 3, 3, 4];
-    const isDark = document.body.classList.contains('dark');
-    const textColor = isDark ? '#9bb4c9' : '#4F564A';
-    const gridColor = isDark ? '#2d4255' : '#E4DECF';
+    // Тёмной темы больше нет — цвета графика всегда светлые.
+    const textColor = '#4F564A';
+    const gridColor = '#E4DECF';
     chart = new Chart(ctx, {
       type: 'radar',
       data: {
