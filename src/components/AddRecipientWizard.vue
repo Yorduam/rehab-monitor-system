@@ -213,7 +213,7 @@
                 <div class="rw-f rw-c12">
                   <fieldset style="border:none;padding:0;margin:0">
                     <legend class="rw-label" style="margin-bottom:0.5rem">Группа инвалидности <span class="rw-req">*</span></legend>
-                    <div class="rw-seg">
+                    <div class="rw-seg" id="r-invalidity">
                       <button v-for="inv in invOptions" :key="inv.v"
                         class="rw-seg-btn" :class="{ active: f.rInvalidity === inv.v }"
                         type="button" @click="f.rInvalidity = inv.v">{{ inv.l }}</button>
@@ -238,6 +238,7 @@
                   <div class="rw-singleselect rw-crg-group-wrap"
                     :class="{ 'rw-ss-open': crgGroupOpen, 'rw-ss-disabled': crgGroupDisabled }">
                     <button class="rw-ss-trigger" type="button"
+                      id="r-crg-trigger"
                       :disabled="crgGroupDisabled"
                       @click="crgGroupDisabled ? null : (crgGroupOpen = !crgGroupOpen)"
                       :aria-expanded="crgGroupOpen"
@@ -469,6 +470,7 @@
                 <div class="rw-uploads-grid">
                   <label
                     v-for="t in tiles" :key="t.k"
+                    :id="'tile-' + t.k"
                     class="rw-utile"
                     :class="{ 'rw-utile-req': t.req, 'rw-utile-done': uploads[t.k] }"
                   >
@@ -506,7 +508,7 @@
                     <div class="rw-gen-title">Сформировать пакет из 3 документов</div>
                     <div class="rw-gen-sub">Заполнятся автоматически: ФИО представителя и реабилитанта, паспортные данные, адреса, дата рождения, особенности</div>
                   </div>
-                  <button class="rw-btn rw-btn-primary" type="button" @click="generateDocs">
+                  <button class="rw-btn rw-btn-primary" type="button" id="gen-docs-btn" @click="generateDocs">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
                     {{ docsGenerated ? 'Сформировано' : 'Сгенерировать' }}
                   </button>
@@ -546,6 +548,7 @@
                 <div class="rw-uploads-grid">
                   <label
                     v-for="t in signedTiles" :key="t.k"
+                    :id="'tile-' + t.k"
                     class="rw-utile rw-utile-req"
                     :class="{ 'rw-utile-done': signedUploads[t.k] }"
                   >
@@ -563,7 +566,7 @@
                 </div>
               </div>
 
-              <label class="rw-switch-row" :class="{ 'is-locked': !packageComplete }" style="margin-top:1.5rem">
+              <label class="rw-switch-row" id="consent-row" :class="{ 'is-locked': !packageComplete }" style="margin-top:1.5rem">
                 <div class="rw-sr-text">
                   <div class="rw-sr-title">Подтверждаю комплектность пакета документов</div>
                   <div class="rw-sr-sub">Все сканы соответствуют оригиналам, согласия и заявление подписаны законным представителем</div>
@@ -596,6 +599,60 @@
           <div class="rw-sbp-track"><div class="rw-sbp-fill" :class="{ 'is-full': overallProgress.pct === 100 }" :style="{ width: overallProgress.pct + '%' }"></div></div>
           <span class="rw-sbp-pct">{{ overallProgress.pct }}%</span>
         </div>
+        <div v-if="missingFields.length" class="rw-sb-missing">
+          <button class="rw-btn rw-mf-btn" type="button" @click="missingOpen = !missingOpen"
+            :aria-expanded="missingOpen" aria-haspopup="dialog"
+            :title="'Показать список незаполненных полей (' + missingFields.length + ')'">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            Не заполнено
+            <span class="rw-mf-badge">{{ missingFields.length }}</span>
+            <svg class="rw-mf-caret" :class="{ 'is-open': missingOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 15l-6-6-6 6"/></svg>
+          </button>
+
+          <div v-if="missingOpen" class="rw-mf-panel" role="dialog" aria-label="Незаполненные поля">
+            <div class="rw-mf-head">
+              <div class="rw-mf-htext">
+                <div class="rw-mf-title">Осталось заполнить: {{ missingFields.length }}</div>
+                <div class="rw-mf-sub">Нажмите на пункт — откроется нужный этап и поле подсветится</div>
+              </div>
+              <button class="rw-mf-close" type="button" @click="missingOpen = false" aria-label="Закрыть">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <div class="rw-mf-body">
+              <div v-for="grp in missingByStep" :key="grp.step" class="rw-mf-group">
+                <div class="rw-mf-step">
+                  <span class="rw-mf-step-num">{{ grp.step }}</span>
+                  {{ grp.label }}
+                  <span class="rw-mf-step-cnt">{{ grp.items.length }}</span>
+                </div>
+                <button v-for="(it, i) in grp.items" :key="grp.step + '-' + i"
+                  class="rw-mf-item" type="button" @click="gotoField(it)">
+                  <span class="rw-mf-dot" aria-hidden="true"></span>
+                  <span class="rw-mf-itext">
+                    <span class="rw-mf-name">{{ it.l }}</span>
+                    <span class="rw-mf-group-name">{{ it.g }}</span>
+                  </span>
+                  <span class="rw-mf-go">
+                    Перейти
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18l6-6-6-6"/></svg>
+                  </span>
+                </button>
+              </div>
+            </div>
+            <div class="rw-mf-foot">
+              <button class="rw-btn rw-btn-primary rw-btn-sm" type="button" @click="gotoFirstMissing">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                Перейти к первому незаполненному
+              </button>
+            </div>
+          </div>
+        </div>
+        <div v-else class="rw-sb-ok">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+          Все обязательные поля заполнены
+        </div>
+
         <div class="rw-sb-actions">
           <button v-if="step > 1" class="rw-btn rw-btn-secondary" type="button" @click="step--">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
@@ -618,7 +675,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import api from '../api';
 
 const props = defineProps({
@@ -883,60 +940,57 @@ const displayName = computed(() =>
   [f.value.rLast, f.value.rFirst, f.value.rMid].filter(Boolean).join(' ')
 );
 
-// ── Реальный расчёт заполненности карточки ─────────────────
-// Процент считается по факту заполнения обязательных полей,
-// а НЕ по номеру открытого шага. Просто перелистнуть страницу
-// больше нельзя — нужно действительно вносить данные.
 const isFilled = (v) => (typeof v === 'string' ? v.trim().length > 0 : !!v);
 
-const requiredChecks = computed(() => {
+const requiredFields = computed(() => {
   const v = f.value;
 
-  // Шаг 1 — законный представитель
   const step1 = [
-    isFilled(v.lrLast),
-    isFilled(v.lrFirst),
-    isFilled(v.lrRelation),
-    v.lrPhone.length === 18,           // +7 (XXX) XXX-XX-XX
-    v.lrPassSeries.length === 4,
-    v.lrPassNum.length === 6,
-    isFilled(v.lrPassDate),
-    v.lrPassCode.length === 7,         // XXX-XXX
-    isFilled(v.lrPassIssuer),
-    isFilled(v.lrAddress),
+    { g: 'ФИО',               l: 'Фамилия',                        ok: isFilled(v.lrLast),          a: '#lr-last'  },
+    { g: 'ФИО',               l: 'Имя',                            ok: isFilled(v.lrFirst),         a: '#lr-first' },
+    { g: 'ФИО',               l: 'Кем приходится реабилитанту',    ok: isFilled(v.lrRelation),      a: '#lr-rel'   },
+    { g: 'ФИО',               l: 'Телефон',                        ok: v.lrPhone.length === 18,     a: '#lr-phone' },
+    { g: 'Паспорт',           l: 'Серия',                          ok: v.lrPassSeries.length === 4, a: '#lp-ser'   },
+    { g: 'Паспорт',           l: 'Номер',                          ok: v.lrPassNum.length === 6,    a: '#lp-num'   },
+    { g: 'Паспорт',           l: 'Дата выдачи',                    ok: isFilled(v.lrPassDate),      a: '#lp-dt'    },
+    { g: 'Паспорт',           l: 'Код подразделения',              ok: v.lrPassCode.length === 7,   a: '#lp-code'  },
+    { g: 'Паспорт',           l: 'Кем выдан',                      ok: isFilled(v.lrPassIssuer),    a: '#lp-iss'   },
+    { g: 'Адрес регистрации', l: 'Адрес регистрации представителя', ok: isFilled(v.lrAddress),      a: '#lr-addr'  },
   ];
 
-  // Шаг 2 — данные реабилитанта
   const step2 = [
-    isFilled(v.rLast),
-    isFilled(v.rFirst),
-    isFilled(v.rBirth),
-    isFilled(v.rInvalidity),
-    v.rSnils.length === 14,            // XXX-XXX-XXX YY
-    isFilled(v.rCrg),
-    v.rNosology.length > 0,
-    v.rDocType === 'birth' ? isFilled(v.rDocSeries) : v.rDocSeries.length === 4,
-    v.rDocNum.length === 6,
-    isFilled(v.rDocDate),
-    isFilled(v.rDocIssuer),
-    isFilled(v.rAddrReg),
+    { g: 'ФИО и дата рождения', l: 'Фамилия',       ok: isFilled(v.rLast),  a: '#r-last'  },
+    { g: 'ФИО и дата рождения', l: 'Имя',           ok: isFilled(v.rFirst), a: '#r-first' },
+    { g: 'ФИО и дата рождения', l: 'Дата рождения', ok: isFilled(v.rBirth), a: '#r-birth' },
+    { g: 'Медицинские сведения', l: 'Группа инвалидности',                    ok: isFilled(v.rInvalidity), a: '#r-invalidity'      },
+    { g: 'Медицинские сведения', l: 'СНИЛС',                                  ok: v.rSnils.length === 14,  a: '#r-snils'           },
+    { g: 'Медицинские сведения', l: 'Целевая реабилитационная группа (ЦРГ)',  ok: isFilled(v.rCrg),        a: '#r-crg-trigger'     },
+    { g: 'Медицинские сведения', l: 'Нозология',                              ok: v.rNosology.length > 0,  a: '#r-nosology-trigger' },
+    { g: 'Документ, удостоверяющий личность', l: 'Серия',       ok: v.rDocType === 'birth' ? isFilled(v.rDocSeries) : v.rDocSeries.length === 4, a: '#rd-ser' },
+    { g: 'Документ, удостоверяющий личность', l: 'Номер',       ok: v.rDocNum.length === 6,   a: '#rd-num' },
+    { g: 'Документ, удостоверяющий личность', l: 'Дата выдачи', ok: isFilled(v.rDocDate),     a: '#rd-dt'  },
+    { g: 'Документ, удостоверяющий личность', l: 'Кем выдан',   ok: isFilled(v.rDocIssuer),   a: '#rd-iss' },
+    { g: 'Адрес регистрации', l: 'Адрес регистрации', ok: isFilled(v.rAddrReg), a: '#r-reg' },
   ];
-  // Фактический адрес обязателен только если он не совпадает с пропиской
-  if (!v.rAddrSame) step2.push(isFilled(v.rAddrFact));
+  if (!v.rAddrSame) {
+    step2.push({ g: 'Фактическое проживание', l: 'Адрес фактического места проживания', ok: isFilled(v.rAddrFact), a: '#r-fact' });
+  }
 
-  // Шаг 3 — документы
-  const reqTileKeys = tiles.filter(t => t.req).map(t => t.k);
   const step3 = [
-    ...reqTileKeys.map(k => !!uploads.value[k]),
-    docsGenerated.value,
-    !!signedUploads.value['signed-pdn'],
-    !!signedUploads.value['signed-photo'],
-    !!signedUploads.value['signed-diag'],
-    v.consentConfirmed,
+    ...tiles.filter(t => t.req).map(t => (
+      { g: 'Сканы готовых документов', l: t.title, ok: !!uploads.value[t.k], a: '#tile-' + t.k }
+    )),
+    { g: 'Документы на подпись', l: 'Сформировать пакет из 3 документов', ok: docsGenerated.value, a: '#gen-docs-btn' },
+    ...signedTiles.map(t => (
+      { g: 'Подписанные документы', l: t.title, ok: !!signedUploads.value[t.k], a: '#tile-' + t.k }
+    )),
+    { g: 'Завершение', l: 'Подтверждаю комплектность пакета документов', ok: v.consentConfirmed, a: '#consent-row' },
   ];
 
   return [step1, step2, step3];
 });
+
+const requiredChecks = computed(() => requiredFields.value.map((list) => list.map((x) => x.ok)));
 
 const stepProgress = computed(() => requiredChecks.value.map((list) => {
   const total = list.length;
@@ -951,33 +1005,70 @@ const overallProgress = computed(() => {
   return { done, total, pct: total ? Math.round((done / total) * 100) : 0 };
 });
 
-// Все три этапа заполнены полностью → загорается финишная отметка «дороги».
 const allComplete = computed(() => stepProgress.value.every((s) => s.complete));
 
-// Комплектность пакета БЕЗ учёта самого тумблера подтверждения:
-// все обязательные поля шагов 1–2, все обязательные сканы, сгенерированные
-// и подписанные документы. Пока это не выполнено — подтвердить нельзя.
 const packageComplete = computed(() => {
   const [s1, s2, s3] = requiredChecks.value;
-  // последний пункт s3 — это сам тумблер consentConfirmed, его исключаем
   return s1.every(Boolean) && s2.every(Boolean) && s3.slice(0, -1).every(Boolean);
 });
 
-// Если комплектность нарушилась (убрали скан / очистили поле уже после
-// подтверждения) — автоматически снимаем тумблер, чтобы его нельзя было
-// «оставить» включённым при неполном пакете.
-//
-// immediate обязателен. В localStorage черновик сохраняет только поля формы —
-// файлы (uploads / signedUploads) там не лежат. Значит после восстановления
-// черновика сканов нет, а восстановленный consentConfirmed=true остаётся, и без
-// immediate вотчер не сработает (значение packageComplete не «менялось»).
-// Кнопка «Сохранить» разблокировалась бы на неполном пакете — именно так
-// карточка и уезжала на сервер «с пройденными этапами».
 watch(packageComplete, (ok) => {
   if (!ok && f.value.consentConfirmed) f.value.consentConfirmed = false;
 }, { immediate: true });
 
-// ── Черновик: данные не теряются при случайном закрытии вкладки ──
+const missingOpen = ref(false);
+
+const missingFields = computed(() => {
+  const out = [];
+  requiredFields.value.forEach((list, i) => {
+    list.forEach((x) => { if (!x.ok) out.push({ ...x, step: i + 1 }); });
+  });
+  return out;
+});
+
+const missingByStep = computed(() =>
+  steps
+    .map((s, i) => ({ step: i + 1, label: s.label, items: missingFields.value.filter((x) => x.step === i + 1) }))
+    .filter((s) => s.items.length > 0)
+);
+
+let flashEl = null;
+let flashTimer = null;
+
+const flashField = (el) => {
+  if (flashTimer) { clearTimeout(flashTimer); flashTimer = null; }
+  if (flashEl) flashEl.classList.remove('rw-flash');
+  flashEl = el;
+  el.classList.remove('rw-flash');
+  void el.offsetWidth;
+  el.classList.add('rw-flash');
+  flashTimer = setTimeout(() => {
+    el.classList.remove('rw-flash');
+    if (flashEl === el) flashEl = null;
+    flashTimer = null;
+  }, 1800);
+};
+
+const gotoField = async (item) => {
+  missingOpen.value = false;
+  if (step.value !== item.step) step.value = item.step;
+  await nextTick();
+  const el = document.querySelector(item.a);
+  if (!el) return;
+  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const focusTarget = /^(INPUT|SELECT|TEXTAREA|BUTTON)$/.test(el.tagName)
+    ? el
+    : el.querySelector('input:not([type="file"]), select, textarea, button');
+  if (focusTarget && !focusTarget.disabled) {
+    try { focusTarget.focus({ preventScroll: true }); } catch (e) { focusTarget.focus(); }
+  }
+  flashField(el);
+};
+
+const gotoFirstMissing = () => {
+  if (missingFields.value.length) gotoField(missingFields.value[0]);
+};
+
 const loadDraft = () => {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
@@ -986,7 +1077,7 @@ const loadDraft = () => {
     if (saved && typeof saved === 'object') {
       f.value = { ...makeEmptyForm(), ...saved };
     }
-  } catch (e) { /* повреждённый черновик — игнорируем */ }
+  } catch (e) {  }
 };
 const saveDraft = () => {
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify(f.value)); } catch (e) {}
@@ -1001,14 +1092,11 @@ const clearDraft = () => {
   try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
 };
 
-// Загружаем сохранённый черновик до подписки, чтобы не перезаписать его пустой формой.
 loadDraft();
 watch(f, saveDraft, { deep: true });
 
-// ── Маски и нормализация ввода ──────────────────────────────
 const onlyDigits = (s, max) => s.replace(/\D/g, '').slice(0, max);
 
-// ФИО: только кириллица, дефис и пробел; каждое слово с заглавной
 function maskName(v) {
   const s = v
     .replace(/[^А-Яа-яЁё\- ]/g, '')
@@ -1018,7 +1106,6 @@ function maskName(v) {
   return s.replace(/(^|[\s-])([а-яё])/g, (_, sep, ch) => sep + ch.toUpperCase());
 }
 
-// Телефон: +7 (XXX) XXX-XX-XX
 function maskPhone(v) {
   let d = v.replace(/\D/g, '');
   if (d.startsWith('8')) d = '7' + d.slice(1);
@@ -1033,7 +1120,6 @@ function maskPhone(v) {
   return out;
 }
 
-// СНИЛС: XXX-XXX-XXX YY
 function maskSnils(v) {
   const d = v.replace(/\D/g, '').slice(0, 11);
   let out = d.slice(0, 3);
@@ -1043,30 +1129,25 @@ function maskSnils(v) {
   return out;
 }
 
-// Код подразделения: XXX-XXX
 function maskDeptCode(v) {
   const d = v.replace(/\D/g, '').slice(0, 6);
   return d.length > 3 ? d.slice(0, 3) + '-' + d.slice(3) : d;
 }
 
-// Серия свидетельства о рождении: римские + «-» + кириллица (IV-АБ)
 function maskBirthSeries(v) {
   return v.toUpperCase().replace(/[^IVXLCА-ЯЁ\- ]/g, '').slice(0, 12);
 }
 
-// Свободный текст: без ведущих пробелов, без двойных пробелов, с ограничением длины
 function maskText(v, max) {
   return v.replace(/^\s+/, '').replace(/\s{2,}/g, ' ').slice(0, max);
 }
 
-// Универсальный обработчик @input: применяет маску к модели и DOM
 function onMask(field, e, fn) {
   const masked = fn(e.target.value);
   f.value[field] = masked;
   if (e.target.value !== masked) e.target.value = masked;
 }
 
-// Серия документа реабилитанта зависит от типа документа
 function onDocSeries(e) {
   const fn = f.value.rDocType === 'birth' ? maskBirthSeries : (v) => onlyDigits(v, 4);
   onMask('rDocSeries', e, fn);
@@ -1081,7 +1162,6 @@ const onSignedFile = (key, e) => {
   if (file) signedUploads.value = { ...signedUploads.value, [key]: file };
 };
 
-// ── Генерация документов на подпись (согласия + заявление) ──────────────
 const downloadingDoc = ref('');
 
 const generateDocs = () => {
@@ -1092,7 +1172,6 @@ const generateDocs = () => {
   docsGenerated.value = true;
 };
 
-// gd.k ('pdn' | 'photo' | 'diag') совпадает с docType на бэкенде.
 const downloadDoc = async (key) => {
   if (!docsGenerated.value || downloadingDoc.value) return;
   downloadingDoc.value = key;
@@ -1141,7 +1220,7 @@ const save = async () => {
   }
   if (!f.value.consentConfirmed) {
     alert('Нельзя сохранить карточку: сначала заполните все этапы, поля и обязательные сканы, затем включите «Подтверждаю комплектность пакета документов».');
-    step.value = steps.length; // перекинуть на шаг с тумблером подтверждения
+    step.value = steps.length;
     return;
   }
   saving.value = true;
@@ -1157,10 +1236,6 @@ const save = async () => {
         lastName:   f.value.rLast,
         birthDate:  f.value.rBirth || null,
         diagnosis:  f.value.rDiagnosis || '',
-        // Сюда мы попадаем только после тумблера «Подтверждаю комплектность
-        // пакета документов», то есть карточка заполнена целиком. Раньше здесь
-        // жёстко стоял 'draft', и карточка навсегда оставалась черновиком,
-        // хотя маршрут показывался пройденным.
         status:     'active',
       },
       representative: {
@@ -1238,11 +1313,13 @@ const closeDropdowns = (e) => {
   if (nosologyOpen.value && !e.target.closest('.rw-multiselect')) nosologyOpen.value = false;
   if (crgGroupOpen.value && !e.target.closest('.rw-crg-group-wrap')) crgGroupOpen.value = false;
   if (crgSubOpen.value   && !e.target.closest('.rw-crg-sub-wrap'))   crgSubOpen.value   = false;
+  if (missingOpen.value  && !e.target.closest('.rw-sb-missing'))     missingOpen.value  = false;
 };
 
 const onKey = (e) => {
   if (e.key === 'Escape') {
-    if (nosologyOpen.value) { nosologyOpen.value = false; }
+    if (missingOpen.value)       { missingOpen.value = false; }
+    else if (nosologyOpen.value) { nosologyOpen.value = false; }
     else { emit('close'); }
   }
 };
@@ -1493,7 +1570,6 @@ onUnmounted(() => {
   align-items: start;
   margin: 0; padding: 0;
 }
-/* Финишный узел «дороги» — линия из 3-го шага ведёт к галочке завершения */
 .rw-step-finish {
   display: grid;
   grid-template-rows: auto auto;
@@ -2145,5 +2221,149 @@ onUnmounted(() => {
   .rw-btn { padding: 0.625rem 0.875rem; font-size: 0.875rem; }
   .rw-ph-title { font-size: 1.5rem; }
   .rw-save-state { display: none; }
+}
+
+/* ── Незаполненные поля: уведомление в нижней панели + переход к полю ───── */
+.rw-sb-missing { position: relative; }
+.rw-mf-btn {
+  background: var(--rw-amber-50);
+  color: var(--rw-amber-700);
+  border-color: var(--rw-amber-100);
+}
+.rw-mf-btn:hover { background: var(--rw-amber-100); border-color: var(--rw-amber-500); }
+.rw-mf-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.375rem; height: 1.375rem; padding: 0 0.375rem;
+  border-radius: 999px;
+  background: var(--rw-amber-500); color: #FFF8EC;
+  font-size: 0.8125rem; font-weight: 700; font-variant-numeric: tabular-nums;
+}
+.rw-mf-caret { transition: transform 0.18s; }
+.rw-mf-caret.is-open { transform: rotate(180deg); }
+
+.rw-sb-ok {
+  display: inline-flex; align-items: center; gap: 0.4375rem;
+  padding: 0.6875rem 1.125rem; min-height: 2.75rem;
+  border-radius: var(--rw-radius-sm);
+  background: var(--rw-sage-50); color: var(--rw-sage-700);
+  border: 1px solid var(--rw-sage-100);
+  font-size: 0.9375rem; font-weight: 500; white-space: nowrap;
+}
+.rw-sb-ok svg { width: 0.9375rem; height: 0.9375rem; flex: 0 0 0.9375rem; }
+
+.rw-mf-panel {
+  position: absolute;
+  bottom: calc(100% + 0.625rem);
+  right: 0;
+  z-index: 40;
+  width: 26rem; max-width: calc(100vw - 2.5rem);
+  background: var(--rw-paper);
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius-md);
+  box-shadow: var(--rw-shadow-lg);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+  animation: rwMfIn 0.16s cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+@keyframes rwMfIn {
+  from { opacity: 0; transform: translateY(0.375rem); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.rw-mf-head {
+  display: flex; align-items: flex-start; gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  background: var(--rw-amber-50);
+  border-bottom: 1px solid var(--rw-line);
+}
+.rw-mf-htext { flex: 1; min-width: 0; }
+.rw-mf-title { font-size: 0.9375rem; font-weight: 600; color: var(--rw-amber-700); }
+.rw-mf-sub { margin-top: 0.1875rem; font-size: 0.8125rem; color: var(--rw-ink-muted); line-height: 1.35; }
+.rw-mf-close {
+  flex: 0 0 auto;
+  width: 1.75rem; height: 1.75rem;
+  display: inline-flex; align-items: center; justify-content: center;
+  border: none; background: none; cursor: pointer;
+  border-radius: var(--rw-radius-sm); color: var(--rw-ink-muted);
+}
+.rw-mf-close:hover { background: var(--rw-amber-100); color: var(--rw-ink-strong); }
+.rw-mf-close svg { width: 0.9375rem; height: 0.9375rem; }
+
+.rw-mf-body { overflow-y: auto; max-height: 22rem; padding: 0.5rem; }
+.rw-mf-group + .rw-mf-group { margin-top: 0.5rem; }
+.rw-mf-step {
+  display: flex; align-items: center; gap: 0.4375rem;
+  padding: 0.375rem 0.5rem;
+  font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em;
+  text-transform: uppercase; color: var(--rw-ink-subtle);
+}
+.rw-mf-step-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.125rem; height: 1.125rem; border-radius: 999px;
+  background: var(--rw-paper-sunken); color: var(--rw-ink-muted);
+  font-size: 0.6875rem; font-weight: 700;
+}
+.rw-mf-step-cnt {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+  color: var(--rw-amber-500);
+}
+.rw-mf-item {
+  display: flex; align-items: center; gap: 0.625rem; width: 100%;
+  padding: 0.5rem 0.5rem 0.5rem 0.625rem;
+  background: none; border: 1px solid transparent;
+  border-radius: var(--rw-radius-sm);
+  cursor: pointer; text-align: left;
+  font-family: var(--rw-sans);
+  transition: background 0.14s, border-color 0.14s;
+}
+.rw-mf-item:hover { background: var(--rw-amber-50); border-color: var(--rw-amber-100); }
+.rw-mf-item:focus-visible { outline: none; box-shadow: var(--rw-focus-ring); }
+.rw-mf-dot {
+  flex: 0 0 0.4375rem; width: 0.4375rem; height: 0.4375rem;
+  border-radius: 999px; background: var(--rw-amber-500);
+}
+.rw-mf-itext { flex: 1; min-width: 0; }
+.rw-mf-name {
+  display: block; font-size: 0.875rem; color: var(--rw-ink-strong); font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rw-mf-group-name {
+  display: block; margin-top: 0.0625rem;
+  font-size: 0.75rem; color: var(--rw-ink-subtle);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rw-mf-go {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 0.125rem;
+  font-size: 0.75rem; font-weight: 600; color: var(--rw-sage-700);
+  opacity: 0; transition: opacity 0.14s;
+}
+.rw-mf-go svg { width: 0.8125rem; height: 0.8125rem; }
+.rw-mf-item:hover .rw-mf-go,
+.rw-mf-item:focus-visible .rw-mf-go { opacity: 1; }
+
+.rw-mf-foot {
+  padding: 0.625rem 1rem;
+  border-top: 1px solid var(--rw-line);
+  background: var(--rw-paper-soft);
+}
+.rw-mf-foot .rw-btn { width: 100%; }
+
+/* Подсветка поля, к которому выполнен переход */
+.rw-flash { animation: rwFlash 1.8s ease-out; }
+@keyframes rwFlash {
+  0%   { box-shadow: 0 0 0 0     rgba(176, 114, 35, .60); }
+  16%  { box-shadow: 0 0 0 .4rem rgba(176, 114, 35, .26); }
+  36%  { box-shadow: 0 0 0 0     rgba(176, 114, 35, .60); }
+  52%  { box-shadow: 0 0 0 .4rem rgba(176, 114, 35, .26); }
+  72%  { box-shadow: 0 0 0 0     rgba(176, 114, 35, .60); }
+  100% { box-shadow: 0 0 0 .4rem rgba(176, 114, 35, 0);   }
+}
+
+@media (max-width: 40rem) {
+  .rw-mf-panel { width: calc(100vw - 2rem); right: auto; left: 0; }
+  .rw-mf-body { max-height: 15rem; }
+  .rw-sb-ok { display: none; }
+  .rw-mf-btn { padding: 0.625rem 0.75rem; font-size: 0.875rem; }
 }
 </style>

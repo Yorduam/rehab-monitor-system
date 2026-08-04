@@ -11,8 +11,6 @@ const router = express.Router();
 const userFullName = (u) =>
   [u.lastName, u.firstName].filter(Boolean).join(' ').trim() || u.email;
 
-// Кураторы / специалисты — это учётные записи преподавателей (роль teacher).
-// Отдельной справочной таблицы «Специалисты» больше нет.
 router.get('/curators', authMiddleware, async (req, res) => {
   try {
     const teachers = await User.findAll({

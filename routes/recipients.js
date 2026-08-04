@@ -47,12 +47,6 @@ function pickFields(body) {
 const fmtDate = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
-// Дополняет список реабилитантов вычисляемыми сигналами для карточек:
-//  - ближайшее занятие в горизонте недели (attendsToday / attendsTomorrow / nextClassDate)
-//  - истечение справки МСЭ (docExpiring / docExpiryDate) — жёлтый флаг
-//  - «особые отметки» из документов (attentionNote) — красный флаг
-// teacherUserId (необязательно): если задан, буллеты «Сегодня/Завтра/На неделе»
-// считаются только по занятиям этого преподавателя (для роли teacher — куратора).
 async function enrichRecipients(rows, teacherUserId = null) {
   const ids = rows.map((r) => r.id);
   if (!ids.length) return [];
@@ -67,7 +61,6 @@ async function enrichRecipients(rows, teacherUserId = null) {
   const weekEndStr = fmtDate(weekEnd);
   const soonStr = fmtDate(soon);
 
-  // Ближайшее (минимальное) занятие каждого реабилитанта в пределах недели.
   const nextByRecipient = new Map();
   const eventWhere = {
     recipientId: { [Op.in]: ids },
@@ -86,7 +79,6 @@ async function enrichRecipients(rows, teacherUserId = null) {
     if (!prev || d < prev) nextByRecipient.set(ev.recipientId, d);
   }
 
-  // Документы: ближайшая дата окончания справки МСЭ + непустые «особые отметки».
   const docByRecipient = new Map();
   const docs = await RecipientDoc.findAll({
     where: { recipientId: { [Op.in]: ids } },
@@ -139,9 +131,6 @@ router.get('/', authMiddleware, async (req, res, next) => {
     if (diagnosis && diagnosis !== 'all') where.diagnosis = diagnosis;
     if (groupId) where.groupId = groupId;
 
-    // Преподаватель (куратор) видит только тех реабилитантов, которые записаны
-    // конкретно к нему — то есть у кого есть занятие с этим специалистом
-    // (ScheduleEvent.specialistUserId = его userId).
     const teacherUserId = req.user.role === 'teacher' ? req.user.id : null;
     if (teacherUserId) {
       const myEvents = await ScheduleEvent.findAll({
@@ -151,7 +140,6 @@ router.get('/', authMiddleware, async (req, res, next) => {
       const myRecipientIds = [...new Set(
         myEvents.map((e) => e.recipientId).filter((v) => v != null)
       )];
-      // Если у преподавателя нет записанных реабилитантов — отдаём пустой список.
       if (!myRecipientIds.length) {
         return res.json({ data: [], total: 0, page, limit, totalPages: 0 });
       }
@@ -184,10 +172,6 @@ router.get('/:id', authMiddleware, async (req, res, next) => {
   }
 });
 
-// Лента событий реабилитанта из расписания (ScheduleEvent) с преподавателем и
-// направлением. Используется карточкой реабилитанта для блоков «Последние
-// занятия», «Ближайшие события» и «Команда сопровождения», а также счётчиков
-// вкладок. Отменённые события (status='cancelled') исключаем.
 router.get('/:id/agenda', authMiddleware, async (req, res, next) => {
   try {
     const events = await ScheduleEvent.findAll({
@@ -204,9 +188,6 @@ router.get('/:id/agenda', authMiddleware, async (req, res, next) => {
   }
 });
 
-// Готовность реабилитанта: заполненность маршрута, просроченные документы и
-// факторы, мешающие назначить диагностику. Карточка использует это для значка
-// уведомления в подменю, а модалка назначения — для чек-листа перед формой.
 router.get('/:id/readiness', authMiddleware, async (req, res, next) => {
   try {
     const readiness = await getRecipientReadiness(req.params.id);
@@ -219,8 +200,6 @@ router.get('/:id/readiness', authMiddleware, async (req, res, next) => {
 
 const onlyDigits = (s) => (s || '').replace(/\D/g, '');
 
-// Ошибка данных мастера: транзакцию откатываем, а наружу отдаём 400 с понятным
-// текстом, а не 500 «Ошибка сервера».
 class IntakeError extends Error {}
 
 router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
@@ -231,8 +210,6 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
   }
 
   try {
-    // СНИЛС уникален (один человек — одна карта). Проверяем заранее и отдаём
-    // понятное сообщение вместо сырого «Validation error» из БД.
     if (doc.snils) {
       const dup = await RecipientDoc.findOne({ where: { snils: doc.snils } });
       if (dup) {
@@ -242,11 +219,6 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
 
     const result = await sequelize.transaction(async (t) => {
 
-      // Нозология и ЦРГ — медицинская классификация, её нельзя «додумывать».
-      // Раньше при непопадании в справочник сюда молча подставлялась ПЕРВАЯ
-      // строка справочника: карточка сохранялась, шаг маршрута «Медкарта»
-      // засчитывался, а в БД лежал выдуманный диагнозный код. Теперь — явная
-      // ошибка, чтобы оператор исправил выбор в мастере.
       if (!nozologyClasses.length) {
         throw new IntakeError('Не выбран класс нозологии (шаг 2)');
       }
@@ -261,11 +233,6 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
       if (!crg.code) {
         throw new IntakeError('Не выбрана целевая реабилитационная группа (ЦРГ, шаг 2)');
       }
-      // В справочнике код записан с префиксом — «ЦРГ 4», а мастер добавления
-      // присылает голый номер группы — «4». Из-за этого поиск по точному
-      // совпадению не находил НИ ОДНУ группу, и приём карточки падал с
-      // «ЦРГ N не найдена в справочнике» при полностью корректном выборе.
-      // Принимаем оба написания: и номер, и канонический код.
       const crgRaw = String(crg.code).trim();
       const crgNum = crgRaw.replace(/^ЦРГ\s*/i, '').trim();
       const crgRow = await CRG.findOne({
@@ -278,10 +245,6 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
       }
       const crgId = crgRow.id;
 
-      // Синтетические e-mail — это лишь технические плейсхолдеры (аккаунты
-      // никогда не логинятся, пароль случайный). Они ОБЯЗАНЫ быть уникальными,
-      // иначе повторное сохранение или совпадение СНИЛС/телефона роняет всю
-      // транзакцию по UNIQUE-констрейнту. Добавляем случайный суффикс.
       const uniqSuffix = crypto.randomBytes(5).toString('hex');
 
       const repPhone = representative.telephone || '';
@@ -299,11 +262,6 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
         passportReg: representative.passportReg || ''
       }, { transaction: t });
 
-      // Recipients.telephone — NOT NULL + UNIQUE, поэтому при пустом номере
-      // представителя нужен уникальный плейсхолдер. Раньше подставлялся recEmail,
-      // но поле STRING(20): строка обрезалась до «rcp-12345678901-ab», теряла
-      // хвост «@intake.local» и переставала отличаться от настоящего номера —
-      // шаг маршрута «Анкета» засчитывался по мусору. 19 символов влезают целиком.
       const phonePlaceholder = `no-phone-${uniqSuffix}`;
 
       const recEmail = `rcp-${onlyDigits(doc.snils) || 'na'}-${uniqSuffix}@intake.local`;
@@ -357,8 +315,6 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
     if (err instanceof IntakeError) {
       return res.status(400).json({ message: err.message });
     }
-    // Страховка: любое нарушение уникальности превращаем в понятное сообщение,
-    // а не в 500 «Validation error».
     if (err?.name === 'SequelizeUniqueConstraintError') {
       const path = err?.errors?.[0]?.path || '';
       const msg = /snils/i.test(path)
@@ -404,11 +360,6 @@ router.put('/:id', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'
   }
 });
 
-// Отметка посещения на «сегодня»: 'present' | 'absent' | 'left' | null (снять).
-// Ставит преподаватель на вкладке «Реабилитанты». Именно статус 'present'
-// открывает карточку реабилитанта на вкладке «Диагностика» (если он направлен
-// на диагностику именно к этому преподавателю). Дата фиксируется на серверный
-// «сегодня», чтобы отметка действовала только в пределах текущего дня.
 router.put('/:id/attendance', authMiddleware, roleMiddleware('admin', 'teacher'), async (req, res, next) => {
   try {
     const recipient = await Recipient.findByPk(req.params.id);
@@ -464,14 +415,8 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
     const scans = Array.isArray(req.body.scans) ? req.body.scans : [];
     if (!scans.length) return res.status(400).json({ message: 'Нет файлов для сохранения' });
 
-    // Режим обновления: файлы заменяют уже загруженные документы того же типа.
-    // Старые версии не удаляются — им проставляется isCurrent=false, а причина
-    // обновления обязательна и сохраняется вместе с автором и датой.
     const isUpdate = req.body.mode === 'update' || req.body.replace === true;
 
-    // Заменять уже приложенные сканы вправе только сотрудник и администратор.
-    // Преподавателю маршрут оставлен ради первичной загрузки: он заводит
-    // карточку мастером, и там файлов ещё нет.
     const canReplace = req.user.role === 'admin' || req.user.role === 'employee';
     if (isUpdate && !canReplace) {
       return res.status(403).json({
@@ -490,9 +435,6 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
     const docTypes = await DocType.findAll();
     const codeToId = new Map(docTypes.map((d) => [d.code, d.id]));
 
-    // Замена бывает и без флага mode: если по такому типу файл уже есть, старая
-    // версия всё равно уйдёт в архив. Проверяем это ДО создания строк, чтобы
-    // запрет нельзя было обойти, просто не передав mode.
     if (!canReplace) {
       const requestedTypeIds = scans
         .map((s) => codeToId.get(s.docKey))
@@ -523,7 +465,6 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
       const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
       const et = ENTITY_TYPES.includes(entityType) ? entityType : 'rehabilitant';
 
-      // Предыдущая актуальная версия документа этого типа (если есть).
       const prev = await RecipientScanDoc.findOne({
         where: { recipId: recipient.id, docType: docTypeId, isCurrent: true },
         attributes: { exclude: ['fileData'] },
@@ -561,14 +502,10 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
   }
 });
 
-// Список файлов реабилитанта. По умолчанию — только актуальные версии;
-// ?all=1 добавляет архивные (заменённые) вместе с автором и причиной замены.
 router.get('/:id/scans', authMiddleware, async (req, res, next) => {
   try {
     const includeArchived = req.query.all === '1' || req.query.all === 'true';
     const where = { recipId: req.params.id };
-    // Строки, созданные до появления аудита, имеют isCurrent=1 — они попадают
-    // в выборку и без фильтра, поэтому условие безопасно.
     if (!includeArchived) where.isCurrent = true;
 
     const scans = await RecipientScanDoc.findAll({

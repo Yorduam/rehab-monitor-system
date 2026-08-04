@@ -250,7 +250,6 @@ const confirmPassword = ref('');
 const newUser = ref({ email: '', password: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null, canConclude: false, canViewAllResults: false });
 const directions = ref([]);
 
-// Понятные подписи для направлений (по profileKey), с запасным вариантом на name из БД.
 const PROFILE_LABELS = {
   psy: 'Психолог',
   log: 'Логопед',
@@ -262,14 +261,6 @@ const PROFILE_LABELS = {
 };
 const directionLabel = (dir) => PROFILE_LABELS[dir.profileKey] || dir.name;
 
-// ============================================================
-//  СОРТИРОВКА И ПОИСК ПО ПОЛЬЗОВАТЕЛЯМ
-//  Раньше список приходил с сервера в произвольном порядке и сотрудники
-//  центра были вперемешку с реабилитантами — найти нужного работника было
-//  тяжело. Теперь сверху всегда персонал (администраторы, преподаватели,
-//  сотрудники), а реабилитанты уходят вниз; внутри группы — по алфавиту.
-//  Сортируем на клиенте, чтобы не менять контракт GET /users.
-// ============================================================
 const ROLE_ORDER = { admin: 0, teacher: 1, employee: 2, recipient: 3 };
 const ROLE_LABELS = {
   admin: 'Администратор',
@@ -278,10 +269,9 @@ const ROLE_LABELS = {
   recipient: 'Реабилитант'
 };
 const isStaff = (u) => u.role !== 'recipient';
-// Intl.Collator — правильный порядок кириллицы (иначе «Ё» уезжает в конец).
 const collator = new Intl.Collator('ru', { sensitivity: 'base', numeric: true });
 
-const roleFilter = ref('all'); // all | staff | teacher | recipient
+const roleFilter = ref('all'); 
 const search = ref('');
 
 const sortedUsers = computed(() =>
@@ -315,14 +305,11 @@ const roleTabs = computed(() => [
   { id: 'recipient', label: 'Реабилитанты', count: sortedUsers.value.filter((u) => !isStaff(u)).length }
 ]);
 
-// Сколько всего в каждой группе — показываем в заголовке-разделителе,
-// чтобы было видно общее число, а не только попавших на текущую страницу.
 const groupCounts = computed(() => ({
   staff: filteredUsers.value.filter(isStaff).length,
   recipient: filteredUsers.value.filter((u) => !isStaff(u)).length
 }));
 
-// Строки текущей страницы; head !== null — перед строкой нужен заголовок группы.
 const pageRows = computed(() => {
   const start = (page.value - 1) * limit.value;
   let prev = null;
@@ -336,7 +323,6 @@ const pageRows = computed(() => {
 
 const totalPages = computed(() => Math.ceil(filteredUsers.value.length / limit.value));
 
-// Фильтр/поиск меняют состав списка — иначе можно остаться на пустой странице.
 watch([roleFilter, search], () => { page.value = 1; });
 
 const loadUsers = async () => {
@@ -398,11 +384,9 @@ const saveUser = async () => {
     phone: u.phone,
     cabinet: u.cabinet,
     directionId: isTeacher ? u.directionId : null,
-    // Права по диагностике имеют смысл только у специалиста.
     canConclude: isTeacher ? u.canConclude === true : false,
     canViewAllResults: isTeacher ? u.canViewAllResults === true : false
   };
-  // Свою собственную роль менять нельзя (защита от самоблокировки админа).
   if (u.id !== authStore.user?.id) payload.role = u.role;
   try {
     await api.put(`/users/${u.id}`, payload);
@@ -415,14 +399,12 @@ const saveUser = async () => {
 };
 const createUser = async () => {
   const payload = { ...newUser.value };
-  // Проф. ориентированность и права по диагностике — только для преподавателя.
   if (payload.role !== 'teacher') {
     payload.directionId = null;
     payload.canConclude = false;
     payload.canViewAllResults = false;
   }
   try {
-    // Отдельный админский эндпоинт: не выдаёт токен, не подменяет сессию администратора.
     await api.post('/users', payload);
     await loadUsers();
     addModalVisible.value = false;
@@ -444,10 +426,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ---- Warm paper theme (matches Dashboard / Сотрудник) ---- */
 .users-page { font-family: 'Inter', system-ui, sans-serif; color: #1a211a; }
 
-/* Header */
 .users-head {
   display: flex; align-items: flex-end; justify-content: space-between;
   gap: 1rem; flex-wrap: wrap; margin-bottom: 1.75rem;
@@ -464,12 +444,10 @@ onUnmounted(() => {
 }
 .users-sub { color: #4F564A; font-size: 0.95rem; margin: 0; }
 
-/* Card */
 .card { background: #FFFFFF; border-radius: 1.125rem; border: 1px solid #E4DECF; overflow: hidden; }
 .card-header { padding: 1rem 1.35rem; border-bottom: 1px solid #EFEADC; }
 .card-title { font-family: 'Lora', Georgia, serif; font-weight: 600; font-size: 1.05rem; color: #0F140F; }
 
-/* Панель фильтров: слева — вкладки ролей, справа — поиск */
 .users-toolbar {
   display: flex; align-items: center; justify-content: space-between;
   gap: 0.75rem; flex-wrap: wrap; margin-top: 0.85rem;
@@ -510,7 +488,6 @@ onUnmounted(() => {
   outline: none; border-color: #5F7E45; box-shadow: 0 0 0 3px rgba(95, 126, 69, 0.18);
 }
 
-/* Заголовок-разделитель группы внутри таблицы */
 .data-table tbody tr.group-row:hover { background: #F3EEE4; }
 .group-row td {
   background: #F3EEE4; padding: 0.45rem 0.9rem;
@@ -526,18 +503,15 @@ onUnmounted(() => {
   font-size: 0.7rem; font-weight: 700; line-height: 1.1rem;
 }
 
-/* Пустой результат поиска */
 .data-table tbody tr.empty-row:hover { background: transparent; }
 .empty-row td {
   padding: 2rem 0.9rem; text-align: center;
   color: #6E7368; font-size: 0.9rem;
 }
 
-/* Table */
 .table-container { overflow-x: auto; max-height: 60vh; overflow-y: auto; }
 .data-table { width: 100%; border-collapse: collapse; }
 .data-table th, .data-table td { padding: 0.8rem 0.9rem; text-align: left; border-bottom: 1px solid #EFEADC; }
-/* Разделительные полосы между столбцами */
 .data-table th:not(:last-child), .data-table td:not(:last-child) { border-right: 1px solid #EFEADC; }
 .data-table th {
   background: #F3EEE4; font-weight: 600; font-size: 0.72rem;
@@ -547,13 +521,11 @@ onUnmounted(() => {
 .data-table tbody tr:hover { background: #F7F4ED; }
 .data-table tbody tr:last-child td { border-bottom: none; }
 
-/* Действия в строке */
 .row-actions { display: flex; align-items: center; gap: 0.15rem; flex-wrap: wrap; }
 .btn-ghost-danger { color: #B0533F; }
 .btn-ghost-danger:hover { background: #FAE9E0; }
 .form-hint { display: block; margin-top: 0.3rem; font-size: 0.75rem; color: #6E7368; }
 
-/* Точечные права специалиста по диагностике */
 .perm-check {
   display: flex; align-items: flex-start; gap: 0.55rem;
   padding: 0.55rem 0.65rem; margin-top: 0.4rem;
@@ -573,7 +545,6 @@ select {
 select:focus { outline: none; border-color: #5F7E45; box-shadow: 0 0 0 3px rgba(95, 126, 69, 0.18); }
 select:disabled { background: #F3EEE4; color: #6E7368; cursor: not-allowed; }
 
-/* Buttons — scoped overrides win over the global blue .btn-primary */
 .btn-primary {
   display: inline-flex; align-items: center; gap: 0.45rem;
   background: #2F4A2F; color: #F4F8EC; border: none;
@@ -595,7 +566,6 @@ select:disabled { background: #F3EEE4; color: #6E7368; cursor: not-allowed; }
 }
 .btn-ghost-sm:hover { background: #EEF4E2; }
 
-/* Forms */
 .modal-buttons { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; }
 .form-row { display: flex; gap: 0.75rem; }
 .form-row .form-group { flex: 1; }
@@ -610,7 +580,6 @@ select:disabled { background: #F3EEE4; color: #6E7368; cursor: not-allowed; }
   outline: none; border-color: #5F7E45; box-shadow: 0 0 0 3px rgba(95, 126, 69, 0.18);
 }
 
-/* Password field with show/hide toggle */
 .password-field { position: relative; }
 .password-field input { padding-right: 2.6rem; }
 .password-toggle {

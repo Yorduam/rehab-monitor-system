@@ -15,8 +15,6 @@ import { getRecipientReadiness, findRecipientSlotConflict } from '../services/re
 
 const router = express.Router();
 
-// ---- helpers ---------------------------------------------------------------
-
 const RECIPIENT_ATTRS = ['id', 'firstName', 'lastName', 'middleName', 'photo', 'diagnosis'];
 const SPECIALIST_ATTRS = ['id', 'firstName', 'lastName', 'email', 'phone', 'cabinet', 'directionId'];
 const DIRECTION_ATTRS = ['id', 'name', 'profileKey'];
@@ -38,14 +36,12 @@ const assignmentIncludes = [
   { model: User, as: 'specialist', attributes: SPECIALIST_ATTRS }
 ];
 
-// 'HH:MM' | 'HH:MM:SS' → минуты от полуночи
 function toMinutes(t) {
   if (!t) return NaN;
   const [h, m] = String(t).split(':');
   return parseInt(h, 10) * 60 + parseInt(m, 10);
 }
 
-// нормализуем время к 'HH:MM:SS' для хранения в MySQL TIME
 function normTime(t) {
   if (!t) return null;
   const parts = String(t).split(':');
@@ -59,7 +55,6 @@ function intervalsOverlap(aStart, aEnd, bStart, bEnd) {
   return toMinutes(aStart) < toMinutes(bEnd) && toMinutes(bStart) < toMinutes(aEnd);
 }
 
-// Проверка занятости слота специалиста. Возвращает конфликтующее событие или null.
 async function findConflict(specialistUserId, date, startTime, endTime, excludeEventId = null) {
   const where = {
     specialistUserId,
@@ -75,31 +70,20 @@ function isCoordinator(user) {
   return user.role === 'admin' || user.role === 'employee';
 }
 
-// Кто хозяин события/назначения (может редактировать/завершать этап).
 function ownsAssignment(user, assignment) {
   return user.role === 'admin' || assignment.specialistUserId === user.id;
 }
 
-// Кто может видеть ЗАПОЛНЕННЫЕ блоки других специалистов, а не только свой.
-// По умолчанию специалист видит лишь свой блок; отдельным специалистам
-// администратор выставляет флаг canViewAllResults.
 function canSeeAllResults(user) {
   return isCoordinator(user) || user.canViewAllResults === true;
 }
 
-// Кто может выдать итоговое заключение по диагностике.
-// Право точечное: администратор выдаёт его конкретным специалистам.
 function canIssueConclusion(user) {
   return user.role === 'admin' || user.canConclude === true;
 }
 
-// Решение по итогам диагностики — три варианта этапа 04 карточки:
-// «Рекомендованы» / «Пробные (2 недели)» / «Не рекомендованы».
 const VERDICTS = ['recommended', 'trial', 'rejected'];
 
-// Маршрут диагностики — три этапа карточки; заключение это их итог, этап 04.
-// Ключ — Direction.profileKey, значение — этап. Соответствие держим таким же,
-// как PROFILE_BLOCKS в src/views/Diagnostics.vue.
 const STAGE_BY_PROFILE = {
   psy: 'psy',
   log: 'psy',
@@ -110,23 +94,12 @@ const STAGE_BY_PROFILE = {
   instrument: 'soc'
 };
 
-// Заключение выдаётся только после этапов 01–03 — ровно то, что написано
-// на самой карточке: «Ожидает этапов 01–03». Раньше сервер смотрел лишь на
-// ВЗЯТЫЕ блоки, поэтому заявку, где отметился один психолог, можно было
-// закрыть заключением, не проведя ни АФК, ни социокультурную диагностику.
 const REQUIRED_STAGES = [
   { key: 'psy', title: '01 Психолог + логопед' },
   { key: 'afk', title: '02 АФК' },
   { key: 'soc', title: '03 Социокультурная' }
 ];
 
-// Незакрытые этапы. Этап пройден, когда сданы ВСЕ его блоки в заявке.
-//
-// Раньше хватало одного завершённого блока на этап, и этап 01 закрывался
-// психологом в одиночку — логопед оставался «в работе», но сервер считал
-// этап пройденным. Отсюда и расхождение: карточка (она требует все блоки)
-// показывала одно, сервер — другое, и у разных специалистов «пройденные
-// этапы» не совпадали. Теперь правило одно и то же с обеих сторон.
 function missingStages(assignments) {
   const byStage = new Map();
   for (const a of assignments || []) {
@@ -137,7 +110,6 @@ function missingStages(assignments) {
   }
   return REQUIRED_STAGES.filter((s) => {
     const blocks = byStage.get(s.key) || [];
-    // Ни одного блока — этап вообще никто не взял, он точно не пройден.
     if (!blocks.length) return true;
     return !blocks.every((a) => a.blockStatus === 'completed');
   });
@@ -145,16 +117,11 @@ function missingStages(assignments) {
 
 const today = () => new Date().toISOString().slice(0, 10);
 
-// Один блок диагностики глазами конкретного пользователя.
-// Чужие результаты скрываем, если нет права их видеть.
 function serializeBlock(a, viewer) {
   const mine = a.specialistUserId === viewer.id;
   const visible = mine || canSeeAllResults(viewer);
   return {
     id: a.id,
-    // Заявка, которой принадлежит блок. Без неё карточка не может отличить
-    // блоки текущей диагностики от блоков прошлых, уже закрытых заявок
-    // того же реабилитанта — и рискует записать результат не в ту.
     diagnosticSessionId: a.diagnosticSessionId,
     directionId: a.directionId,
     direction: a.direction || null,
@@ -170,12 +137,10 @@ function serializeBlock(a, viewer) {
     isMine: mine,
     results: visible ? (a.results || null) : null,
     comment: visible ? (a.comment || null) : null,
-    // Блок заполнен, но конкретно этому пользователю его содержимое не видно.
     resultsHidden: !visible
   };
 }
 
-// ---- список специалистов (для формы назначения) ----------------------------
 router.get('/specialists', authMiddleware, async (req, res) => {
   try {
     const teachers = await User.findAll({
@@ -191,15 +156,11 @@ router.get('/specialists', authMiddleware, async (req, res) => {
   }
 });
 
-// ---- события расписания -----------------------------------------------------
-// GET /events?from=YYYY-MM-DD&to=YYYY-MM-DD&specialistUserId=&type=
 router.get('/events', authMiddleware, async (req, res) => {
   try {
     const { from, to, type } = req.query;
     const where = {};
 
-    // Преподаватель видит только своё расписание. Координатор может указать
-    // конкретного специалиста, иначе видит все события за период.
     if (req.user.role === 'teacher') {
       where.specialistUserId = req.user.id;
     } else if (req.query.specialistUserId) {
@@ -225,11 +186,9 @@ router.get('/events', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /events — создать обычное занятие (lesson)
 router.post('/events', authMiddleware, roleMiddleware('admin', 'employee', 'teacher'), async (req, res) => {
   try {
     let { specialistUserId, recipientId, directionId, title, date, startTime, endTime } = req.body;
-    // Преподаватель может создавать события только в своём расписании.
     if (req.user.role === 'teacher') specialistUserId = req.user.id;
     if (!specialistUserId || !date || !startTime || !endTime) {
       return res.status(400).json({ message: 'Укажите специалиста, дату и время' });
@@ -268,7 +227,6 @@ router.post('/events', authMiddleware, roleMiddleware('admin', 'employee', 'teac
   }
 });
 
-// DELETE /events/:id — отменить/удалить событие (и связанное назначение)
 router.delete('/events/:id', authMiddleware, roleMiddleware('admin', 'employee', 'teacher'), async (req, res) => {
   try {
     const event = await ScheduleEvent.findByPk(req.params.id);
@@ -288,10 +246,6 @@ router.delete('/events/:id', authMiddleware, roleMiddleware('admin', 'employee',
   }
 });
 
-// ---- назначения диагностики -------------------------------------------------
-// GET /assignments/readiness/:recipientId — проверка перед назначением.
-// Отдаёт заполненность маршрута, просроченные документы и мешающие факторы,
-// чтобы форма назначения показала чек-лист ещё до отправки.
 router.get('/assignments/readiness/:recipientId', authMiddleware, roleMiddleware('admin', 'employee', 'teacher'), async (req, res) => {
   try {
     const readiness = await getRecipientReadiness(req.params.recipientId);
@@ -302,13 +256,6 @@ router.get('/assignments/readiness/:recipientId', authMiddleware, roleMiddleware
     res.status(500).json({ message: 'Ошибка сервера' });
   }
 });
-
-// ============================================================================
-//  ЗАЯВКИ НА ДИАГНОСТИКУ — назначение ТОЛЬКО датой
-// ============================================================================
-// Ресепшн (employee) не знает, кто из специалистов сегодня работает, поэтому
-// он не выбирает ни направление, ни специалиста, ни время — только дату.
-// Дальше специалисты сами разбирают заявки из общего пула (POST .../claim).
 
 const sessionIncludes = [
   { model: Recipient, as: 'recipient', attributes: RECIPIENT_ATTRS },
@@ -332,14 +279,12 @@ function loadSession(id) {
   return DiagnosticSession.findByPk(id, { include: sessionIncludes });
 }
 
-// Заявка глазами конкретного пользователя.
 function serializeSession(s, viewer) {
   const blocks = (s.assignments || [])
     .slice()
     .sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')))
     .map((a) => serializeBlock(a, viewer));
   const completed = blocks.filter((b) => b.blockStatus === 'completed').length;
-  // Чего не хватает для заключения: этапы 01–03 без единого сданного блока.
   const missing = missingStages(s.assignments || []);
   return {
     id: s.id,
@@ -356,9 +301,6 @@ function serializeSession(s, viewer) {
     total: blocks.length,
     completed,
     fullyCompleted: blocks.length > 0 && completed === blocks.length,
-    // Непройденные этапы маршрута и общий признак готовности к заключению.
-    // Форма этапа 04 опирается на них, чтобы не предлагать выдать вердикт
-    // раньше, чем специалисты закончат свои этапы.
     missingStages: missing,
     readyForConclusion: blocks.length > 0 && completed === blocks.length && missing.length === 0,
     mine: blocks.filter((b) => b.isMine).map((b) => b.id),
@@ -367,8 +309,6 @@ function serializeSession(s, viewer) {
     conclusion: s.conclusion
       ? {
           id: s.conclusion.id,
-          // Решение по итогам диагностики (этап 04 карточки). null у старых
-          // заключений, выданных из «Расписания» до появления поля.
           verdict: s.conclusion.verdict || null,
           summary: s.conclusion.summary,
           recommendations: s.conclusion.recommendations,
@@ -380,7 +320,6 @@ function serializeSession(s, viewer) {
   };
 }
 
-// POST /sessions — ресепшн создаёт заявку. В теле только recipientId + date.
 router.post('/sessions', authMiddleware, roleMiddleware('admin', 'employee'), async (req, res) => {
   try {
     const { recipientId, date, note } = req.body;
@@ -391,10 +330,6 @@ router.post('/sessions', authMiddleware, roleMiddleware('admin', 'employee'), as
       return res.status(400).json({ message: 'Дата диагностики не может быть в прошлом' });
     }
 
-    // Незакрытая заявка — жёсткий стоп, и проверяем его ПЕРВЫМ. Готовность
-    // маршрута выдаёт на ту же ситуацию расплывчатый блокер (а на будущую дату —
-    // всего лишь warning, который админ мог бы продавить через force и получить
-    // дубль). Точное сообщение здесь важнее.
     const active = await DiagnosticSession.findOne({
       where: { recipientId, status: { [Op.in]: ['open', 'in_progress'] } }
     });
@@ -405,7 +340,6 @@ router.post('/sessions', authMiddleware, roleMiddleware('admin', 'employee'), as
       });
     }
 
-    // Те же проверки готовности, что и раньше: маршрут, документы, занятость.
     const readiness = await getRecipientReadiness(recipientId);
     if (!readiness) return res.status(404).json({ message: 'Реабилитант не найден' });
 
@@ -441,7 +375,6 @@ router.post('/sessions', authMiddleware, roleMiddleware('admin', 'employee'), as
   }
 });
 
-// GET /sessions?from=&to=&status=&recipientId=
 router.get('/sessions', authMiddleware, roleMiddleware('admin', 'employee', 'teacher'), async (req, res) => {
   try {
     const { from, to, status, recipientId } = req.query;
@@ -452,7 +385,6 @@ router.get('/sessions', authMiddleware, roleMiddleware('admin', 'employee', 'tea
     if (status) where.status = status;
     if (recipientId) where.recipientId = parseInt(recipientId, 10);
 
-    // Преподаватель в этом списке видит только те заявки, которые он взял.
     if (req.user.role === 'teacher') {
       const mine = await DiagnosticAssignment.findAll({
         where: { specialistUserId: req.user.id, diagnosticSessionId: { [Op.ne]: null } },
@@ -475,8 +407,6 @@ router.get('/sessions', authMiddleware, roleMiddleware('admin', 'employee', 'tea
   }
 });
 
-// GET /pool?from=&to= — свободные заявки, которые специалист может взять себе.
-// Именно здесь специалист «берёт» реабилитанта на диагностику.
 router.get('/pool', authMiddleware, roleMiddleware('admin', 'employee', 'teacher'), async (req, res) => {
   try {
     const from = req.query.from || today();
@@ -494,7 +424,6 @@ router.get('/pool', authMiddleware, roleMiddleware('admin', 'employee', 'teacher
 
     const list = rows.map((s) => {
       const view = serializeSession(s, req.user);
-      // Уже взял этого реабилитанта — повторно брать нельзя.
       view.claimedByMe = view.blocks.some((b) => b.specialistUserId === req.user.id);
       return view;
     });
@@ -505,7 +434,6 @@ router.get('/pool', authMiddleware, roleMiddleware('admin', 'employee', 'teacher
   }
 });
 
-// GET /sessions/:id — доска диагностики (для просмотра в реальном времени)
 router.get('/sessions/:id', authMiddleware, roleMiddleware('admin', 'employee', 'teacher'), async (req, res) => {
   try {
     const s = await loadSession(req.params.id);
@@ -517,14 +445,11 @@ router.get('/sessions/:id', authMiddleware, roleMiddleware('admin', 'employee', 
   }
 });
 
-// POST /sessions/:id/claim — специалист берёт реабилитанта себе.
-// Направление НЕ передаётся: берём профиль из учётной записи специалиста.
 router.post('/sessions/:id/claim', authMiddleware, roleMiddleware('admin', 'teacher'), async (req, res) => {
   const t = await sequelize.startUnmanagedTransaction();
   try {
     let { startTime, endTime, specialistUserId } = req.body;
 
-    // Преподаватель берёт только на себя; админ может назначить за другого.
     const targetId = req.user.role === 'admin' && specialistUserId ? specialistUserId : req.user.id;
     const specialist = await User.findByPk(targetId);
     if (!specialist) {
@@ -571,7 +496,6 @@ router.post('/sessions/:id/claim', authMiddleware, roleMiddleware('admin', 'teac
       return res.status(400).json({ message: 'Время окончания должно быть позже начала' });
     }
 
-    // Специалист не может вести двоих одновременно.
     const conflict = await findConflict(targetId, session.date, startTime, endTime);
     if (conflict) {
       await t.rollback();
@@ -579,7 +503,6 @@ router.post('/sessions/:id/claim', authMiddleware, roleMiddleware('admin', 'teac
         message: `Ваш слот занят: уже есть событие ${conflict.startTime}–${conflict.endTime}`
       });
     }
-    // Реабилитант тоже не может быть в двух кабинетах сразу.
     const ownConflict = await findRecipientSlotConflict(session.recipientId, session.date, startTime, endTime);
     if (ownConflict) {
       await t.rollback();
@@ -635,7 +558,6 @@ router.post('/sessions/:id/claim', authMiddleware, roleMiddleware('admin', 'teac
   }
 });
 
-// POST /sessions/:id/cancel — снять заявку (координатор).
 router.post('/sessions/:id/cancel', authMiddleware, roleMiddleware('admin', 'employee'), async (req, res) => {
   try {
     const session = await DiagnosticSession.findByPk(req.params.id);
@@ -652,7 +574,6 @@ router.post('/sessions/:id/cancel', authMiddleware, roleMiddleware('admin', 'emp
       });
     }
 
-    // Снимаем незавершённые слоты из расписания, заполненные данные не трогаем.
     for (const b of blocks) {
       if (b.blockStatus === 'completed') continue;
       await ScheduleEvent.destroy({ where: { assignmentId: b.id } });
@@ -669,9 +590,6 @@ router.post('/sessions/:id/cancel', authMiddleware, roleMiddleware('admin', 'emp
   }
 });
 
-// ---- Итоговое заключение ----------------------------------------------------
-// Право выдать заключение есть НЕ у всех: только у специалистов с флагом
-// canConclude (выставляет администратор) и у самого администратора.
 router.post('/sessions/:id/conclusion', authMiddleware, async (req, res) => {
   try {
     if (!canIssueConclusion(req.user)) {
@@ -695,13 +613,7 @@ router.post('/sessions/:id/conclusion', authMiddleware, async (req, res) => {
 
     const existing = await DiagnosticConclusion.findOne({ where: { sessionId: session.id } });
 
-    // Готовность маршрута проверяем только при ПЕРВОЙ выдаче. Правка уже
-    // выданного заключения — это исправление текста, а не новое решение,
-    // и запирать её из-за незакрытых этапов нельзя.
     if (!existing) {
-      // Направление блока нужно, чтобы понять, к какому этапу маршрута он
-      // относится: проверяем не только «все ли взятые блоки сданы», но и
-      // «пройдены ли сами этапы 01–03».
       const blocks = await DiagnosticAssignment.findAll({
         where: { diagnosticSessionId: session.id },
         include: [{ model: Direction, as: 'direction', attributes: DIRECTION_ATTRS }]
@@ -712,12 +624,6 @@ router.post('/sessions/:id/conclusion', authMiddleware, async (req, res) => {
       const pending = blocks.filter((b) => b.blockStatus !== 'completed');
       const missing = missingStages(blocks);
       const force = req.body.force === true && req.user.role === 'admin';
-      // Заключение — четвёртый этап, и выдаётся он только когда пройдены первые
-      // три. Проверки две, и обе обязательны: по каждому из этапов 01–03 должен
-      // быть хотя бы один ЗАВЕРШЁННЫЙ блок, и ни один взятый блок не должен
-      // висеть незакрытым. Раньше была только вторая — поэтому заявку, где
-      // отметился один психолог, можно было закрыть заключением, не проведя
-      // ни АФК, ни социокультурную диагностику.
       if ((pending.length || missing.length) && !force) {
         const parts = [];
         if (missing.length) parts.push('не пройдены этапы ' + missing.map((s) => s.title).join(', '));
@@ -734,9 +640,6 @@ router.post('/sessions/:id/conclusion', authMiddleware, async (req, res) => {
 
     const recommendations = String(req.body.recommendations || '').trim() || null;
 
-    // Вердикт приходит с этапа 04 карточки диагностики. Из «Расписания»
-    // его могут не прислать — тогда сохраняем то, что было (не затираем
-    // ранее выставленное решение пустым значением).
     const rawVerdict = String(req.body.verdict || '').trim();
     if (rawVerdict && !VERDICTS.includes(rawVerdict)) {
       return res.status(400).json({
@@ -775,9 +678,6 @@ router.post('/sessions/:id/conclusion', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /assignments — прямое назначение конкретному специалисту.
-// Оставлено только администратору как ручное исключение: обычный сценарий —
-// заявка датой (POST /sessions) + разбор специалистами (POST .../claim).
 router.post('/assignments', authMiddleware, roleMiddleware('admin'), async (req, res) => {
   const t = await sequelize.startUnmanagedTransaction();
   try {
@@ -799,11 +699,6 @@ router.post('/assignments', authMiddleware, roleMiddleware('admin'), async (req,
       return res.status(400).json({ message: 'Специалист не найден' });
     }
 
-    // ---- Проверка готовности реабилитанта ----------------------------------
-    // Диагностику назначаем только при полностью заполненном маршруте, без
-    // просроченных документов и когда другая диагностика не идёт прямо сейчас.
-    // Предупреждения (истекающие документы, уже запланированная диагностика)
-    // можно осознанно проигнорировать флагом force — только для админа.
     const readiness = await getRecipientReadiness(recipientId);
     if (!readiness) {
       await t.rollback();
@@ -828,7 +723,6 @@ router.post('/assignments', authMiddleware, roleMiddleware('admin'), async (req,
       });
     }
 
-    // Валидация конфликта времени — не сохраняем, если слот занят.
     const conflict = await findConflict(specialistUserId, date, startTime, endTime);
     if (conflict) {
       await t.rollback();
@@ -837,7 +731,6 @@ router.post('/assignments', authMiddleware, roleMiddleware('admin'), async (req,
       });
     }
 
-    // Реабилитант тоже не может быть в двух местах одновременно.
     const ownConflict = await findRecipientSlotConflict(recipientId, date, startTime, endTime);
     if (ownConflict) {
       await t.rollback();
@@ -862,7 +755,6 @@ router.post('/assignments', authMiddleware, roleMiddleware('admin'), async (req,
       createdBy: req.user.id
     }, { transaction: t });
 
-    // Авто-пуш события в расписание специалиста.
     await ScheduleEvent.create({
       specialistUserId,
       recipientId,
@@ -887,8 +779,6 @@ router.post('/assignments', authMiddleware, roleMiddleware('admin'), async (req,
   }
 });
 
-// Все блоки одной диагностики. Новые назначения группируются по заявке
-// (diagnosticSessionId), старые — по строковому sessionId/дате.
 async function siblingBlocks(assignment) {
   const where = {};
   if (assignment.diagnosticSessionId) {
@@ -908,8 +798,6 @@ async function siblingBlocks(assignment) {
   });
 }
 
-// Статус сессии (FULLY_COMPLETED, когда все этапы завершены) + блоки коллег.
-// viewer нужен, чтобы решить, показывать ли содержимое чужих блоков.
 async function sessionSummary(assignment, viewer) {
   const siblings = await siblingBlocks(assignment);
   const total = siblings.length;
@@ -925,13 +813,10 @@ async function sessionSummary(assignment, viewer) {
   };
 }
 
-// GET /assignments/:id — данные для модалки заполнения + агрегат сессии
 router.get('/assignments/:id', authMiddleware, async (req, res) => {
   try {
     const assignment = await DiagnosticAssignment.findByPk(req.params.id, { include: assignmentIncludes });
     if (!assignment) return res.status(404).json({ message: 'Назначение не найдено' });
-    // Свой блок открыт всегда. Чужой — только координаторам и специалистам
-    // с правом видеть результаты коллег (canViewAllResults), и только на чтение.
     const mine = assignment.specialistUserId === req.user.id;
     if (!mine && !canSeeAllResults(req.user)) {
       return res.status(403).json({ message: 'Доступ запрещён: это блок другого специалиста' });
@@ -950,13 +835,10 @@ router.get('/assignments/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// PATCH /assignments/:id — сохранить черновик своего блока
 router.patch('/assignments/:id', authMiddleware, async (req, res) => {
   try {
     const assignment = await DiagnosticAssignment.findByPk(req.params.id);
     if (!assignment) return res.status(404).json({ message: 'Назначение не найдено' });
-    // Доступ строго: только владелец блока (или админ). Логопед не может
-    // редактировать чужой блок.
     if (!ownsAssignment(req.user, assignment)) {
       return res.status(403).json({ message: 'Можно редактировать только свой блок' });
     }
@@ -971,7 +853,6 @@ router.patch('/assignments/:id', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /assignments/:id/complete — «Завершить свой этап»
 router.post('/assignments/:id/complete', authMiddleware, async (req, res) => {
   try {
     const assignment = await DiagnosticAssignment.findByPk(req.params.id);
@@ -986,7 +867,6 @@ router.post('/assignments/:id/complete', authMiddleware, async (req, res) => {
     assignment.completedAt = new Date();
     await assignment.save();
 
-    // Синхронизируем статус события в расписании.
     await ScheduleEvent.update(
       { status: 'completed' },
       { where: { assignmentId: assignment.id } }
@@ -1000,7 +880,6 @@ router.post('/assignments/:id/complete', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /assignments/:id/reopen — вернуть этап в работу
 router.post('/assignments/:id/reopen', authMiddleware, async (req, res) => {
   try {
     const assignment = await DiagnosticAssignment.findByPk(req.params.id);
@@ -1023,8 +902,6 @@ router.post('/assignments/:id/reopen', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /assignments/:id/release — специалист отказывается от взятого блока.
-// Слот освобождается, заявка снова доступна другим специалистам в пуле.
 router.post('/assignments/:id/release', authMiddleware, async (req, res) => {
   try {
     const assignment = await DiagnosticAssignment.findByPk(req.params.id);
@@ -1042,7 +919,6 @@ router.post('/assignments/:id/release', authMiddleware, async (req, res) => {
     await ScheduleEvent.destroy({ where: { assignmentId: assignment.id } });
     await assignment.destroy();
 
-    // Если блоков не осталось — заявка снова «свободна».
     if (sessionId) {
       const left = await DiagnosticAssignment.count({ where: { diagnosticSessionId: sessionId } });
       if (!left) {

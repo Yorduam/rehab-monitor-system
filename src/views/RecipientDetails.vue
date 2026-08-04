@@ -12,14 +12,12 @@
 
     <template v-else>
 
-      <!-- BREADCRUMB -->
       <nav class="breadcrumb" aria-label="Хлебные крошки">
         <a class="bc-link" @click="goBack">Реабилитанты</a>
         <span class="sep" aria-hidden="true">/</span>
         <span class="current">{{ fullName(recipient) }}</span>
       </nav>
 
-      <!-- ALERT: особенности / сигналы поддержки -->
       <div v-if="doc && doc.specialNote" class="alert" role="note">
         <div class="alert-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
@@ -30,7 +28,6 @@
         </div>
       </div>
 
-      <!-- ALERT: просроченные / недостающие документы -->
       <div v-if="docAlertCount" class="alert alert-docs" role="alert">
         <div class="alert-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="12" y1="18.5" x2="12.01" y2="18.5"/></svg>
@@ -51,7 +48,6 @@
         </button>
       </div>
 
-      <!-- HERO -->
       <section class="hero" aria-label="Сводка по реабилитанту">
         <button v-if="photoUrl" type="button" class="hero-banner hero-banner-photo" @click="heroPhotoOpen = true" aria-label="Открыть фото на весь экран">
           <img :src="photoUrl" alt="" />
@@ -69,8 +65,6 @@
               <span class="id-chip">R-{{ recipientCode }}</span>
               <span class="status-dot" :class="statusDotClass" aria-hidden="true"></span>
               <span class="status-label" :class="statusDotClass">{{ statusLabel(recipient.status) }}</span>
-              <!-- Как в макете: «12-я неделя цикла · группа «Средние»».
-                   Неделю считает маршрут по дате первого занятия. -->
               <span v-if="stageChip" class="stage-chip">{{ stageChip }}</span>
             </div>
             <h1 class="hero-name">{{ fullName(recipient) }}</h1>
@@ -93,18 +87,7 @@
           </div>
         </div>
 
-        <!-- STAGE TRACK — маршрут реабилитанта из макета «Карточка v3»:
-             шесть этапов жизненного цикла (заявка → заявление → диагностика →
-             зачисление → занятия → итоги цикла).
 
-             Ни один этап не отмечается вручную: состояние приходит из
-             /readiness → lifecycle и считается по реальным данным — группе,
-             событиям расписания, заявкам и заключениям. Поэтому маршрут не
-             может разойтись с тем, что видно во вкладках.
-
-             Каждый этап кликабельный и ведёт на ту вкладку карточки, где его
-             закрывают: заявку правят в анкете, заявление — в документах,
-             зачисление и занятия — в группе. -->
         <div class="stage-track">
           <div class="stage-track-head">
             <div class="stage-track-label">Маршрут реабилитанта</div>
@@ -144,16 +127,12 @@
               </svg>
               Назначить диагностику
             </button>
-            <!-- Плашка «Готовность к диагностике: N / N» удалена. Сама проверка
-                 работает по-прежнему: если карточка не заполнена, об этом скажет
-                 счётчик препятствий ниже и окно назначения диагностики. -->
             <span v-if="canAssignDiagnostic && !readiness.canAssign" class="stage-assign-note">
               {{ readiness.errors.length }} {{ blockerWord(readiness.errors.length) }} к назначению
             </span>
           </div>
         </div>
 
-        <!-- MINI STATS -->
         <div class="mini-stats">
           <div class="mini-stat">
             <div class="label">Возраст</div>
@@ -178,15 +157,12 @@
         </div>
       </section>
 
-      <!-- TABS -->
       <div class="tabs" role="tablist" aria-label="Разделы карточки">
         <button v-for="t in tabs" :key="t.id"
           class="tab" role="tab" type="button"
           :aria-selected="activeTab === t.id"
           @click="activeTab = t.id">
           {{ t.label }}
-          <!-- Значок уведомления о просроченных / недостающих документах.
-               Показываем в подменю «Обзор» и «Анкета и медкарта». -->
           <span
             v-if="docAlertCount && (t.id === 'overview' || t.id === 'profile')"
             class="tab-alert"
@@ -206,10 +182,8 @@
         </button>
       </div>
 
-      <!-- PANEL: ОБЗОР -->
       <div v-if="activeTab === 'overview'" class="tabpanel">
         <div class="grid">
-          <!-- LEFT -->
           <div>
             <section class="card">
               <div class="card-head">
@@ -268,7 +242,6 @@
               </button>
             </section>
 
-            <!-- Последние занятия -->
             <section class="card">
               <div class="card-head">
                 <div>
@@ -304,9 +277,7 @@
             </section>
           </div>
 
-          <!-- RIGHT -->
           <aside>
-            <!-- Команда сопровождения -->
             <section class="card">
               <div class="card-head"><h2 class="card-title-sans">Команда сопровождения</h2></div>
               <div class="card-body">
@@ -335,7 +306,6 @@
               </button>
             </section>
 
-            <!-- Ближайшие события -->
             <section class="card">
               <div class="card-head"><h2 class="card-title-sans">Ближайшие события</h2></div>
               <div class="card-body">
@@ -356,7 +326,6 @@
               </div>
             </section>
 
-            <!-- Отметка посещения (только админ/преподаватель) -->
             <section v-if="canMarkAttendance" class="card">
               <div class="card-head"><h2 class="card-title-sans">Отметка посещения сегодня</h2></div>
               <div class="card-body">
@@ -398,7 +367,6 @@
         </div>
       </div>
 
-      <!-- PANEL: АНКЕТА И МЕДКАРТА -->
       <div v-else-if="activeTab === 'profile'" class="tabpanel">
         <section class="card">
           <div class="card-head">
@@ -453,7 +421,6 @@
           </button>
         </section>
 
-        <!-- История обновлений документов: старые данные не теряются -->
         <section v-if="doc" class="card" style="margin-top: 1.25rem;">
           <div class="card-head">
             <div>
@@ -490,11 +457,8 @@
         </section>
       </div>
 
-      <!-- PANEL: ДОКУМЕНТЫ -->
       <div v-else-if="activeTab === 'documents'" class="tabpanel">
 
-        <!-- Прикреплённые сканы. Файл можно заменить: старая версия остаётся
-             в истории вместе с причиной замены, автором и датой. -->
         <section class="card" style="margin-top: 1.25rem;">
           <div class="card-head">
             <div>
@@ -541,7 +505,6 @@
           </div>
         </section>
 
-        <!-- ===== МОДАЛКА: ЗАМЕНА ФАЙЛА ===== -->
         <div v-if="replaceScan" class="du-overlay" @click.self="closeScanReplace">
           <div class="du-modal du-modal-sm" role="dialog" aria-modal="true" aria-labelledby="rs-title">
             <header class="du-head">
@@ -618,7 +581,6 @@
           </div>
         </div>
 
-        <!-- ===== МОДАЛКА: ИСТОРИЯ ВЕРСИЙ ФАЙЛА ===== -->
         <div v-if="historyScan" class="du-overlay" @click.self="closeScanHistory">
           <div class="du-modal du-modal-sm" role="dialog" aria-modal="true" aria-labelledby="sh-title">
             <header class="du-head">
@@ -632,8 +594,6 @@
             </header>
 
             <div class="du-body">
-              <!-- rd-history-flat: без зелёной полоски слева. Здесь актуальность
-                   версии и так видна по метке «Актуальная», полоска дублировала бы её. -->
               <ol class="rd-history rd-history-flat">
                 <li v-for="(v, i) in scanHistoryRows" :key="v.id" class="rd-history-item">
                   <div class="rd-history-head">
@@ -661,7 +621,6 @@
           </div>
         </div>
 
-        <!-- Лайтбокс просмотра изображения -->
         <div v-if="lightbox" class="rd-lightbox" @click="lightbox = null">
           <img :src="lightbox" alt="" @click.stop />
           <button type="button" class="rd-lightbox-close" @click="lightbox = null" aria-label="Закрыть">
@@ -670,9 +629,7 @@
         </div>
       </div>
 
-      <!-- PANEL: ЗАНЯТИЯ И ГРУППА -->
       <div v-else-if="activeTab === 'lessons'" class="tabpanel">
-        <!-- Занятия -->
         <section class="card" style="margin-bottom: 1.25rem;">
           <div class="card-head">
             <div>
@@ -715,7 +672,6 @@
           </div>
         </section>
 
-        <!-- Группа -->
         <section class="card">
           <div class="card-head">
             <div>
@@ -756,7 +712,6 @@
         </section>
       </div>
 
-      <!-- PANEL: ПРЕДСТАВИТЕЛЬ И СЕМЬЯ -->
       <div v-else-if="activeTab === 'representative'" class="tabpanel">
         <section class="card">
           <div class="card-head"><h2 class="card-title">Законный представитель</h2></div>
@@ -779,7 +734,6 @@
         </section>
       </div>
 
-      <!-- PANEL: ДИАГНОСТИКА И РАЗВИТИЕ -->
       <div v-else-if="activeTab === 'diagnostics'" class="tabpanel">
         <section class="card">
           <div class="card-head"><h2 class="card-title">Диагностика и развитие</h2></div>
@@ -833,13 +787,11 @@
         </section>
       </div>
 
-      <!-- FOOTER -->
       <div class="rd-footer">
         <span class="id-chip">ID R-{{ recipientCode }}</span>
         <button class="btn btn-secondary" @click="goBack">← К списку</button>
       </div>
 
-      <!-- Лайтбокс фото из шапки -->
       <div v-if="heroPhotoOpen && photoUrl" class="rd-lightbox" @click="heroPhotoOpen = false">
         <img :src="photoUrl" alt="" @click.stop />
         <button type="button" class="rd-lightbox-close" @click="heroPhotoOpen = false" aria-label="Закрыть">
@@ -847,7 +799,6 @@
         </button>
       </div>
 
-      <!-- ===== МОДАЛКА: ОБНОВЛЕНИЕ ДОКУМЕНТОВ ===== -->
       <div v-if="docUpdateOpen" class="du-overlay" @click.self="closeDocUpdate">
         <div class="du-modal" role="dialog" aria-modal="true" aria-labelledby="du-title">
           <header class="du-head">
@@ -958,7 +909,6 @@
         </div>
       </div>
 
-      <!-- Назначение диагностики из карточки -->
       <AssignDiagnosticModal
         v-if="assignOpen"
         :recipient-id="recipientId"
@@ -988,44 +938,33 @@ const groupMembers = ref([]);
 const groupMembersLoading = ref(false);
 const activeTab = ref('overview');
 
-// Расписание/занятия реабилитанта (источник: ScheduleEvent через /agenda)
 const events = ref([]);
 const agendaLoading = ref(false);
 const agendaLoaded = ref(false);
 
-// Просмотр фото из шапки
 const heroPhotoOpen = ref(false);
 
-// Отметка посещения на сегодня
-const attStatus = ref(null);      // выбранный в UI статус (present|absent|left)
+const attStatus = ref(null);      
 const attSaving = ref(false);
-const attSavedStatus = ref(null); // уже сохранённый на сегодня статус
+const attSavedStatus = ref(null); 
 
 const allGroups = ref([]);
 const groupsLoading = ref(false);
 const selectedGroupId = ref(null);
 const savingGroup = ref(false);
 
-// Прикреплённые сканы/файлы реабилитанта.
-// scanRows — ВСЕ версии (включая заменённые), их отдаёт GET /scans?all=1.
-// Заменённые файлы не удаляются, поэтому историю показываем без доп. запросов.
 const scanRows = ref([]);
 const scansLoading = ref(false);
 const scansLoaded = ref(false);
 const lightbox = ref(null);
 
-// В сетке показываем только актуальные версии.
 const scans = computed(() => scanRows.value.filter((s) => s.isCurrent !== false));
-// Все версии одного документа (одного docType), сверху — свежие.
 const versionsOf = (s) =>
   scanRows.value
     .filter((r) => r.docType === s.docType)
     .sort((a, b) => b.id - a.id);
 const versionCount = (s) => versionsOf(s).length;
 
-// Справочники направлений и специалистов здесь больше не нужны: назначение
-// диагностики идёт только датой через AssignDiagnosticModal, а разбирают
-// заявку сами специалисты. Карточка эти списки только показывала в старой форме.
 const assignments = ref([]);
 const assignmentsLoading = ref(false);
 const todayStr = new Date().toISOString().slice(0, 10);
@@ -1045,34 +984,20 @@ const tabs = [
   { id: 'representative', label: 'Представитель и семья' },
 ];
 
-// ===== Готовность реабилитанта (маршрут, документы, препятствия) =====
-// Источник: GET /recipients/:id/readiness. Отсюда карточка берёт и значок
-// уведомления о просроченных документах, и реальную заполненность маршрута.
 const readiness = ref(null);
 const readinessLoading = ref(false);
 
-// Computed-свойства routeSteps/routeDoneCount/routeComplete/routeReadyTitle
-// удалены вместе с плашкой «Готовность к диагностике» — их использовала
-// только она. Данные readiness.route по-прежнему приходят с сервера и
-// используются при проверке допуска к назначению диагностики.
 
-// ===== Маршрут реабилитанта (шесть этапов жизненного цикла) =====
-// Считает сервер (services/recipientReadiness.js → lifecycle) по реальным
-// данным: группе, событиям расписания, заявкам и заключениям. Карточка только
-// показывает результат — своей арифметики этапов здесь нет намеренно, иначе
-// она разошлась бы с сервером, как это уже было с этапами диагностики.
 const lifecycle = computed(() => readiness.value?.lifecycle || null);
 const lifecycleStages = computed(() => lifecycle.value?.stages || []);
 
-// «Связи» маршрута: с какого этапа на какую вкладку карточки уходим — туда,
-// где этот этап и закрывают.
 const STAGE_TAB = {
-  intake: 'profile',        // анкета, медкарта, представитель
-  statement: 'documents',   // сканы, согласия, подписанное заявление
-  diagnostic: 'diagnostics',// заявки и заключения
-  enrollment: 'lessons',    // выбор группы
-  lessons: 'lessons',       // расписание занятий и состав группы
-  cycle: 'diagnostics'      // итоговая диагностика
+  intake: 'profile',        
+  statement: 'documents',   
+  diagnostic: 'diagnostics',
+  enrollment: 'lessons',    
+  lessons: 'lessons',       
+  cycle: 'diagnostics'      
 };
 const stageTabLabel = (key) => tabs.find((t) => t.id === STAGE_TAB[key])?.label || 'карточку';
 const goStage = (key) => {
@@ -1080,7 +1005,6 @@ const goStage = (key) => {
   if (tab) activeTab.value = tab;
 };
 
-// Подпись в шапке — как в макете: «12-я неделя цикла · группа «Средние»».
 const stageChip = computed(() => {
   if (!groupName.value) return '';
   const w = lifecycle.value?.cycle?.weekNo;
@@ -1100,10 +1024,6 @@ const docAlertLabel = computed(() => {
 });
 
 const canAssignDiagnostic = computed(() => authStore.isAdmin || authStore.isEmployee);
-// Документы ведут сотрудник и администратор. Преподаватель их только смотрит:
-// он специалист по диагностике, а не по делопроизводству. Правило продублировано
-// на сервере (PUT /documents/:id и режим update в POST /recipients/:id/scans),
-// иначе запрет обходился бы прямым запросом к API.
 const canEditDocs = computed(() => authStore.isAdmin || authStore.isEmployee);
 
 const blockerWord = (n) => {
@@ -1117,7 +1037,6 @@ const blockerWord = (n) => {
 const assignOpen = ref(false);
 const openAssign = () => { assignOpen.value = true; };
 const onAssigned = () => {
-  // После назначения обновляем и ленту событий, и проверку готовности.
   agendaLoaded.value = false;
   loadAgenda();
   loadReadiness();
@@ -1147,15 +1066,12 @@ const programDays = computed(() => {
   return diff >= 0 ? diff : null;
 });
 
-// ===== Производные данные из расписания (events) =====
 const pastEvents = computed(() => events.value.filter(e => String(e.date) < todayStr));
 const futureEvents = computed(() => events.value.filter(e => String(e.date) >= todayStr));
 const recentEvents = computed(() => pastEvents.value.slice(-3).reverse());
 const allEventsDesc = computed(() => [...events.value].reverse());
 const lessonsCount = computed(() => events.value.length);
 
-// «В программе»: точной даты зачисления в модели нет (Recipient без createdAt),
-// поэтому берём дату самого раннего события расписания как приближение.
 const firstEventDate = computed(() => (events.value.length ? events.value[0].date : null));
 const inProgramDays = computed(() => {
   if (!firstEventDate.value) return null;
@@ -1163,10 +1079,8 @@ const inProgramDays = computed(() => {
   return diff >= 0 ? diff : null;
 });
 
-// Следующий контроль = ближайшая будущая диагностика
 const nextControl = computed(() => futureEvents.value.find(e => e.type === 'diagnostic') || null);
 
-// Ближайшие события: будущие занятия/диагностики + напоминание об истечении справки МСЭ
 const upcoming = computed(() => {
   const rows = futureEvents.value.map(e => ({
     kind: 'event',
@@ -1192,7 +1106,6 @@ const upcoming = computed(() => {
   return rows.slice(0, 6);
 });
 
-// Команда сопровождения: куратор группы + специалисты из расписания (с их направлениями)
 const team = computed(() => {
   const map = new Map();
   const cur = recipient.value?.group?.curatorUser;
@@ -1227,7 +1140,6 @@ const team = computed(() => {
   return Array.from(map.values()).map(m => ({ ...m, roles: Array.from(m.roles) }));
 });
 
-// Права на отметку посещения (как на карточках вкладки «Реабилитанты»)
 const canMarkAttendance = computed(() => authStore.isAdmin || authStore.isTeacher);
 const attDirty = computed(() => !!attStatus.value && attStatus.value !== attSavedStatus.value);
 
@@ -1336,7 +1248,6 @@ const goBack = () => {
   pageStore.setPage('recipients', 'Реабилитанты', {});
 };
 
-// ===== Готовность: маршрут, документы, препятствия к назначению =====
 const loadReadiness = async () => {
   if (!recipientId) return;
   readinessLoading.value = true;
@@ -1351,7 +1262,6 @@ const loadReadiness = async () => {
   }
 };
 
-// ===== Обновление документов с сохранением истории =====
 const DOC_FORM_FIELDS = [
   'docType', 'docSeries', 'docNumber', 'docIssuer', 'docIssuerDate', 'snils',
   'mseIssueDate', 'mseValidDate', 'regAddress', 'factAddress', 'factSameReg',
@@ -1385,7 +1295,6 @@ const docSaveOk = ref('');
 const docHistory = ref([]);
 const historyLoading = ref(false);
 
-// Даты в форме — 'YYYY-MM-DD' (input[type=date] другого не принимает).
 const toInputDate = (v) => (v ? String(v).slice(0, 10) : '');
 
 const reasonValid = computed(() => docReason.value.trim().length >= 3);
@@ -1393,7 +1302,6 @@ const mseExpired = computed(
   () => !!docForm.value.mseValidDate && docForm.value.mseValidDate < todayStr
 );
 
-// Какие поля реально отличаются от текущих — показываем пользователю заранее.
 const docChangedFields = computed(() => {
   const d = doc.value;
   if (!d) return [];
@@ -1440,12 +1348,10 @@ const saveDocUpdate = async () => {
   try {
     const payload = { reason: docReason.value.trim() };
     for (const key of docChangedFields.value) payload[key] = docForm.value[key];
-    // Пустые даты отправлять нельзя — колонки NOT NULL.
     for (const key of Object.keys(payload)) {
       if (/Date$/.test(key) && !payload[key]) delete payload[key];
     }
     const { data } = await api.put(`/documents/${doc.value.id}`, payload);
-    // Обновляем локальную копию документа, чтобы карточка сразу показала новое.
     if (data?.doc && recipient.value?.docs?.length) {
       recipient.value.docs[0] = { ...recipient.value.docs[0], ...data.doc };
     }
@@ -1476,7 +1382,6 @@ const loadDocHistory = async (force = false) => {
   }
 };
 
-// Значение поля из снимка прежней версии — в человекочитаемом виде.
 const snapshotValue = (snapshot, key) => {
   const v = snapshot?.[key];
   if (v === null || v === undefined || v === '') return '—';
@@ -1513,7 +1418,6 @@ const loadScans = async (force = false) => {
   if (scansLoaded.value && !force) return;
   scansLoading.value = true;
   try {
-    // all=1 — вместе с заменёнными версиями: из них строится история файла.
     const { data } = await api.get(`/recipients/${recipientId}/scans`, { params: { all: 1 } });
     scanRows.value = Array.isArray(data) ? data : [];
     scansLoaded.value = true;
@@ -1541,14 +1445,11 @@ const formatSize = (bytes) => {
 };
 const openLightbox = (s) => { lightbox.value = scanFileUrl(s); };
 
-// ===== Замена прикреплённого файла =========================================
-// Работает как «Обновление документов» в медкарте: старая версия не удаляется,
-// причина замены обязательна и сохраняется вместе с автором и датой.
 const MAX_SCAN_MB = 15;
 
-const replaceScan = ref(null);       // какой документ заменяем
-const replaceFile = ref(null);       // выбранный файл
-const replacePreview = ref('');      // object URL превью для картинок
+const replaceScan = ref(null);       
+const replaceFile = ref(null);       
+const replacePreview = ref('');      
 const replaceReason = ref('');
 const replaceTouched = ref(false);
 const replaceSaving = ref(false);
@@ -1622,8 +1523,6 @@ const saveScanReplace = async () => {
       reason: replaceReason.value.trim(),
       scans: [{
         docKey,
-        // Тип владельца берём у заменяемой строки, иначе паспорт представителя
-        // мог бы переехать на реабилитанта.
         entityType: target.entityType,
         originalName: file.name,
         mimeType: file.type || 'application/octet-stream',
@@ -1640,7 +1539,6 @@ const saveScanReplace = async () => {
   }
 };
 
-// ===== История версий файла ================================================
 const historyScan = ref(null);
 const openScanHistory = (s) => { historyScan.value = s; };
 const closeScanHistory = () => { historyScan.value = null; };
@@ -1653,10 +1551,8 @@ const uploaderName = (row) => {
   if (!u) return 'Автор не указан';
   return u.fullName || [u.lastName, u.firstName].filter(Boolean).join(' ').trim() || u.email || 'Автор не указан';
 };
-// Причина лежит на НОВОЙ строке: она объясняет, зачем её загрузили.
 const scanReasonText = (row) => row?.updateReason || 'Первичная загрузка при заведении карточки';
 
-// Превью выбранного файла живёт в object URL — отпускаем его при уходе со страницы.
 onUnmounted(revokePreview);
 
 const loadGroups = async () => {
@@ -1682,8 +1578,6 @@ const saveGroup = async () => {
     selectedGroupId.value = data.groupId ?? null;
     groupMembers.value = [];
     await loadGroupMembers();
-    // Зачисление в группу — этап 04 маршрута. Пересчитываем, иначе маршрут
-    // будет показывать «группа не назначена» до перезагрузки страницы.
     loadReadiness();
   } catch (err) {
     console.error('saveGroup', err);
@@ -1707,11 +1601,6 @@ const loadGroupMembers = async () => {
   }
 };
 
-// Диагностики реабилитанта — из заявок (DiagnosticSession + блоки специалистов).
-// Раньше здесь опрашивался легаси-эндпоинт /diagnostics (таблица ReResult), в
-// который новый порядок назначения ничего не пишет, поэтому вкладка карточки
-// всегда была пустой. Блоки приводим к прежней форме, чтобы шаблон не менялся:
-//   published — этап завершён, specialist.fullName — кто вёл.
 const loadAssignments = async () => {
   if (!recipientId) return;
   assignmentsLoading.value = true;
@@ -1726,7 +1615,6 @@ const loadAssignments = async () => {
         specialist: b.specialistName ? { fullName: b.specialistName } : null,
         date: b.date,
         published: b.blockStatus === 'completed',
-        // Чужие результаты сервер отдаёт как null, если нет права их видеть.
         results: b.results || null
       })));
   } catch (err) {
@@ -1737,11 +1625,6 @@ const loadAssignments = async () => {
   }
 };
 
-// cancelAssignment удалён: из шаблона он не вызывался, а после перевода списка
-// на заявки его a.id стал идентификатором DiagnosticAssignment — DELETE
-// /diagnostics/:id снёс бы постороннюю запись легаси-таблицы ReResult.
-// Отказ от взятого блока делается специалистом через POST
-// /schedule/assignments/:id/release, отмена всей заявки — /sessions/:id/cancel.
 
 const loadAgenda = async () => {
   if (!recipientId || agendaLoaded.value || agendaLoading.value) return;
@@ -1758,7 +1641,6 @@ const loadAgenda = async () => {
   }
 };
 
-// Подставляем сохранённый статус посещения, только если он относится к сегодняшнему дню
 const initAttendance = () => {
   const r = recipient.value;
   const savedDate = r?.attendanceDate ? String(r.attendanceDate).slice(0, 10) : null;
@@ -1807,21 +1689,14 @@ onMounted(async () => {
   initAttendance();
   loadAgenda();
   loadReadiness();
-  // Счётчики на вкладках должны быть верны сразу, а не после первого клика.
-  // Раньше assignments и scans грузились только в watch(activeTab), поэтому
-  // цифра появлялась лишь у «Занятия и группа» — её данные даёт loadAgenda(),
-  // который и так вызывается при монтировании. Список сканов приходит без
-  // fileData (роут исключает поле), так что запрос дешёвый.
   loadAssignments();
   loadScans();
-  // Вкладку можно открыть сразу нужную (например, из модалки назначения).
   const wanted = pageStore.params?.tab;
   if (wanted && tabs.some((t) => t.id === wanted)) activeTab.value = wanted;
 });
 </script>
 
 <style scoped>
-/* ===== ДИЗАЙН-СИСТЕМА (единая с макетом «Карточка реабилитанта v3») ===== */
 .rd-page {
   --font-serif: 'Lora', 'Times New Roman', Georgia, serif;
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
@@ -1869,7 +1744,6 @@ onMounted(async () => {
 .rd-page *::before,
 .rd-page *::after { box-sizing: border-box; }
 
-/* ===== LOADING / EMPTY ===== */
 .rd-loading, .rd-empty {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
   min-height: 18rem; gap: 1rem; color: var(--ink-muted);
@@ -1882,7 +1756,6 @@ onMounted(async () => {
 }
 @keyframes rd-spin { to { transform: rotate(360deg); } }
 
-/* ===== BREADCRUMB ===== */
 .breadcrumb {
   display: flex; align-items: center; gap: 0.5rem;
   font-size: 0.9375rem; color: var(--ink-muted); flex-wrap: wrap;
@@ -1896,7 +1769,6 @@ onMounted(async () => {
 .breadcrumb .current { color: var(--ink-strong); font-weight: 500; }
 .breadcrumb .sep { color: var(--ink-muted); }
 
-/* ===== BUTTONS ===== */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.4375rem;
   padding: 0.6875rem 1.125rem; min-height: 2.75rem;
@@ -1912,7 +1784,6 @@ onMounted(async () => {
 .btn-secondary:hover:not(:disabled) { background: var(--paper-soft); border-color: var(--ink-muted); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
-/* ===== ALERT ===== */
 .alert {
   display: flex; align-items: center; gap: 0.875rem;
   background: linear-gradient(90deg, var(--rose-50), var(--amber-50));
@@ -1933,7 +1804,6 @@ onMounted(async () => {
 }
 .alert-text { font-size: 0.9375rem; color: var(--ink-strong); line-height: 1.5; }
 
-/* Баннер о просроченных / недостающих документах */
 .alert-docs { align-items: center; }
 .alert-action {
   flex: 0 0 auto;
@@ -1948,7 +1818,6 @@ onMounted(async () => {
 .alert-action:hover { background: #58211A; border-color: #58211A; }
 .alert-action:focus-visible { outline: 0.125rem solid var(--rose-500); outline-offset: 0.125rem; }
 
-/* ===== HERO ===== */
 .hero {
   position: relative; border-radius: var(--radius-xl); margin-bottom: 1.5rem;
   border: 0.0625rem solid var(--line); background: var(--paper); box-shadow: var(--shadow-sm);
@@ -2004,7 +1873,6 @@ onMounted(async () => {
 .tag-sage { background: var(--sage-50); color: var(--sage-700); }
 .hero-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding-bottom: 0.25rem; }
 
-/* ===== STAGE TRACK ===== */
 .stage-track { border-top: 0.0625rem solid var(--line-soft); padding: 1.25rem 2rem; background: var(--paper-soft); }
 .stage-track-label { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; color: var(--ink-muted); margin-bottom: 0.75rem; }
 .stage-steps { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.5rem; list-style: none; margin: 0; padding: 0; }
@@ -2017,9 +1885,6 @@ onMounted(async () => {
 .stage-step .step-name { font-size: 0.9375rem; color: var(--ink-muted); line-height: 1.3; }
 .stage-step.current .step-name { color: var(--ink-strong); font-weight: 600; }
 .stage-step.done .step-name { color: var(--ink); }
-/* Название этапа — кнопка перехода на «свою» вкладку карточки. Подчёркивание
-   только на наведении: шесть постоянно подчёркнутых ссылок подряд рябят и
-   ломают спокойный вид дорожки из макета. */
 .step-name-link {
   display: inline-flex;
   align-items: center;
@@ -2043,7 +1908,6 @@ onMounted(async () => {
 .step-name-link:focus-visible svg { opacity: 0.65; }
 .step-name-link:focus-visible { outline: 0.125rem solid var(--sage-500); outline-offset: 0.1875rem; border-radius: 0.25rem; }
 
-/* Заголовок маршрута + текущий этап */
 .stage-track-head {
   display: flex; align-items: center; justify-content: space-between;
   gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem;
@@ -2056,13 +1920,10 @@ onMounted(async () => {
 }
 .stage-track-state.ok { background: var(--sage-100); color: var(--sage-700); border-color: var(--sage-100); }
 .stage-track-state.bad { background: var(--amber-50); color: var(--amber-700); border-color: var(--amber-100); }
-/* «Вы здесь» — текущий этап маршрута */
 .stage-track-state.cur { background: var(--sage-900); color: #F4F8EC; border-color: var(--sage-900); }
 
-/* Этап, до которого ещё не дошли */
 .stage-step.todo .step-name { color: var(--ink-subtle); }
 .stage-step.todo .step-hint { color: var(--ink-subtle); opacity: 0.8; }
-/* Текущий этап, который держат незаполненные данные */
 .stage-step.warn .step-num,
 .stage-step.warn .step-hint { color: var(--amber-700); }
 .stage-step.current.warn::before { background: var(--amber-700); }
@@ -2072,13 +1933,11 @@ onMounted(async () => {
 }
 .stage-track-load { font-size: 0.8125rem; color: var(--ink-subtle); padding: 0.5rem 0; }
 
-/* Кнопка назначения диагностики прямо из маршрута */
 .stage-track-actions {
   display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
   margin-top: 1rem; padding-top: 0.875rem;
   border-top: 0.0625rem solid var(--line);
 }
-/* Стили .stage-ready удалены вместе с плашкой «Готовность к диагностике». */
 .stage-assign-btn {
   display: inline-flex; align-items: center; gap: 0.4375rem;
   padding: 0.625rem 1.0625rem; min-height: 2.5rem;
@@ -2094,7 +1953,6 @@ onMounted(async () => {
 .stage-assign-btn.is-blocked:hover { background: var(--amber-50); border-color: var(--amber-700); }
 .stage-assign-note { font-size: 0.8125rem; font-weight: 500; color: var(--amber-700); }
 
-/* ===== MINI STATS ===== */
 .mini-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; padding: 1rem 2rem 1.5rem; }
 .mini-stat { background: var(--paper-soft); border-radius: var(--radius-md); padding: 0.85rem 1rem; min-width: 0; }
 .mini-stat.active { background: var(--sage-50); border: 0.0625rem solid var(--sage-100); }
@@ -2107,7 +1965,6 @@ onMounted(async () => {
 .mini-stat .value .value-unit { font-size: 0.9375rem; color: var(--ink-muted); font-family: var(--font-sans); font-weight: 500; }
 .mini-stat .trend { font-size: 0.75rem; color: var(--ink-muted); margin-top: 0.3125rem; font-weight: 400; line-height: 1.35; }
 
-/* ===== TABS ===== */
 .tabs { display: flex; gap: 0.25rem; border-bottom: 0.0625rem solid var(--line); margin-bottom: 1.5rem; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tab {
@@ -2124,7 +1981,6 @@ onMounted(async () => {
 }
 .tab[aria-selected="true"] .tab-count { background: var(--sage-100); color: var(--sage-700); border-color: var(--sage-100); }
 
-/* Значок уведомления о просроченных документах во вкладках */
 .tab-alert {
   display: inline-flex; align-items: center; gap: 0.1875rem;
   font-size: 0.75rem; font-weight: 700; line-height: 1;
@@ -2146,11 +2002,9 @@ onMounted(async () => {
 .tabpanel { animation: rd-panel 0.35s cubic-bezier(0.2, 0.7, 0.2, 1); }
 @keyframes rd-panel { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
 
-/* ===== GRID ===== */
 .grid { display: grid; grid-template-columns: minmax(0, 1fr) 21.25rem; gap: 1.5rem; align-items: start; }
 .grid > div, .grid > aside { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
 
-/* ===== CARD ===== */
 .card { background: var(--paper); border: 0.0625rem solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-sm); overflow: hidden; }
 .card-head {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 0.875rem;
@@ -2169,7 +2023,6 @@ onMounted(async () => {
 .card-foot-link:hover { background: var(--sage-50); }
 .card-foot-link svg { width: 0.875rem; height: 0.875rem; }
 
-/* ===== KEY-VALUE ===== */
 .kv-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.25rem 1.5rem; margin: 0; }
 .kv { padding: 0.625rem 0; border-bottom: 0.0625rem solid var(--line-soft); min-width: 0; }
 .kv-full { grid-column: 1 / -1; }
@@ -2178,7 +2031,6 @@ onMounted(async () => {
 .kv-text { font-size: 0.9375rem; color: var(--ink-strong); line-height: 1.45; word-break: break-word; margin: 0; }
 .kv-text .code { font-weight: 600; color: var(--sage-700); margin-right: 0.25rem; }
 
-/* ===== PERSON ROWS ===== */
 .person { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0; border-bottom: 0.0625rem solid var(--line-soft); }
 .person:last-child { border-bottom: none; }
 .person.is-self { background: var(--sage-50); border-radius: var(--radius-md); padding-left: 0.6rem; padding-right: 0.6rem; border-bottom-color: transparent; }
@@ -2197,7 +2049,6 @@ onMounted(async () => {
 .person-action:hover { background: var(--paper-soft); color: var(--sage-700); }
 .person-action svg { width: 1rem; height: 1rem; }
 
-/* ===== FORM CONTROLS ===== */
 .rd-input {
   width: 100%; padding: 0.55rem 0.75rem; font-size: 0.9375rem;
   border: 0.0625rem solid var(--line-strong); border-radius: var(--radius-md);
@@ -2214,7 +2065,6 @@ onMounted(async () => {
 
 .rd-inline-empty { text-align: center; padding: 1.5rem; color: var(--ink-muted); font-size: 0.9375rem; }
 
-/* ===== ПРИКРЕПЛЁННЫЕ СКАНЫ ===== */
 .rd-scan-badge {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 1.5rem; height: 1.5rem; padding: 0 0.45rem;
@@ -2255,7 +2105,6 @@ onMounted(async () => {
 .rd-scan-open svg { width: 0.85rem; height: 0.85rem; }
 .rd-scan-open:hover { color: var(--sage-900); text-decoration: underline; }
 
-/* Метка «файл заменялся» поверх миниатюры */
 .rd-scan-ver {
   position: absolute; top: 0.4rem; right: 0.4rem;
   font-size: 0.6875rem; font-weight: 700; line-height: 1;
@@ -2277,7 +2126,6 @@ onMounted(async () => {
 .rd-scan-act:hover { color: var(--sage-900); text-decoration: underline; }
 .rd-scan-act:focus-visible { outline: 0.125rem solid var(--sage-700); outline-offset: 0.125rem; border-radius: 0.25rem; }
 
-/* ===== МОДАЛКИ ЗАМЕНЫ ФАЙЛА И ЕГО ИСТОРИИ ===== */
 .du-modal-sm { width: min(34rem, 100%); }
 .rs-current {
   padding: 0.75rem 0.875rem; border-radius: var(--radius-md);
@@ -2326,7 +2174,6 @@ onMounted(async () => {
 .rs-ver-open { margin-left: 0.5rem; font-weight: 600; color: var(--sage-700); text-decoration: none; }
 .rs-ver-open:hover { color: var(--sage-900); text-decoration: underline; }
 
-/* ===== ЛАЙТБОКС ===== */
 .rd-lightbox {
   position: fixed; inset: 0; z-index: 1000;
   display: flex; align-items: center; justify-content: center;
@@ -2343,7 +2190,6 @@ onMounted(async () => {
 .rd-lightbox-close:hover { background: rgba(255,255,255,0.24); }
 .rd-lightbox-close svg { width: 1.4rem; height: 1.4rem; }
 
-/* ===== ASSIGN (диагностика) ===== */
 .rd-assign { margin-bottom: 1.5rem; padding-bottom: 1.25rem; border-bottom: 0.0625rem solid var(--line-soft); }
 .rd-assign-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem 1rem; align-items: end; }
 .rd-assign-field { display: flex; flex-direction: column; gap: 0.4rem; min-width: 0; }
@@ -2356,8 +2202,6 @@ onMounted(async () => {
   gap: 0.6rem;
   margin: 0 0 1.5rem;
   padding: 0.75rem 1rem;
-  /* Зелёная гамма проекта вместо синей. Токены --blue-* оставлены: ими
-     пользуются .tag-blue и .lesson-type.is-diag на этой же странице. */
   background: var(--sage-50);
   border: 0.0625rem solid var(--sage-100);
   border-radius: var(--radius-md);
@@ -2388,13 +2232,11 @@ onMounted(async () => {
 .rd-result-spec { font-size: 0.82rem; color: var(--ink-muted); margin-bottom: 0.3rem; }
 .rd-result-recs { margin: 0; font-size: 0.9rem; line-height: 1.5; color: var(--ink-strong); white-space: pre-wrap; }
 
-/* ===== FOOTER ===== */
 .rd-footer {
   margin-top: 1.5rem; padding-top: 1rem; border-top: 0.0625rem solid var(--line);
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
 }
 
-/* ===== HERO PHOTO BANNER ===== */
 .hero-banner-photo {
   position: relative; display: block; width: 100%; padding: 0; border: none;
   cursor: zoom-in; overflow: hidden;
@@ -2415,7 +2257,6 @@ onMounted(async () => {
 .hero-banner-photo:hover .hero-banner-zoom { opacity: 1; }
 .hero-banner-zoom svg { width: 1.1rem; height: 1.1rem; }
 
-/* ===== LESSON LIST ===== */
 .lesson-list { display: flex; flex-direction: column; gap: 0.6rem; }
 .lesson-card {
   border: 0.0625rem solid var(--line-soft); border-radius: var(--radius-md);
@@ -2434,7 +2275,6 @@ onMounted(async () => {
 .lesson-meta { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; font-size: 0.82rem; color: var(--ink-muted); }
 .sep-dot { color: var(--line-strong); }
 
-/* ===== EVENT LIST (ближайшие события) ===== */
 .event-list { display: flex; flex-direction: column; gap: 0.3rem; }
 .event-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; border-bottom: 0.0625rem solid var(--line-soft); }
 .event-row:last-child { border-bottom: none; }
@@ -2450,7 +2290,6 @@ onMounted(async () => {
 .event-title { font-size: 0.9rem; font-weight: 500; color: var(--ink-strong); }
 .event-meta { font-size: 0.8rem; color: var(--ink-muted); }
 
-/* ===== ОТМЕТКА ПОСЕЩЕНИЯ ===== */
 .rd-att { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; }
 .rd-att-toggle { display: inline-flex; gap: 0.3rem; flex: 1 1 auto; flex-wrap: wrap; }
 .rd-att-btn {
@@ -2468,7 +2307,6 @@ onMounted(async () => {
 .rd-att-hint { margin-top: 0.6rem; font-size: 0.82rem; color: var(--ink-muted); }
 .rd-att-hint strong { color: var(--ink-strong); font-weight: 600; }
 
-/* ===== КОМАНДА СОПРОВОЖДЕНИЯ ===== */
 .rd-team-role { line-height: 1.35; }
 .rd-curator-badge {
   font-size: 0.62rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em;
@@ -2476,7 +2314,6 @@ onMounted(async () => {
   padding: 0.1rem 0.4rem; border-radius: 0.25rem;
 }
 
-/* ===== КНОПКА В ШАПКЕ КАРТОЧКИ ===== */
 .rd-head-btn {
   flex: 0 0 auto;
   display: inline-flex; align-items: center; gap: 0.375rem;
@@ -2490,7 +2327,6 @@ onMounted(async () => {
 .rd-head-btn svg { width: 0.875rem; height: 0.875rem; flex: 0 0 0.875rem; }
 .rd-head-btn:hover { background: var(--sage-50); border-color: var(--sage-500); color: var(--sage-900); }
 
-/* ===== ИСТОРИЯ ОБНОВЛЕНИЙ ДОКУМЕНТОВ ===== */
 .rd-history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 0.75rem; }
 .rd-history-item {
   position: relative;
@@ -2502,9 +2338,6 @@ onMounted(async () => {
   content: ''; position: absolute; left: 0; top: 0.6875rem; bottom: 0.6875rem;
   width: 0.1875rem; border-radius: 62.5rem; background: var(--sage-500);
 }
-/* Вариант списка без полоски — история версий файла (Документы → История).
-   Там актуальность версии показывает зелёная метка «Актуальная», и полоска
-   у каждой строки лишь дублировала её. Отступ слева возвращаем к обычному. */
 .rd-history-flat .rd-history-item::before { content: none; }
 .rd-history-flat .rd-history-item { padding-left: 0.9375rem; }
 .rd-history-head {
@@ -2536,7 +2369,6 @@ onMounted(async () => {
 .rd-history-kv-row dt { font-size: 0.78125rem; color: var(--ink-muted); }
 .rd-history-kv-row dd { margin: 0; font-size: 0.8125rem; color: var(--ink-strong); word-break: break-word; }
 
-/* ===== МОДАЛКА «ОБНОВЛЕНИЕ ДОКУМЕНТОВ» ===== */
 .du-overlay {
   position: fixed; inset: 0; z-index: 1200;
   background: rgba(15, 20, 15, 0.5); backdrop-filter: blur(0.125rem);
@@ -2637,7 +2469,6 @@ onMounted(async () => {
 .du-btn-primary { background: var(--sage-900); color: #F4F8EC; border-color: var(--sage-900); }
 .du-btn-primary:hover:not(:disabled) { background: var(--sage-800); border-color: var(--sage-800); }
 
-/* ===== RESPONSIVE ===== */
 @media (max-width: 75rem) {
   .grid { grid-template-columns: 1fr; }
   .mini-stats { grid-template-columns: repeat(2, 1fr); }

@@ -80,9 +80,6 @@ h2 {
   border-color: var(--sage-500);
   box-shadow: 0 0 0 2px rgba(95, 126, 69, 0.25);
 }
-/* Кнопка входа — в зелёной гамме проекта. Глобальная .btn-primary красится
-   от var(--accent), а он остался синим от прежней темы, поэтому перекрываем
-   локально: правило scoped-стиля выигрывает по специфичности. */
 .btn-primary {
   width: 100%;
   margin-top: 0.5rem;
@@ -94,7 +91,6 @@ h2 {
   background: var(--sage-900);
   border-color: var(--sage-900);
 }
-/* Во время входа кнопка заблокирована — гасим и подъём из глобального :hover. */
 .btn-primary:disabled {
   opacity: 0.65;
   cursor: not-allowed;

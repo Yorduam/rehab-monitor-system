@@ -149,11 +149,6 @@ import Pagination from '../components/Pagination.vue'
 
 const authStore = useAuthStore()
 
-// Права по группам соответствуют бэкенду:
-//  • создание/редактирование — админ и преподаватель (POST/PUT /groups);
-//  • удаление — только админ (DELETE /groups);
-//  • назначение реабилитантов в группу — админ, преподаватель и сотрудник
-//    (через PUT /recipients/:id { groupId }).
 const canCreateGroup = computed(() => authStore.isAdmin || authStore.isTeacher)
 const canEditGroup = computed(() => authStore.isAdmin || authStore.isTeacher)
 const canDeleteGroup = computed(() => authStore.isAdmin)
@@ -168,7 +163,6 @@ const modalVisible = ref(false)
 const modalTitle = ref('')
 const form = ref({ name: '', curatorUserId: '' })
 const editId = ref(null)
-// Кураторы = преподаватели (учётные записи). Отдельной таблицы «Специалисты» нет.
 const curators = ref([])
 let searchTimeout = null
 
@@ -179,7 +173,6 @@ const participants = ref([])
 const participantsLoading = ref(false)
 const defaultPhoto = 'https://via.placeholder.com/100'
 
-// --- Назначение реабилитантов в группу ---
 const allRecipients = ref([])
 const assignRecipientId = ref('')
 const assignBusyId = ref(null)
@@ -329,7 +322,6 @@ const editGroup = (g) => {
 const saveGroup = async () => {
   try {
     const payload = { ...form.value }
-    // Пустая строка → null. Для преподавателя куратор проставится на сервере.
     payload.curatorUserId = payload.curatorUserId || null
     if (editId.value) {
       await api.put(`/groups/${editId.value}`, payload)
@@ -371,10 +363,8 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ---- Warm paper theme (matches Реабилитанты / Дашборд) ---- */
 .groups-page { font-family: 'Inter', system-ui, sans-serif; color: #131713; }
 
-/* Header */
 .g-header { margin-bottom: 1.5rem; }
 .g-title {
   font-family: 'Lora', Georgia, serif; font-weight: 600;

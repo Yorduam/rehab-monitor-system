@@ -38,7 +38,6 @@
             </span>
           </div>
 
-          <!-- ===== Блоки специалистов ===== -->
           <div v-if="!session.blocks.length" class="db-empty">
             Заявку ещё никто не взял. Специалисты увидят её во вкладке
             «Заявки на диагностику» и возьмут реабилитанта сами.
@@ -66,14 +65,12 @@
               </span>
             </header>
 
-            <!-- скрыто: нет права видеть чужие результаты -->
             <div v-if="b.resultsHidden" class="db-hidden">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
               Результаты этого специалиста вам не видны. Право на просмотр
               результатов других педагогов выдаёт администратор.
             </div>
 
-            <!-- видимые результаты, только чтение -->
             <template v-else>
               <div v-if="criteriaOf(b).length" class="db-crits">
                 <div v-for="c in criteriaOf(b)" :key="c.id" class="db-crit">
@@ -105,15 +102,10 @@
             </footer>
           </article>
 
-          <!-- ===== Итоговое заключение ===== -->
           <section class="db-concl">
             <h3 class="db-concl-title">Итоговое заключение</h3>
 
-            <!-- уже выдано -->
             <div v-if="session.conclusion && !editingConclusion" class="db-concl-view">
-              <!-- Решение по итогам — то же, что на этапе 04 карточки диагностики.
-                   Показываем и здесь, чтобы заключение выглядело одинаково
-                   в «Расписании» и в «Диагностике». -->
               <p v-if="session.conclusion.verdict" class="db-concl-verdict" :class="'is-' + session.conclusion.verdict">
                 {{ VERDICT_LABELS[session.conclusion.verdict] }}
               </p>
@@ -131,10 +123,7 @@
               </button>
             </div>
 
-            <!-- форма выдачи -->
             <div v-else-if="session.canConclude" class="db-concl-form">
-              <!-- Заключение — четвёртый этап маршрута: до него должны быть
-                   пройдены 01–03. Показываем ровно то, чего не хватает. -->
               <p v-if="conclusionBlockReason" class="db-concl-warn">
                 {{ conclusionBlockReason }}
               </p>
@@ -166,8 +155,6 @@
                 <button v-if="editingConclusion" class="dm-btn dm-btn--ghost" @click="editingConclusion = false">
                   Отмена
                 </button>
-                <!-- Пока этапы 01–03 не пройдены, кнопка закрыта. Продавить
-                     может только администратор — галочкой выше. -->
                 <button class="dm-btn dm-btn--primary" :disabled="busy || !canSubmitConclusion"
                         :title="canSubmitConclusion ? '' : conclusionBlockReason"
                         @click="submitConclusion">
@@ -200,14 +187,6 @@
 </template>
 
 <script setup>
-// Живая доска заявки на диагностику.
-//
-// Требования, которые она закрывает:
-//   · специалист видит, что заполняют коллеги, в режиме реального времени
-//     (опрос сервера раз в POLL_MS, пока модалка открыта);
-//   · чужие результаты приходят вычищенными с сервера, если нет права
-//     canViewAllResults — тогда блок показывается с пометкой «скрыто»;
-//   · итоговое заключение выдаёт только пользователь с правом canConclude.
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import api from '../api';
 import { useAuthStore } from '../stores/auth';
@@ -231,7 +210,6 @@ const conclError = ref('');
 const editingConclusion = ref(false);
 const conclForm = reactive({ verdict: '', summary: '', recommendations: '', force: false });
 
-// Те же три решения, что на этапе 04 карточки диагностики.
 const VERDICT_LABELS = {
   recommended: 'Рекомендованы — зачислить на программу реабилитации',
   trial: 'Пробные занятия (2 недели)',
@@ -248,13 +226,9 @@ const progressPct = computed(() => {
   if (!s || !s.total) return 0;
   return Math.round((s.completed / s.total) * 100);
 });
-// Что мешает выдать заключение. Пусто — можно заключать.
-// Сервер считает то же самое (missingStages в ответе заявки) и откажет
-// с тем же перечнем, если проверку обойти.
 const conclusionBlockReason = computed(() => {
   const s = session.value;
   if (!s) return '';
-  // Заключение уже выдано — правка текста ничем не ограничена, решение принято.
   if (s.conclusion) return '';
   if (!s.total) return 'Ни один специалист ещё не провёл диагностику.';
   const missing = Array.isArray(s.missingStages) ? s.missingStages : [];
@@ -267,12 +241,10 @@ const conclusionBlockReason = computed(() => {
   }
   return '';
 });
-// Администратор может продавить выдачу галочкой «не дожидаясь остальных».
 const canSubmitConclusion = computed(() =>
   !conclusionBlockReason.value || (isAdmin.value && conclForm.force)
 );
 
-// Живой опрос имеет смысл, только пока заявка в работе.
 const live = computed(() => session.value && ['open', 'in_progress'].includes(session.value.status));
 const canCancel = computed(() =>
   session.value && (isAdmin.value || authStore.isEmployee) &&
@@ -288,7 +260,6 @@ function blockLabel(b) {
 function accentOf(b) {
   return getBlock(b.profileKey)?.accent || '#5F7E45';
 }
-// Критерии блока со значениями, которые внёс специалист.
 function criteriaOf(b) {
   const schema = getBlock(b.profileKey);
   if (!schema) return [];
@@ -298,7 +269,6 @@ function criteriaOf(b) {
     label: c.label,
     value: stored[c.id] === undefined ? null : stored[c.id]
   }));
-  // Пока нет ни одной оценки — показываем «ещё не внёс», а не пустую сетку.
   return rows.some((r) => r.value !== null && r.value !== '') ? rows : [];
 }
 function avgOf(b) {
@@ -343,8 +313,6 @@ async function submitConclusion() {
   busy.value = true;
   try {
     const { data } = await api.post(`/schedule/sessions/${props.sessionId}/conclusion`, {
-      // Пустое решение сервер трактует как «не менять» — уже выставленный
-      // на карточке диагностики вердикт правкой текста не затирается.
       verdict: conclForm.verdict || '',
       summary: conclForm.summary,
       recommendations: conclForm.recommendations || null,
@@ -406,7 +374,6 @@ function formatDateTime(v) {
 onMounted(async () => {
   await load();
   poller = setInterval(() => {
-    // Не перетираем то, что пользователь сейчас печатает в заключении.
     if (!busy.value && !editingConclusion.value && live.value) load(true);
   }, POLL_MS);
 });
@@ -521,7 +488,6 @@ onUnmounted(() => { if (poller) clearInterval(poller); });
   color: #0F140F; margin: 0 0 0.7rem;
 }
 .db-concl-view { display: flex; flex-direction: column; gap: 0.5rem; align-items: flex-start; }
-/* Решение по итогам диагностики — цвета те же, что у вариантов на этапе 04. */
 .db-concl-verdict {
   margin: 0; align-self: flex-start;
   padding: 0.3rem 0.65rem; border-radius: 0.5rem;

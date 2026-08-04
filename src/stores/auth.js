@@ -16,15 +16,6 @@ export const useAuthStore = defineStore('auth', {
         throw err;
       }
     },
-    async register(userData) {
-      try {
-        const { data } = await api.post('/auth/register', userData);
-        this.user = data.user;
-        return true;
-      } catch (err) {
-        throw err;
-      }
-    },
     async checkAuth() {
       this.loading = true;
       try {

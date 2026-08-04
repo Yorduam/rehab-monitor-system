@@ -60,7 +60,6 @@ const perPageOptions = [12, 24, 48];
 const rangeStart = computed(() => (props.total === 0 ? 0 : (props.page - 1) * props.limit + 1));
 const rangeEnd   = computed(() => Math.min(props.page * props.limit, props.total));
 
-// Окно из максимум пяти номеров страниц вокруг текущей.
 const pageButtons = computed(() => {
   const total = props.totalPages;
   const current = props.page;
@@ -78,17 +77,12 @@ const changeLimit = (l) => emit('update:limit', l);
 </script>
 
 <style scoped>
-/* Цвета берём из палитры страницы «Реабилитанты» (.erp-r-teacher); CSS-переменные
-   наследуются в дочерний компонент, плюс запасные значения на всякий случай. */
 .rp-bar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
   flex-wrap: wrap;
-  /* margin-top:auto прижимает панель к низу flex-колонки .erp-r-teacher,
-     когда реабилитантов мало (иначе она «висела» бы посередине).
-     В обычном блочном контексте auto = 0 — вреда нет. */
   margin-top: auto;
   padding: 1.15rem 0.25rem 0.5rem;
   border-top: 1px solid var(--t-line, #D6CFBE);

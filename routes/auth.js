@@ -5,14 +5,6 @@ import { User } from '../models/index.js';
 
 const router = express.Router();
 
-// Единая форма пользователя для /register, /login и /me.
-//
-// Раньше вход отдавал только { id, email, role }, а полную запись фронтенд
-// получал лишь из GET /me — то есть после перезагрузки страницы. До этого
-// момента в authStore не было ни directionId, ни прав на заключение, и
-// преподаватель на вкладке «Заявки на диагностику» видел «в вашей учётной
-// записи не указана профессиональная ориентированность», хотя направление
-// у него в базе есть. Отдаём один и тот же объект отовсюду.
 const publicUser = (user) => {
   const { passwordHash, ...rest } = user.toJSON();
   return rest;
@@ -34,7 +26,6 @@ router.post('/register', async (req, res, next) => {
       role: finalRole,
       firstName: firstName || null,
       lastName: lastName || null,
-      // Проф. ориентированность актуальна только для преподавателя.
       directionId: finalRole === 'teacher' && directionId ? directionId : null
     });
     const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });

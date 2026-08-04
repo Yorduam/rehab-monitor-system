@@ -23,7 +23,6 @@ import DiagnosticConclusion from './DiagnosticConclusion.js';
 Recipient.belongsTo(User, { as: 'user', foreignKey: 'userId' });
 User.hasOne(Recipient, { as: 'recipient', foreignKey: 'userId' });
 
-// Профессиональная ориентированность преподавателя (Users.directionId).
 User.belongsTo(Direction, { as: 'direction', foreignKey: 'directionId' });
 
 Recipient.belongsTo(ReGroup, { as: 'group', foreignKey: 'groupId' });
@@ -38,8 +37,6 @@ Nozology.hasMany(Recipient, { as: 'recipients', foreignKey: 'nozology', inverse:
 Recipient.belongsTo(CRG, { as: 'crgMain', foreignKey: 'CRGMain' });
 CRG.hasMany(Recipient, { as: 'recipients', foreignKey: 'CRGMain' });
 
-// Куратор группы — учётная запись (User с ролью teacher). Специалист как
-// отдельная сущность упразднён: пользователь и есть специалист/куратор.
 ReGroup.belongsTo(User, { as: 'curatorUser', foreignKey: 'curatorUserId' });
 User.hasMany(ReGroup, { as: 'curatedGroups', foreignKey: 'curatorUserId' });
 
@@ -58,7 +55,6 @@ CRGDesc.belongsToMany(Recipient, {
 RecipientDoc.belongsTo(Recipient, { as: 'recipient', foreignKey: 'recipientId' });
 Recipient.hasMany(RecipientDoc, { as: 'docs', foreignKey: 'recipientId' });
 
-// История версий анкетных документов (кто, когда и почему обновил).
 RecipientDocVersion.belongsTo(RecipientDoc, { as: 'doc', foreignKey: 'docId' });
 RecipientDoc.hasMany(RecipientDocVersion, { as: 'versions', foreignKey: 'docId' });
 RecipientDocVersion.belongsTo(User, { as: 'author', foreignKey: 'changedBy' });
@@ -71,11 +67,9 @@ Recipient.hasMany(RecipientScanDoc, { as: 'scans', foreignKey: 'recipId' });
 
 ReResult.belongsTo(Recipient, { as: 'recipient', foreignKey: 'idRecipient' });
 ReResult.belongsTo(Direction, { as: 'direction', foreignKey: 'idDirection' });
-// Специалист диагностики — учётная запись (User). idSpecialist хранит userId.
 ReResult.belongsTo(User, { as: 'specialist', foreignKey: 'idSpecialist' });
 Recipient.hasMany(ReResult, { as: 'results', foreignKey: 'idRecipient' });
 
-// ---- Модуль «Расписание и Диагностика» (привязка к учётным записям User) ----
 DiagnosticAssignment.belongsTo(Recipient, { as: 'recipient', foreignKey: 'recipientId' });
 DiagnosticAssignment.belongsTo(Direction, { as: 'direction', foreignKey: 'directionId' });
 DiagnosticAssignment.belongsTo(User, { as: 'specialist', foreignKey: 'specialistUserId' });
@@ -87,16 +81,13 @@ ScheduleEvent.belongsTo(Direction, { as: 'direction', foreignKey: 'directionId' 
 ScheduleEvent.belongsTo(DiagnosticAssignment, { as: 'assignment', foreignKey: 'assignmentId' });
 DiagnosticAssignment.hasOne(ScheduleEvent, { as: 'event', foreignKey: 'assignmentId' });
 
-// ---- Заявка на диагностику (назначается только датой) ----------------------
 DiagnosticSession.belongsTo(Recipient, { as: 'recipient', foreignKey: 'recipientId' });
 Recipient.hasMany(DiagnosticSession, { as: 'diagnosticSessions', foreignKey: 'recipientId' });
 DiagnosticSession.belongsTo(User, { as: 'author', foreignKey: 'createdBy' });
 
-// Блоки, которые специалисты разобрали по этой заявке.
 DiagnosticSession.hasMany(DiagnosticAssignment, { as: 'assignments', foreignKey: 'diagnosticSessionId' });
 DiagnosticAssignment.belongsTo(DiagnosticSession, { as: 'session', foreignKey: 'diagnosticSessionId' });
 
-// ---- Итоговое заключение ----------------------------------------------------
 DiagnosticConclusion.belongsTo(DiagnosticSession, { as: 'session', foreignKey: 'sessionId' });
 DiagnosticSession.hasOne(DiagnosticConclusion, { as: 'conclusion', foreignKey: 'sessionId' });
 DiagnosticConclusion.belongsTo(Recipient, { as: 'recipient', foreignKey: 'recipientId' });

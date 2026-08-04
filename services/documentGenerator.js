@@ -6,7 +6,6 @@ import PizZip from 'pizzip';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(__dirname, '..', 'templates', 'documents');
 
-// docType -> { minor, adult, ext } template mapping
 const TEMPLATE_MAP = {
   pdn:   { minor: 'pd_consent_minor.docx',    adult: 'pd_consent_adult.docx',    ext: 'docx' },
   photo: { minor: 'photo_consent_minor.docx', adult: 'photo_consent_adult.docx', ext: 'docx' },
@@ -32,7 +31,6 @@ const INVALIDITY_LABELS = {
   none: 'нет',
 };
 
-// "Кем приходится представителю" -> instrumental case for "приходящегося мне ..."
 const RELATION_INSTR = {
   'Сын': 'сыном',
   'Дочь': 'дочерью',
@@ -63,7 +61,6 @@ function relationInstr(v) {
   return RELATION_INSTR[v] || (v || '');
 }
 
-// Compose a single-line passport / document string for the Word blanks.
 function composeDoc({ series, num, date, issuer, code }) {
   const parts = [];
   const sn = [series, num].map((x) => (x || '').trim()).filter(Boolean).join(' ');
@@ -85,9 +82,6 @@ export function ageFromBirth(birth) {
   return age;
 }
 
-// Build the full ${token} -> value dictionary. Word forms consume the
-// composed *repXxx / rehXxx tokens; Excel forms consume the split *Parent /
-// plain tokens. Merging is safe because the two sets never overlap by name.
 export function buildTokens(form = {}, isMinor) {
   const repFullName = joinName(form.lrLast, form.lrFirst, form.lrMid);
   const rehFullName = joinName(form.rLast, form.rFirst, form.rMid);
@@ -104,7 +98,6 @@ export function buildTokens(form = {}, isMinor) {
     series: form.rDocSeries, num: form.rDocNum, date: form.rDocDate, issuer: form.rDocIssuer,
   });
 
-  // Word (composed, single-line blanks)
   const word = {
     repFullName,
     rehFullName,
@@ -113,14 +106,12 @@ export function buildTokens(form = {}, isMinor) {
     rehDoc,
     repAddress: form.lrAddress || '',
     repPhone,
-    rehPhone: repPhone, // no dedicated rehabilitant phone field in the wizard
+    rehPhone: repPhone,
     rehRegAddress,
     rehBirthDate: fmtDate(form.rBirth),
     rehRelation: relationInstr(form.rDocRelation),
   };
 
-  // Excel (split cells). For 18+ the applicant is the rehabilitant, so the
-  // header "от ..." (*Parent tokens) is filled with the rehabilitant's own data.
   const excel = isMinor
     ? {
         fullNameParent: repFullName,
@@ -157,7 +148,6 @@ export function buildTokens(form = {}, isMinor) {
   return { ...word, ...excel, ...excelCommon };
 }
 
-// Replace ${token} occurrences inside every .xml entry of the OOXML zip.
 function fillTemplate(buf, tokens) {
   const zip = new PizZip(buf);
   const entries = zip.file(/\.xml$/);
@@ -170,19 +160,12 @@ function fillTemplate(buf, tokens) {
         content = content.split(token).join(xmlEscape(value));
       }
     }
-    // Safety net: clear any unmatched ${...} so no raw token leaks into a legal doc.
     content = content.replace(/\$\{[A-Za-z0-9_]+\}/g, '');
     zip.file(entry.name, content);
   }
   return zip.generate({ type: 'nodebuffer', compression: 'DEFLATE' });
 }
 
-/**
- * Generate a filled document.
- * @param {'pdn'|'photo'|'diag'} docType
- * @param {object} form  wizard form data (step 1 + step 2 fields)
- * @returns {{ buffer: Buffer, filename: string, contentType: string, isMinor: boolean }}
- */
 export function generateDocument(docType, form = {}) {
   const entry = TEMPLATE_MAP[docType];
   if (!entry) {

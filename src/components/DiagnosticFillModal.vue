@@ -1,7 +1,6 @@
 <template>
   <div class="dm-overlay" @click.self="close">
     <div class="dm-modal" role="dialog" aria-modal="true">
-      <!-- header -->
       <div class="dm-head">
         <div class="dm-head-main">
           <span class="dm-kicker">Диагностика</span>
@@ -19,7 +18,6 @@
 
       <template v-else-if="assignment">
         <div class="dm-body">
-          <!-- session progress (blocks by specialty) -->
           <div class="dm-session" v-if="session && session.siblings.length > 1">
             <div class="dm-session-head">
               <div class="dm-session-label">Этапы комплексной диагностики</div>
@@ -47,7 +45,6 @@
               </button>
             </div>
 
-            <!-- результаты коллеги, только чтение -->
             <div v-if="activeSibling" class="dm-peer">
               <div class="dm-peer-head">
                 <span class="dm-peer-name">{{ specialtyName(activeSibling) }}</span>
@@ -76,14 +73,10 @@
             </div>
           </div>
 
-          <!-- Преподаватель заполняет диагностику только во вкладке
-               «Диагностика»: там маршрут этапов, подразделы и полный чек-лист.
-               Здесь, в расписании, ему остаётся просмотр. -->
           <div v-if="hideOwnBlock" class="dm-notice dm-notice--info">
             Заполнение — во вкладке <strong>«Диагностика»</strong>. Здесь показан ход этапов.
           </div>
 
-          <!-- access notice -->
           <div v-else-if="!data.canEdit" class="dm-notice dm-notice--lock">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
             Это блок другого специалиста. Вы можете просматривать, но редактировать может только назначенный специалист.
@@ -92,10 +85,6 @@
             Этап завершён. Чтобы внести изменения — верните его в работу.
           </div>
 
-          <!-- Свой блок с оценкой по пятибалльной шкале. Преподавателям не
-               показываем: он дублирует вкладку «Диагностика», а сохранение
-               отсюда переписывает результат целиком — заполненный на вкладке
-               чек-лист заменился бы этими оценками. -->
           <div v-if="!hideOwnBlock" class="dm-block" :style="{ '--accent': blockAccent }">
             <div class="dm-block-head">
               <span class="dm-block-dot"></span>
@@ -135,17 +124,12 @@
           </div>
         </div>
 
-        <!-- footer -->
         <div class="dm-foot">
           <div class="dm-foot-status">
             <span class="dm-status-pill" :class="statusClass">{{ statusLabel }}</span>
           </div>
           <div class="dm-foot-actions">
             <button class="dm-btn dm-btn--ghost" @click="close">Закрыть</button>
-            <!-- Кнопки сохранения отправляют ровно то, что набрано в блоке
-                 выше. Без него они ушли бы с пустыми оценками и затёрли
-                 результат, сданный во вкладке «Диагностика», — поэтому у
-                 преподавателя здесь только просмотр. -->
             <template v-if="data.canEdit && !hideOwnBlock">
               <template v-if="assignment.blockStatus === 'completed'">
                 <button class="dm-btn dm-btn--secondary" :disabled="saving" @click="reopen">Вернуть в работу</button>
@@ -172,12 +156,8 @@ import { fullName } from '../utils/recipient';
 import { SCALE, getBlock, profileLabel, averageScore } from '../utils/diagnosticBlocks';
 
 const authStore = useAuthStore();
-// Быстрая оценка по пятибалльной шкале — только для координаторов.
-// Преподаватель ведёт диагностику во вкладке «Диагностика», а этот блок
-// её дублировал и при сохранении переписывал результат целиком.
 const hideOwnBlock = computed(() => authStore.isTeacher);
 
-// Как часто подтягиваем этапы коллег, пока модалка открыта.
 const POLL_MS = 15000;
 
 const props = defineProps({
@@ -209,7 +189,6 @@ const statusLabel = computed(() => {
 });
 const statusClass = computed(() => assignment.value?.blockStatus === 'completed' ? 'is-done' : 'is-progress');
 
-// ---- этапы коллег (просмотр в реальном времени) ----------------------------
 const activeSibling = computed(() =>
   session.value?.siblings?.find((b) => b.id === openSibling.value) || null
 );
@@ -236,7 +215,6 @@ const toggleSibling = (b) => {
   openSibling.value = openSibling.value === b.id ? null : b.id;
 };
 
-// silent=true — фоновое обновление: не трогаем то, что специалист печатает.
 const load = async (silent = false) => {
   if (!silent) loading.value = true;
   try {
@@ -245,7 +223,6 @@ const load = async (silent = false) => {
     session.value = res.session;
     data.canEdit = res.canEdit;
     if (silent) return;
-    // init form
     const stored = res.assignment.results || {};
     const criteria = {};
     (block.value?.criteria || []).forEach(c => {
@@ -327,7 +304,6 @@ const formatDate = (d) => {
 
 onMounted(async () => {
   await load();
-  // Этапы коллег подтягиваем фоном — «в режиме реального времени».
   poller = setInterval(() => {
     if (!saving.value) load(true);
   }, POLL_MS);
@@ -410,7 +386,6 @@ onUnmounted(() => { if (poller) clearInterval(poller); });
 .dm-lock { opacity: 0.6; }
 .dm-chip-state { font-weight: 700; }
 
-/* результаты коллеги — только чтение */
 .dm-peer {
   margin-top: 0.75rem; padding: 0.75rem 0.85rem;
   border: 1px solid #E4DECF; border-radius: 0.7rem; background: #FBF9F3;

@@ -1,7 +1,6 @@
 <template>
   <div class="emp-dash">
 
-    <!-- 1. Приветствие + выжимка дня + кнопка поиска -->
     <div class="greet">
       <div class="greet-row">
         <div class="greet-main">
@@ -16,7 +15,6 @@
       </div>
     </div>
 
-    <!-- Поиск по базе: скрыт, раскрывается кнопкой -->
     <div v-show="searchOpen" class="card search-card">
       <div class="card-body">
         <div class="search-wrap">
@@ -59,7 +57,6 @@
       </div>
     </div>
 
-    <!-- Быстрые действия: сворачиваемые -->
     <div class="qa-wrap">
       <div class="qa-head">
         <div class="section-eyebrow">Быстрые действия</div>
@@ -87,7 +84,6 @@
       </div>
     </div>
 
-    <!-- Требует внимания: реабилитанты с неполным пакетом документов (живые данные) -->
     <div v-if="attnList.length" class="card attn attn-block">
       <div class="card-head">
         <div><div class="card-title-sans">Требует внимания</div><div class="card-sub">Реабилитанты с неполным пакетом документов</div></div>
@@ -114,7 +110,6 @@
     <div class="grid grid-main-aside">
       <div class="stack">
 
-        <!-- 2. Список дел (демо-данные) -->
         <div class="card">
           <div class="card-head">
             <div><div class="card-title">Список дел</div><div class="card-sub">Текучка на сегодня, по времени</div></div>
@@ -144,7 +139,6 @@
           </div>
         </div>
 
-        <!-- 4. Заявки в работе — список с подкатегориями (демо-данные) -->
         <div class="card">
           <div class="card-head">
             <div><div class="card-title">Заявки в работе</div><div class="card-sub">Общий список — берите свободные в работу</div></div>
@@ -179,7 +173,6 @@
       </div>
 
       <aside class="stack">
-        <!-- Записи на сегодня — живое расписание -->
         <div class="card">
           <div class="card-head">
             <div class="card-title-sans">Записи на сегодня</div>
@@ -208,7 +201,6 @@
           </div>
         </div>
 
-        <!-- Реабилитанты сегодня — живые данные из расписания -->
         <div class="card">
           <div class="card-head">
             <div class="card-title-sans">Реабилитанты сегодня</div>
@@ -256,7 +248,6 @@ const openRecipient = (id) => {
   if (id) pageStore.setPage('recipient-details', 'Карточка реабилитанта', { recipientId: id });
 };
 
-// ---------- дата и приветствие ----------
 const now = new Date();
 const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 const DOW = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
@@ -271,7 +262,6 @@ const greeting = computed(() => {
   return `${part}, ${name}`;
 });
 
-// ---------- helpers ----------
 function plural(n, one, few, many) {
   const a = Math.abs(n) % 100;
   const b = a % 10;
@@ -300,7 +290,6 @@ const activityLabel = (ev) => {
   return ev.direction?.name ? `${base} · ${ev.direction.name}` : base;
 };
 
-// ---------- поиск по базе (живой) ----------
 const searchOpen = ref(false);
 const searchQuery = ref('');
 const searchResults = ref([]);
@@ -339,10 +328,8 @@ watch(searchQuery, (q) => {
   }, 300);
 });
 
-// ---------- быстрые действия ----------
 const qaOpen = ref(true);
 
-// ---------- живое расписание на сегодня ----------
 const todayEvents = ref([]);
 const loadingToday = ref(true);
 
@@ -393,7 +380,6 @@ const loadToday = async () => {
   }
 };
 
-// ---------- требует внимания: неполные документы (живые данные) ----------
 const attnList = ref([]);
 const attnCount = ref(0);
 const loadAttn = async () => {
@@ -406,7 +392,6 @@ const loadAttn = async () => {
   }
 };
 
-// ---------- выжимка дня ----------
 const ledeText = computed(() => {
   const n = timelineItems.value.length;
   const parts = [`Сегодня ${n} ${plural(n, 'запись', 'записи', 'записей')}.`];
@@ -418,7 +403,6 @@ const ledeText = computed(() => {
   return parts.join(' ');
 });
 
-// ---------- демо: список дел ----------
 const demoTasks = [
   { id: 1, icon: 'check',   ic: 'ic-sage', title: 'Подтвердить запись Елены Петровой на 14:00', sub: 'Выполнено в 09:15', done: true },
   { id: 2, icon: 'users',   ic: 'ic-rose', title: 'Принять семью Романовых', due: 'Запись на 12:30 — сейчас', sub: 'первичная консультация', action: 'Принять', primary: true, run: () => goTo('schedule', 'Расписание') },
@@ -428,7 +412,6 @@ const demoTasks = [
   { id: 6, icon: 'calendar', ic: 'ic-plum', title: 'Загрузить сканы паспорта Петра Васина', sub: 'Регистрация, этап 2 из 3', action: 'Загрузить', run: () => goTo('documents', 'Документы') }
 ];
 
-// ---------- демо: заявки в работе ----------
 const demoPipeline = [
   { key: 'app', title: 'Заявка', note: '2 не взяты в работу', items: [
     { ini: 'МС', av: 'av-plum', name: 'Максим Семёнов, 9', sub: 'С сайта · 2 ч назад · +7 985 310-42-17', phone: true, action: 'Взять', primary: true },
@@ -459,7 +442,6 @@ const collapsed = reactive({});
 
 const toggleGroup = (key) => { collapsed[key] = !collapsed[key]; };
 
-// ---------- lifecycle ----------
 onMounted(() => {
   document.documentElement.style.setProperty('--bg-app', '#F7F4ED');
   loadToday();
@@ -473,7 +455,6 @@ onUnmounted(() => {
 
 <style scoped>
 .emp-dash {
-  /* ---- дизайн-токены (локально, чтобы не влиять на остальное приложение) ---- */
   --font-serif: 'Lora', 'Times New Roman', Georgia, serif;
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
 
@@ -525,7 +506,6 @@ onUnmounted(() => {
 
 .emp-dash button { cursor: pointer; }
 
-/* ---- greeting ---- */
 .greet { margin-bottom: var(--space-6); }
 .greet-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
 .greet-row .greet-main { flex: 1; min-width: 16rem; }
@@ -533,7 +513,6 @@ onUnmounted(() => {
 .greet h1 { font-family: var(--font-serif); font-weight: 600; letter-spacing: -0.025em; color: var(--ink-strong); line-height: 1.06; font-size: var(--fs-40); margin-top: 0.125rem; }
 .greet .lede { font-size: var(--fs-16); color: var(--ink-muted); margin-top: var(--space-2); max-width: 46rem; }
 
-/* ---- buttons ---- */
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.4375rem; min-height: var(--tap-min); padding: 0.6875rem 1.125rem; border-radius: 0.625rem; font-size: var(--fs-15); font-weight: 500; white-space: nowrap; border: 0.0625rem solid transparent; transition: background 0.15s, border-color 0.15s, color 0.15s; }
 .btn svg { width: 0.9375rem; height: 0.9375rem; flex: 0 0 0.9375rem; }
 .btn-primary { background: var(--sage-900); color: #F4F8EC; border-color: var(--sage-900); }
@@ -542,12 +521,10 @@ onUnmounted(() => {
 .btn-secondary:hover { background: var(--paper-soft); border-color: var(--ink-muted); }
 .btn-sm { min-height: 2.25rem; padding: 0.4375rem 0.75rem; font-size: var(--fs-14); }
 
-/* ---- grid ---- */
 .grid { display: grid; gap: var(--space-5); align-items: start; }
 .grid-main-aside { grid-template-columns: minmax(0,1fr) 22rem; }
 .stack { display: grid; gap: var(--space-5); align-content: start; min-width: 0; }
 
-/* ---- card ---- */
 .card { background: var(--paper); border: 0.0625rem solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); overflow: hidden; }
 .search-card, .qa-wrap, .attn-block { margin-bottom: var(--space-5); }
 .qa-wrap { margin-bottom: var(--space-5); }
@@ -561,7 +538,6 @@ onUnmounted(() => {
 .card-body { padding: 1.25rem 1.5rem 1.5rem; }
 .empty-note { padding: 1.25rem 0; text-align: center; color: var(--ink-subtle); font-size: var(--fs-14); }
 
-/* ---- tags ---- */
 .tag { display: inline-flex; align-items: center; gap: 0.3125rem; font-size: var(--fs-13); padding: 0.1875rem 0.625rem; border-radius: 62.5rem; font-weight: 500; white-space: nowrap; }
 .tag-neutral { background: var(--paper-soft); color: var(--ink-muted); }
 .tag-blue { background: var(--blue-50); color: var(--blue-700); }
@@ -569,10 +545,8 @@ onUnmounted(() => {
 .tag-sage { background: var(--sage-50); color: var(--sage-700); }
 .tag-rose { background: var(--rose-50); color: var(--rose-700); }
 
-/* ---- attention card ---- */
 .card.attn { border-left: 0.25rem solid var(--rose-500); }
 
-/* ---- tasks ---- */
 .tasks { display: flex; flex-direction: column; }
 .task { display: flex; align-items: center; gap: 0.875rem; padding: 0.875rem 0; border-bottom: 0.0625rem solid var(--line-soft); }
 .task:last-child { border-bottom: 0; padding-bottom: 0; }
@@ -593,7 +567,6 @@ onUnmounted(() => {
 .task.done .t-title { text-decoration: line-through; color: var(--ink-muted); }
 .task.done { opacity: 0.75; }
 
-/* ---- timeline ---- */
 .timeline { display: flex; flex-direction: column; }
 .tl-item { display: grid; grid-template-columns: 4rem 1fr; gap: 0.875rem; padding: 0.875rem 0; border-bottom: 0.0625rem solid var(--line-soft); }
 .tl-item:last-child { border-bottom: 0; padding-bottom: 0; }
@@ -610,7 +583,6 @@ onUnmounted(() => {
 .tl-sub { font-size: var(--fs-13); color: var(--ink-muted); margin-top: 0.125rem; display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; }
 .tl-actions { margin-top: 0.5rem; display: flex; gap: 0.375rem; flex-wrap: wrap; }
 
-/* ---- mini list ---- */
 .mlist { display: flex; flex-direction: column; }
 .mrow { display: flex; align-items: center; gap: 0.75rem; padding: 0.6875rem 0; border-bottom: 0.0625rem solid var(--line-soft); }
 .mrow:last-child { border-bottom: 0; padding-bottom: 0; }
@@ -627,7 +599,6 @@ onUnmounted(() => {
 .mrow .m-sub { font-size: var(--fs-12); color: var(--ink-muted); margin-top: 0.0625rem; }
 .m-actions { display: flex; align-items: center; gap: 0.5rem; flex: 0 0 auto; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
 
-/* ---- grouped list ---- */
 .glist { display: flex; flex-direction: column; }
 .g-head { display: flex; align-items: center; gap: 0.625rem; margin-top: var(--space-4); padding: 0.5625rem 0.875rem; background: var(--paper-soft); border: 0.0625rem solid var(--line-soft); border-radius: var(--r-md); font-family: var(--font-serif); font-size: var(--fs-16); font-weight: 600; letter-spacing: -0.01em; color: var(--ink-strong); width: 100%; text-align: left; }
 .glist .g-head:first-child { margin-top: 0; }
@@ -640,11 +611,9 @@ onUnmounted(() => {
 .g-body .mrow { padding-left: 0.875rem; padding-right: 0.875rem; }
 .g-body .mrow:first-child { padding-top: 0.6875rem; }
 
-/* ---- p-link ---- */
 .p-link { display: inline; padding: 0; font: inherit; font-weight: inherit; color: inherit; background: none; border: none; border-bottom: 0.0625rem dashed var(--line-strong); border-radius: 0.125rem; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
 .p-link:hover { color: var(--sage-700); border-bottom-color: var(--sage-500); }
 
-/* ---- search ---- */
 .search-wrap { position: relative; }
 .search-wrap svg { position: absolute; left: 0.875rem; top: 50%; transform: translateY(-50%); width: 1.125rem; height: 1.125rem; color: var(--ink-subtle); pointer-events: none; }
 .search-input { width: 100%; min-height: 3.25rem; padding: 0.75rem 1rem 0.75rem 2.75rem; font: inherit; font-size: var(--fs-16); color: var(--ink); background: var(--paper); border: 0.0625rem solid var(--line-strong); border-radius: var(--r-md); transition: border-color 0.15s, box-shadow 0.15s; }
@@ -662,7 +631,6 @@ onUnmounted(() => {
 .sr-empty { font-size: var(--fs-14); color: var(--ink-muted); padding: 0.75rem 0 0.25rem; }
 .sr-actions { display: flex; gap: 0.375rem; flex: 0 0 auto; }
 
-/* ---- flags ---- */
 .flag-warn { position: relative; display: inline-flex; align-items: center; gap: 0.25rem; font-size: var(--fs-12); font-weight: 700; white-space: nowrap; color: var(--rose-700); background: var(--rose-50); border: 0.0625rem solid var(--rose-100); padding: 0.0625rem 0.5rem; border-radius: 62.5rem; cursor: help; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .flag-warn svg { width: 0.75rem; height: 0.75rem; flex: 0 0 0.75rem; }
 .flag-warn.lvl-amber { color: var(--amber-700); background: var(--amber-50); border-color: var(--amber-100); }
@@ -671,12 +639,10 @@ onUnmounted(() => {
 .flag-tip::after { content: ''; position: absolute; top: 100%; left: 0.875rem; border: 0.375rem solid transparent; border-top-color: var(--ink-strong); }
 .flag-warn:hover .flag-tip, .flag-warn:focus-visible .flag-tip, .flag-warn:focus-within .flag-tip { opacity: 1; transform: none; }
 
-/* ---- icon-mini ---- */
 .icon-mini { width: 2.25rem; height: 2.25rem; flex: 0 0 2.25rem; display: grid; place-items: center; border-radius: 50%; border: 0.0625rem solid var(--line-strong); background: var(--paper); color: var(--ink-muted); transition: background 0.15s, color 0.15s, border-color 0.15s; }
 .icon-mini:hover { background: var(--sage-50); color: var(--sage-700); border-color: var(--sage-500); }
 .icon-mini svg { width: 1rem; height: 1rem; }
 
-/* ---- quick actions ---- */
 .qa-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.625rem; }
 .section-eyebrow { font-size: var(--fs-12); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--ink-muted); }
 .qa-collapse { width: 1.75rem; height: 1.75rem; flex: 0 0 1.75rem; display: grid; place-items: center; border-radius: var(--r-sm); color: var(--ink-muted); background: none; border: none; transition: background 0.15s, color 0.15s; }
@@ -690,7 +656,6 @@ onUnmounted(() => {
 .qa-ic svg { width: 1.1875rem; height: 1.1875rem; }
 .qa-txt .qa-t { font-size: var(--fs-15); font-weight: 600; color: var(--ink-strong); }
 
-/* ---- responsive ---- */
 @media (max-width: 75rem) {
   .grid-main-aside { grid-template-columns: 1fr; }
   .qa { grid-template-columns: 1fr 1fr; }

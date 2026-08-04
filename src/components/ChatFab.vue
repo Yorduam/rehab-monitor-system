@@ -30,7 +30,6 @@
         </button>
       </div>
 
-      <!-- Меню разделов и быстрых действий -->
       <div v-if="menuOpen" class="chat-menu">
         <div class="cm-group-title">Разделы</div>
         <div class="cm-grid">
@@ -127,8 +126,6 @@ const messages = ref([
   { from: 'bot', text: 'Привет! Нажмите на меню (кнопка слева вверху), чтобы быстро перейти в раздел, или спросите словами: «кто сегодня занимается», «у кого сегодня диагностика», «кто требует внимания», «статистика», либо напишите фамилию.' }
 ])
 
-// Разделы: words — точные слова для мгновенной навигации, stems — основы для
-// «мягкого» распознавания в фразах, icon — путь SVG для плитки меню.
 const PAGES = [
   { id: 'dashboard',   label: 'Дашборд',      words: ['дашборд', 'главная', 'панель', 'сводка'],                     stems: ['дашборд', 'дэшборд', 'главн', 'панель', 'сводк'],       roles: ['*'],                              icon: 'M3 3h7v7H3zM14 3h7v7h-7zM14 14h7v7h-7zM3 14h7v7H3z' },
   { id: 'recipients',  label: 'Реабилитанты', words: ['реабилитанты', 'реабилитант', 'участники', 'список', 'дети'], stems: ['реабилит', 'участник', 'список'],                       roles: ['admin', 'teacher', 'employee'],   icon: 'M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z' },
@@ -152,7 +149,6 @@ const suggestions = computed(() => {
   return ['Дашборд', 'Прогресс', 'Документы']
 })
 
-// Кнопки «Быстрые действия» в меню — зависят от роли.
 const menuActions = computed(() => {
   if (authStore.isRecipient) return ['Мои документы', 'Мой прогресс']
   if (!isCoord.value) return []
@@ -161,7 +157,6 @@ const menuActions = computed(() => {
   return base
 })
 
-// Расстояние Левенштейна — для устойчивости к опечаткам в названиях разделов.
 function lev(a, b) {
   const m = a.length, n = b.length
   if (!m) return n
@@ -186,7 +181,6 @@ const loosePages = (q) => {
   if (!s) return []
   return PAGES.filter(allowed).filter((p) => p.stems.some((k) => s.includes(norm(k))))
 }
-// Навигация по опечаткам: слово запроса «почти совпадает» с точным словом раздела.
 function fuzzyPage(q) {
   const tokens = norm(q).split(/\s+/).filter((t) => t.length >= 4)
   if (!tokens.length) return null
@@ -205,7 +199,6 @@ function fuzzyPage(q) {
 }
 const pageById = (id) => PAGES.find((p) => p.id === id)
 
-// ── helpers для отрисовки ─────────────────────────────────────────────
 const nameOf = (r) => r._name || fullName(r)
 const subOf = (r) => r._sub || r.diagnosis || 'Диагноз не указан'
 const initials = (r) => {
@@ -232,7 +225,6 @@ const fmtDate = (iso) => {
   return parts.length === 3 ? `${parts[2]}.${parts[1]}` : ''
 }
 
-// Из фразы «расписание Иванова» вырезаем служебные слова и получаем имя для поиска.
 const STOP = new Set(['в', 'во', 'на', 'у', 'по', 'для', 'из', 'о', 'об', 'с', 'к', 'а', 'и', 'кто', 'что', 'какие', 'какое', 'какой', 'чьи', 'чей', 'покажи', 'показать', 'дай', 'мне', 'есть', 'ли', 'мои', 'моих', 'мой', 'моя', 'мое', 'свои', 'своих'])
 function extractName(query, keywordRe) {
   return norm(query)
@@ -286,7 +278,6 @@ function navTo(p) {
   setTimeout(() => openPage(p), 450)
 }
 
-// ── интенты ───────────────────────────────────────────────────────────
 async function intentDay(type, when = 'today') {
   loading.value = true
   await scrollDown()
@@ -379,7 +370,6 @@ async function searchRecipients(query) {
   }
 }
 
-// Ближайшие события конкретного реабилитанта (по фамилии).
 async function intentPersonAgenda(name) {
   const found = await searchRecipients(name)
   if (found === 'error') return
@@ -407,7 +397,6 @@ async function intentPersonAgenda(name) {
   }
 }
 
-// Наличие документов у конкретного реабилитанта (по фамилии).
 async function intentPersonDocs(name) {
   const found = await searchRecipients(name)
   if (found === 'error') return
@@ -431,7 +420,6 @@ async function intentPersonDocs(name) {
   }
 }
 
-// Состав группы (по названию).
 async function intentGroupMembers(name) {
   loading.value = true
   await scrollDown()
@@ -454,7 +442,6 @@ async function intentGroupMembers(name) {
   }
 }
 
-// Диагностики, ожидающие публикации.
 async function intentPendingDiagnostics() {
   loading.value = true
   await scrollDown()
@@ -472,7 +459,6 @@ async function intentPendingDiagnostics() {
   }
 }
 
-// Расписание на ближайшую неделю (обзор списком).
 async function intentWeek() {
   loading.value = true
   await scrollDown()
@@ -493,7 +479,6 @@ async function intentWeek() {
   }
 }
 
-// Список групп (педагог видит свои, координатор — все).
 async function intentMyGroups() {
   loading.value = true
   await scrollDown()
@@ -510,7 +495,6 @@ async function intentMyGroups() {
   }
 }
 
-// Документы текущего пользователя-реабилитанта.
 async function intentMyDocs() {
   loading.value = true
   await scrollDown()
@@ -545,19 +529,16 @@ function showHelp(fallback) {
   bot((fallback ? 'Не совсем понял запрос. ' : '') + lines)
 }
 
-// ── маршрутизация запроса ────────────────────────────────────────────
 async function route(query) {
   const s = norm(query)
   const coordUser = isCoord.value
 
-  // Социальные реплики.
   if (/^(привет|здравств|добр(ый|ое|ого)|хай|хеллоу|hello|hi|салют|доброе утро)/.test(s))
     return bot('Здравствуйте! Чем помочь? Откройте меню слева вверху или напишите запрос словами.')
   if (/(спасибо|благодар|спс|thanks|thx|пасиб)/.test(s)) return bot('Пожалуйста! Обращайтесь.')
   if (/^(пока|до свидан|прощай|бб|bye|досвидан)/.test(s)) return bot('До связи! Помощник всегда доступен по кнопке справа снизу.')
   if (/(что ты умеешь|что умеешь|помощ|справк|команд|возможност|как польз|help|меню)/.test(s)) return showHelp()
 
-  // Личное — по роли пользователя («мои занятия», «мои документы»…).
   const personal = /(^|\s)(мои|моих|мой|моя|мое|свои|своих)(\s|$)/.test(s) || s.includes('у меня')
   if (personal && authStore.isRecipient) {
     if (/(документ|справк)/.test(s)) return intentMyDocs()
@@ -589,43 +570,35 @@ async function route(query) {
       if (/(документ|отчёт|отчет|справк)/.test(s)) return intentStats()
     }
 
-    // Состав группы: «кто в группе X», «состав группы X».
     if (/групп/.test(s) && /(кто|состав|участник|список)/.test(s)) {
       const name = extractName(query, /(кто|в|во|группе|группы|группа|групп\w*|состав\w*|участник\w*|список|покажи\w*|мне|есть)/gi)
       if (name && name.length >= 2) return intentGroupMembers(name)
     }
 
-    // Документы конкретного человека: «документы Иванова».
     if (/(документ|справк|скан|бумаг)/.test(s)) {
       const name = extractName(query, /(документ\w*|справк\w*|скан\w*|бумаг\w*|у|покажи\w*|мне|есть|какие|чьи|чей|по)/gi)
       if (name && name.length >= 3) return intentPersonDocs(name)
     }
 
-    // Расписание/дела конкретного человека: «расписание Иванова», «чем занят Петров».
     if (/(расписан|занят|занима|дела|агенд|график|чем занят)/.test(s)) {
       const name = extractName(query, /(расписан\w*|занят\w*|занима\w*|дела|агенд\w*|график\w*|чем|ближайш\w*|событ\w*|у|покажи\w*|мне|есть|какие)/gi)
       if (name && name.length >= 3) return intentPersonAgenda(name)
     }
   }
 
-  // Точное имя раздела → сразу открываем.
   const ep = exactPage(query)
   if (ep) return navTo(ep)
 
-  // Поиск реабилитанта (для координаторов) — раньше «мягкой» навигации,
-  // чтобы фамилия с корнем раздела (напр. «Занятина») не увела в Расписание.
   if (coordUser && s.length >= 2) {
     const found = await searchRecipients(query)
     if (found === 'error') return
     if (found && found.length) return bot(`Нашёл ${found.length} — откройте карточку:`, { results: found })
   }
 
-  // Мягкая навигация по фразе.
   const lp = loosePages(query)
   if (lp.length === 1) return navTo(lp[0])
   if (lp.length > 1) return bot('Нашёл несколько разделов — выберите:', { pages: lp })
 
-  // Навигация по опечаткам.
   const fp = fuzzyPage(query)
   if (fp) return navTo(fp)
 
@@ -644,10 +617,6 @@ const sendMessage = async () => {
 </script>
 
 <style scoped>
-/* Помощник работает в зелёной гамме проекта. Вместо правки двух десятков
-   правил переопределяем акцентные токены на корнях компонента: все вложенные
-   var(--accent…) наследуют новые значения. Глобальный синий --accent при этом
-   не трогаем — им ещё пользуются другие экраны. */
 .fab,
 .chat-window {
   --accent: var(--sage-700);
@@ -717,7 +686,6 @@ const sendMessage = async () => {
 .chat-icon-btn:hover, .chat-icon-btn.active { background: rgba(255, 255, 255, 0.3); }
 .chat-icon-btn svg { width: 1.05rem; height: 1.05rem; }
 
-/* ── меню разделов ── */
 .chat-menu {
   height: 340px;
   overflow-y: auto;

@@ -17,7 +17,6 @@ function serializeGroup(group, participantsCount) {
   return {
     id: group.id,
     name: group.groupName,
-    // Куратор группы — учётная запись (пользователь = специалист/куратор).
     curator: name,
     curatorUserId: group.curatorUserId || null,
     curatorUserName: name,
@@ -37,8 +36,6 @@ router.get('/', authMiddleware, async (req, res) => {
       where.groupName = { [Op.like]: `%${search}%` }
     }
 
-    // Преподаватель (куратор) видит только свои группы — те, где он назначен
-    // куратором-преподавателем (curatorUserId = его userId).
     if (req.user.role === 'teacher') {
       where.curatorUserId = req.user.id
     }
@@ -69,7 +66,6 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 })
 
-// Проверка доступа преподавателя к конкретной группе (только своя).
 async function assertTeacherOwnsGroup(req, res, groupId) {
   if (req.user.role !== 'teacher') return true
   const group = await ReGroup.findByPk(groupId, { attributes: ['id', 'curatorUserId'] })
@@ -111,8 +107,6 @@ router.get('/:id', authMiddleware, async (req, res) => {
 router.post('/', authMiddleware, roleMiddleware('admin', 'teacher'), async (req, res) => {
   try {
     const { name, curatorUserId } = req.body
-    // Преподаватель, создающий группу, автоматически становится её
-    // куратором — иначе он не увидит свою же группу.
     const ownerUserId = req.user.role === 'teacher'
       ? req.user.id
       : (curatorUserId || null)
@@ -135,14 +129,12 @@ router.put('/:id', authMiddleware, roleMiddleware('admin', 'teacher'), async (re
   try {
     const group = await ReGroup.findByPk(req.params.id)
     if (!group) return res.status(404).json({ message: 'Группа не найдена' })
-    // Преподаватель может редактировать только свою группу.
     if (req.user.role === 'teacher' && group.curatorUserId !== req.user.id) {
       return res.status(403).json({ message: 'Доступ запрещён' })
     }
     const { name, curatorUserId } = req.body
     const patch = {}
     if (name !== undefined) patch.groupName = name
-    // Куратора группы (учётную запись) назначает только админ.
     if (curatorUserId !== undefined && req.user.role === 'admin') {
       patch.curatorUserId = curatorUserId || null
     }
@@ -165,9 +157,6 @@ router.delete('/:id', authMiddleware, roleMiddleware('admin'), async (req, res) 
       return res.status(404).json({ message: 'Группа не найдена' })
     }
 
-    // Открепляем участников (Recipient.groupId допускает NULL) — реабилитанты
-    // не удаляются, лишь перестают числиться в этой группе. Так группу всегда
-    // можно удалить, не оставляя «висячих» ссылок.
     const [detached] = await Recipient.update(
       { groupId: null },
       { where: { groupId: group.id }, transaction: t }

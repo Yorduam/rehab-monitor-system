@@ -115,7 +115,6 @@
 
           <span class="t-filter-divider" aria-hidden="true"></span>
 
-          <!-- Группа -->
           <div class="t-chip-filter-wrap" @click.stop>
             <button class="t-chip-filter" :class="{ active: filterGroupId != null }" @click="toggleFilterMenu('group')">
               <span>{{ filterGroupId != null ? groupLabel : 'Группа' }}</span>
@@ -138,7 +137,6 @@
             </div>
           </div>
 
-          <!-- Диагноз -->
           <div class="t-chip-filter-wrap" @click.stop>
             <button class="t-chip-filter" :class="{ active: !!filterDiagnosisVal }" @click="toggleFilterMenu('diagnosis')">
               <span>{{ filterDiagnosisVal || 'Диагноз' }}</span>
@@ -161,7 +159,6 @@
             </div>
           </div>
 
-          <!-- Куратор -->
           <div class="t-chip-filter-wrap" @click.stop>
             <button class="t-chip-filter" :class="{ active: !!filterCuratorName }" @click="toggleFilterMenu('curator')">
               <span>{{ filterCuratorName || 'Куратор' }}</span>
@@ -724,8 +721,6 @@
       @saved="onRecipientSaved"
     />
 
-    <!-- Назначение диагностики имеющемуся реабилитанту: сначала проверка
-         маршрута и документов, затем форма назначения. -->
     <AssignDiagnosticModal
       v-if="assignTarget"
       :recipient-id="assignTarget.id"
@@ -734,8 +729,6 @@
       @assigned="onDiagnosticAssigned"
     />
 
-    <!-- Маленькое всплывающее окно после добавления нового реабилитанта:
-         предложить перейти в карточку или на назначение диагностики -->
     <transition name="added-pop">
       <div v-if="showAddedPopup" class="added-pop" role="dialog" aria-label="Реабилитант добавлен">
         <button class="added-pop-close" @click="showAddedPopup = false" aria-label="Закрыть">×</button>
@@ -772,23 +765,15 @@ import AssignDiagnosticModal from '../components/AssignDiagnosticModal.vue';
 const authStore = useAuthStore();
 const pageStore = usePageStore();
 
-// Сотрудник видит карточки в стиле преподавателя (задача: «как у преподавателя»),
-// но управляющие действия (редактирование/удаление/массовые операции) остаются
-// только у преподавателя и администратора — у сотрудника лишь просмотр и добавление.
 const canManageRecipients = computed(() => authStore.isAdmin || authStore.isTeacher);
 
-// Назначение диагностики — функция координатора (администратор и сотрудник).
-// Преподаватель диагностику не назначает, он её проводит.
 const canAssignDiagnostic = computed(() => authStore.isAdmin || authStore.isEmployee);
 
-// Модалка «Назначение диагностики» для выбранного реабилитанта.
 const assignTarget = ref(null);
 const openAssignDiagnostic = (r) => {
   assignTarget.value = { id: r.id, name: fullName(r) };
 };
 const closeAssignDiagnostic = () => { assignTarget.value = null; };
-// После успешного назначения обновляем список — у карточки меняется
-// «ближайшее занятие».
 const onDiagnosticAssigned = () => { loadRecipients(); };
 
 const recipients   = ref([]);
@@ -823,17 +808,14 @@ const searchFocused = ref(false);
 const photoError  = ref({});
 const openTip     = ref(null);
 const zoomPhotoId = ref(null);
-// Раскрытие фото на всю карточку по клику (повторный клик — свернуть).
 const toggleZoom = (id) => { zoomPhotoId.value = zoomPhotoId.value === id ? null : id; };
 const searchInputRef = ref(null);
 
-// --- Загрузка фото с ПК (сжатие → data URL в form.photo) ---
 const photoUploading   = ref(false);
 const photoFileError   = ref('');
 const photoPreviewFail = ref(false);
 watch(() => form.value.photo, () => { photoPreviewFail.value = false; });
 
-// Уменьшаем изображение через canvas, чтобы не хранить многомегабайтные файлы
 const resizeImage = (file, maxSize, quality) => new Promise((resolve, reject) => {
   const reader = new FileReader();
   reader.onload = () => {
@@ -857,7 +839,7 @@ const resizeImage = (file, maxSize, quality) => new Promise((resolve, reject) =>
 
 const onPhotoFile = async (e) => {
   const file = e.target.files && e.target.files[0];
-  e.target.value = '';               // позволяем выбрать тот же файл повторно
+  e.target.value = '';
   if (!file) return;
   photoFileError.value = '';
   if (!file.type.startsWith('image/')) { photoFileError.value = 'Выберите файл изображения (JPG, PNG…)'; return; }
@@ -873,10 +855,9 @@ const onPhotoFile = async (e) => {
   }
 };
 
-// --- Сортировка / доп. фильтры (как в макете) ---
 const sortMode        = ref('schedule');
 const sortMenuOpen    = ref(false);
-const openFilterMenu  = ref(null);          // 'group' | 'diagnosis' | 'curator' | null
+const openFilterMenu  = ref(null);
 const filterGroupId   = ref(null);
 const filterDiagnosisVal = ref(null);
 const filterCuratorName  = ref(null);
@@ -890,7 +871,6 @@ const sortOptions = [
 ];
 const sortLabel = computed(() => (sortOptions.find(o => o.value === sortMode.value) || sortOptions[0]).label);
 
-// --- Даты для группировки по расписанию (вычисляем один раз при монтировании) ---
 const pad = (n) => String(n).padStart(2, '0');
 const isoOf = (dt) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
 const _today = new Date(); _today.setHours(0, 0, 0, 0);
@@ -914,8 +894,6 @@ const pluralRecipients = (n) => {
 
 const curatorNameOf = (r) => r.group?.curatorUser?.fullName || '';
 
-// «Моя группа» — группы, которые курирует текущий пользователь (сопоставляем по ФИО,
-// т.к. прямой связи User→ReGroup в модели нет). Для админа без групп список пуст.
 const myGroupIds = computed(() => {
   const u = authStore.user;
   if (!u) return [];
@@ -930,12 +908,10 @@ const myGroupIds = computed(() => {
 });
 const myGroupCount = computed(() => recipients.value.filter(r => myGroupIds.value.includes(r.groupId)).length);
 
-// --- Списки для чипов-фильтров (считаем по всей загруженной странице) ---
 const attentionList = computed(() => recipients.value.filter(r => r.attentionNote || r.docExpiring));
 const todayList     = computed(() => recipients.value.filter(r => r.attendsToday));
 const tomorrowList  = computed(() => recipients.value.filter(r => r.attendsTomorrow));
 
-// --- Опции выпадающих фильтров ---
 const groupOptions = computed(() => groupsList.value.map(g => ({ id: g.id, name: g.name })));
 const diagnosisOptions = computed(() =>
   [...new Set(recipients.value.map(r => (r.diagnosis || '').trim()).filter(Boolean))]
@@ -950,7 +926,6 @@ const groupLabel = computed(() => {
   return g ? g.name : 'Группа';
 });
 
-// Базовый список после выпадающих фильтров + активного чипа.
 const baseFiltered = computed(() => {
   let list = recipients.value;
   if (filterGroupId.value != null)   list = list.filter(r => r.groupId === filterGroupId.value);
@@ -967,7 +942,6 @@ const baseFiltered = computed(() => {
 
 const byName = (a, b) => fullName(a).localeCompare(fullName(b), 'ru');
 
-// --- Секции сетки: зависят от режима сортировки и активного чипа ---
 const sections = computed(() => {
   const list = baseFiltered.value;
   const mode = sortMode.value;
@@ -988,14 +962,12 @@ const sections = computed(() => {
     return s;
   }
 
-  // mode === 'schedule' (по умолчанию) — группировка по дате посещения занятий
   const f = activeFilter.value;
   if (f === 'today')     return list.length ? [{ key: 'today',     title: 'Сегодня', subtitle: fmtRuDate(todayIso), items: [...list].sort(byName) }] : [];
   if (f === 'tomorrow')  return list.length ? [{ key: 'tomorrow',  title: 'Завтра',  subtitle: fmtRuDate(tomorrowIso), items: [...list].sort(byName) }] : [];
   if (f === 'attention') return list.length ? [{ key: 'attention', title: 'Требуют внимания', subtitle: '', items: [...list].sort(byName) }] : [];
   if (f === 'mygroup')   return list.length ? [{ key: 'mygroup',   title: 'Моя группа', subtitle: '', items: [...list].sort(byName) }] : [];
 
-  // f === 'all' — группы по расписанию, затем остальные без заголовка
   const today    = list.filter(r => r.attendsToday).sort(byName);
   const tomorrow = list.filter(r => r.attendsTomorrow).sort(byName);
   const weekRest = list.filter(r => r.attendsThisWeek && !r.attendsToday && !r.attendsTomorrow).sort(byName);
@@ -1020,11 +992,9 @@ const someSelected = computed(() => selectedIds.value.length > 0);
 const curatorName = (r) => r.group?.curatorUser?.fullName || '';
 const avatarClass = (r) => `a${(r.id % 6) + 1}`;
 
-// --- Фото (blob-форма) с запасным вариантом на инициалы ---
 const hasPhoto = (r) => !!r.photo && /^(https?:|data:)/i.test(r.photo) && !photoError.value[r.id];
 const onPhotoError = (r) => { photoError.value = { ...photoError.value, [r.id]: true }; };
 
-// --- Значки-флаги рядом с фото ---
 const recipientFlags = (r) => {
   const flags = [];
   if (r.attentionNote) {
@@ -1039,7 +1009,6 @@ const recipientFlags = (r) => {
   }
   return flags;
 };
-// Полоска статуса слева: красная (внимание) → жёлтая (справка) → зелёная (сегодня занятие)
 const stripeStatus = (r) => {
   if (r.attentionNote) return 'red';
   if (r.docExpiring)   return 'amber';
@@ -1053,25 +1022,19 @@ const nextClassLabel = (r) => {
   return 'Нет записи';
 };
 
-// --- Отметка посещения (присутствует / отсутствует / ушёл) ---
-// Отметка действует в пределах текущего дня: если attendanceDate не «сегодня»,
-// она считается неактуальной и карточка снова нейтральная. Именно 'present'
-// открывает реабилитанта на вкладке «Диагностика» (при наличии направления).
 const attendanceSaving = ref({});
 const attendanceOf = (r) =>
   r && r.attendanceDate === todayIso ? (r.attendanceStatus || null) : null;
 const attendanceClass = (r) => {
-  // Тонировка — только у преподавателя (кнопки посещения тоже только у него).
   if (!authStore.isTeacher) return '';
   const s = attendanceOf(r);
   return s ? `att-${s}` : '';
 };
 const setAttendance = async (r, status) => {
   if (attendanceSaving.value[r.id]) return;
-  if (attendanceOf(r) === status) return;          // уже отмечено этим статусом
+  if (attendanceOf(r) === status) return;
   const prevStatus = r.attendanceStatus;
   const prevDate = r.attendanceDate;
-  // Оптимистично красим карточку сразу, до ответа сервера.
   r.attendanceStatus = status;
   r.attendanceDate = todayIso;
   attendanceSaving.value = { ...attendanceSaving.value, [r.id]: true };
@@ -1079,7 +1042,7 @@ const setAttendance = async (r, status) => {
     await api.put(`/recipients/${r.id}/attendance`, { status });
   } catch (err) {
     console.error('setAttendance', err);
-    r.attendanceStatus = prevStatus;               // откат при ошибке
+    r.attendanceStatus = prevStatus;
     r.attendanceDate = prevDate;
     alert('Не удалось сохранить отметку посещения. Попробуйте ещё раз.');
   } finally {
@@ -1089,7 +1052,6 @@ const setAttendance = async (r, status) => {
   }
 };
 
-// --- Тултип флага по тапу (для тач-устройств) ---
 const flagKey = (r, kind) => `${r.id}:${kind}`;
 const isFlagTipOpen = (r, kind) => openTip.value === flagKey(r, kind);
 const toggleFlagTip = (r, kind) => {
@@ -1099,11 +1061,9 @@ const toggleFlagTip = (r, kind) => {
 
 const setFilter = (f) => { activeFilter.value = f; openFilterMenu.value = null; sortMenuOpen.value = false; };
 
-// --- Сортировка ---
 const toggleSortMenu = () => { sortMenuOpen.value = !sortMenuOpen.value; openFilterMenu.value = null; };
 const selectSort = (mode) => { sortMode.value = mode; sortMenuOpen.value = false; };
 
-// --- Выпадающие фильтры (Группа / Диагноз / Куратор) ---
 const toggleFilterMenu = (type) => { openFilterMenu.value = openFilterMenu.value === type ? null : type; sortMenuOpen.value = false; };
 const selectGroupFilter     = (id)   => { filterGroupId.value = id; openFilterMenu.value = null; };
 const selectDiagnosisFilter = (val)  => { filterDiagnosisVal.value = val; openFilterMenu.value = null; };
@@ -1148,8 +1108,6 @@ const openDetails = (id) => {
   pageStore.setPage('recipient-details', 'Карточка реабилитанта', { recipientId: id });
 };
 
-// После сохранения нового реабилитанта показываем всплывающее окно с выбором
-// дальнейшего действия. createdRecipient приходит из AddRecipientWizard (emit).
 const onRecipientSaved = (createdRecipient) => {
   showWizard.value = false;
   loadRecipients();
@@ -1167,9 +1125,6 @@ const goToAddedDetails = () => {
   if (id) openDetails(id);
 };
 
-// Открываем ту же модалку назначения, что и из меню карточки: заявка ставится
-// только датой. Раньше отсюда уводило на старый экран «Диагностика → Назначение»
-// с выбором направления и специалиста — он упразднён.
 const goToAddedAssign = () => {
   const id = addedRecipientId.value;
   showAddedPopup.value = false;
@@ -1267,7 +1222,6 @@ const handleClickOutside = (event) => {
 };
 
 const handleEscape = (event) => {
-  // Горячая клавиша «/» — фокус в поле поиска (если не печатаем в другом поле).
   if (event.key === '/') {
     const el = event.target;
     const tag = el && el.tagName;
@@ -1342,21 +1296,15 @@ onUnmounted(() => {
   --t-tap: 2.75rem;
 
   font-family: var(--t-font-sans);
-  /* Контент растянут на всю доступную ширину — без пустоты по бокам. */
   max-width: none;
   margin-inline: 0;
   padding-inline: 0;
-  /* На всю высоту области контента (вьюпорт минус шапка 64px и вертикальные
-     отступы .content 2×1.75rem), чтобы пагинация прижималась к самому низу. */
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 64px - 3.5rem);
-  /* Резерв снизу, чтобы пагинация не оказывалась под плавающей кнопкой
-     помощника (она fixed в правом нижнем углу и перекрывала «На странице»). */
   padding-bottom: 4rem;
 }
 @media (max-width: 768px) {
-  /* На мобильном .content имеет отступ 1rem, а снизу закреплён навбар 70px. */
   .erp-r-teacher { min-height: calc(100vh - 64px - 2rem - 70px); }
 }
 .sr-only {
@@ -1598,7 +1546,6 @@ onUnmounted(() => {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
   gap: 1rem;
-  /* Отступ до пагинации, иначе её верхняя линия «сливается» с карточками. */
   margin-bottom: 1.5rem;
 }
 .t-rcard {
@@ -1639,9 +1586,8 @@ onUnmounted(() => {
 .t-rcard:hover .t-rcard-check,
 .t-rcard.selected .t-rcard-check { opacity: 1; }
 .t-rcard-flags {
-  /* Значки стоят в одном ряду с тегами (в т.ч. с тегом «Группа»). */
   position: relative;
-  z-index: 3; /* над ссылкой-оверлеем карточки — значки остаются наводимыми */
+  z-index: 3;
   display: inline-flex;
   align-items: center;
   gap: 0.375rem;
@@ -1717,11 +1663,9 @@ onUnmounted(() => {
   position: relative;
   width: 6.5rem; height: 6.5rem;
   flex: 0 0 6.5rem;
-  /* Поднимаем фото над ссылкой-оверлеем карточки, чтобы работало наведение (просмотр фото). */
   z-index: 3;
 }
 .t-rcard-photo.has-zoom { cursor: zoom-in; }
-/* Развёрнутое фото на всю карточку — раскрывается по клику, сворачивается по клику */
 .t-rcard-zoom {
   position: absolute;
   inset: 0;
@@ -1817,7 +1761,6 @@ onUnmounted(() => {
 }
 .t-next-class.soon { color: var(--t-sage-700); }
 
-/* --- Отметка посещения: 3 кнопки внизу карточки + подсветка карточки --- */
 .t-att-mark {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -1854,7 +1797,6 @@ onUnmounted(() => {
   background: var(--t-amber-500); border-color: var(--t-amber-500); color: #fff;
   box-shadow: 0 1px 3px rgba(185,119,24,.35);
 }
-/* Тонировка всей карточки по отметке (приоритет над полоской stripe-*) */
 .t-rcard.att-present { background: var(--t-sage-50);  border-color: var(--t-sage-100);  border-left: 4px solid var(--t-sage-500); }
 .t-rcard.att-absent  { background: var(--t-rose-50);  border-color: var(--t-rose-100);  border-left: 4px solid var(--t-rose-500); }
 .t-rcard.att-left    { background: var(--t-amber-50); border-color: var(--t-amber-100); border-left: 4px solid var(--t-amber-500); }
@@ -2200,7 +2142,6 @@ onUnmounted(() => {
   padding: .5rem 1rem; border-radius: var(--radius-md); cursor: pointer;
 }
 
-/* --- Поле фото с загрузкой файла --- */
 .form-group-photo { grid-column: span 2; }
 @media (max-width: 640px) { .form-group-photo { grid-column: span 1; } }
 .photo-field { display: flex; gap: 1rem; align-items: flex-start; }
@@ -2232,7 +2173,6 @@ onUnmounted(() => {
 .photo-field-hint { font-size: .72rem; color: var(--text-secondary, #6E7368); }
 .photo-field-error { font-size: .72rem; color: #B14B39; font-weight: 600; }
 
-/* ── Всплывающее окно после добавления реабилитанта ───────────────── */
 .added-pop {
   position: fixed;
   right: 1.5rem;

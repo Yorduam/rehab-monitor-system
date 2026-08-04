@@ -34,7 +34,6 @@ app.use(cors({
 app.use(express.json({ limit: '50mb' }));
 app.use(cookieParser());
 
-
 function isAuthenticated(req) {
   const token = req.cookies?.token;
   if (!token) return false;
@@ -47,7 +46,7 @@ function isAuthenticated(req) {
 }
 
 const guestLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 час
+  windowMs: 60 * 60 * 1000,
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,

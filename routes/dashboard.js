@@ -11,7 +11,6 @@ function recipientFullName(r) {
   return [r.lastName, r.firstName, r.middleName].filter(Boolean).join(' ') || 'Без имени';
 }
 
-// Имя куратора/специалиста берём из учётной записи (User).
 const userFullName = (u) =>
   u ? ([u.lastName, u.firstName].filter(Boolean).join(' ').trim() || u.email) : null;
 

@@ -21,7 +21,6 @@
       </button>
     </header>
 
-    <!-- ADMIN / TEACHER: таблица всех документов -->
     <template v-if="isAdmin || isTeacher">
       <div class="doc-toolbar">
         <div class="doc-search">
@@ -69,7 +68,6 @@
       </div>
     </template>
 
-    <!-- РЕАБИЛИТАНТ: собственный документ -->
     <template v-else>
       <div class="documents-section">
         <div class="doc-header">
@@ -157,12 +155,12 @@ const isTeacher = computed(() => authStore.isTeacher);
 const isRecipient = computed(() => authStore.isRecipient);
 const canEdit = computed(() => isAdmin.value || isTeacher.value || isRecipient.value);
 
-const docs = ref([]);          // все документы (админ/учитель)
-const recipients = ref([]);    // список реабилитантов для селекта
-const doc = ref(null);         // документ реабилитанта (роль recipient)
+const docs = ref([]);
+const recipients = ref([]);
+const doc = ref(null);
 const loading = ref(false);
 const modalVisible = ref(false);
-const editingDoc = ref(null);  // редактируемый документ (null = добавление)
+const editingDoc = ref(null);
 const search = ref('');
 
 const emptyForm = () => ({
@@ -293,7 +291,6 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-/* ---- Warm paper theme (matches Dashboard / Сотрудник) ---- */
 .doc-page {
   font-family: 'Inter', system-ui, sans-serif;
   color: #1a211a;
@@ -308,7 +305,6 @@ onUnmounted(() => {
   --text-tertiary: #6E7368;
 }
 
-/* Header */
 .doc-head {
   display: flex; align-items: flex-end; justify-content: space-between;
   gap: 1rem; flex-wrap: wrap; margin-bottom: 1.5rem;
@@ -325,7 +321,6 @@ onUnmounted(() => {
 }
 .doc-sub { color: #4F564A; font-size: 0.95rem; margin: 0; }
 
-/* Toolbar */
 .doc-toolbar { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
 .doc-search {
   position: relative; flex: 1; max-width: 26rem; display: flex; align-items: center;
@@ -341,7 +336,6 @@ onUnmounted(() => {
 .doc-search input:focus { outline: none; border-color: #5F7E45; box-shadow: 0 0 0 3px rgba(95, 126, 69, 0.18); }
 .doc-count { color: #6E7368; font-size: 0.82rem; white-space: nowrap; }
 
-/* Table */
 .table-card { background: #FFFFFF; border: 1px solid #E4DECF; border-radius: 1.125rem; overflow: hidden; }
 .table-scroll { overflow-x: auto; }
 .doc-table { width: 100%; border-collapse: collapse; }
@@ -363,7 +357,6 @@ onUnmounted(() => {
 .th-actions, .td-actions { text-align: right; }
 .td-actions { white-space: nowrap; }
 
-/* Recipient own-doc card */
 .doc-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1rem; }
 .doc-header h3 { font-family: 'Lora', Georgia, serif; font-weight: 600; font-size: 1.1rem; color: #0F140F; margin: 0; }
 .doc-card {
@@ -380,7 +373,6 @@ onUnmounted(() => {
   background: #FFFFFF; border: 1px solid #E4DECF; border-radius: 1.125rem;
 }
 
-/* Forms */
 .form-group { margin-bottom: 1rem; }
 .form-row { display: flex; gap: 0.75rem; }
 .form-row .form-group { flex: 1; }
@@ -396,7 +388,6 @@ onUnmounted(() => {
 .form-group input:disabled { background: #F3EEE4; color: #6E7368; }
 .modal-buttons { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; }
 
-/* Buttons */
 .btn-primary {
   display: inline-flex; align-items: center; gap: 0.45rem;
   background: #2F4A2F; color: #F4F8EC; border: none;

@@ -14,7 +14,6 @@
 
       <div class="ad-body">
 
-        <!-- Загрузка проверки -->
         <div v-if="checking" class="ad-loading">
           <div class="ad-spinner" aria-hidden="true"></div>
           <p>Проверяем карточку и документы…</p>
@@ -22,12 +21,6 @@
 
         <template v-else-if="readiness">
 
-          <!-- Блок «Заполненность карточки» (чек-лист анкеты, документов и
-               сканов) убран: он лишь дублировал сведения из самой карточки
-               реабилитанта. Проверка при этом никуда не делась — если чего-то
-               не хватает, это попадёт в «Нельзя назначить» ниже. -->
-
-          <!-- ===== ШАГ 1. Препятствия ===== -->
           <section v-if="readiness.errors.length" class="ad-section">
             <h4 class="ad-section-title">Нельзя назначить</h4>
             <ul class="ad-blockers">
@@ -60,7 +53,6 @@
             </p>
           </section>
 
-          <!-- ===== ШАГ 2. Форма назначения ===== -->
           <section class="ad-section" :class="{ 'is-locked': !formEnabled }">
             <h4 class="ad-section-title">Дата диагностики</h4>
 
@@ -114,21 +106,6 @@
 </template>
 
 <script setup>
-// Модалка «Назначение диагностики имеющемуся реабилитанту».
-// Открывается из раздела «Реабилитанты» и из карточки реабилитанта.
-//
-// ВАЖНО: назначаем ТОЛЬКО датой. Ресепшн не знает, кто из специалистов
-// работает сегодня, поэтому направление и специалист здесь не выбираются —
-// создаётся заявка (DiagnosticSession), а специалисты сами разбирают её
-// в разделе «Расписание» → «Свободные заявки».
-//
-// Порядок работы:
-//   1) запрашиваем /recipients/:id/readiness — заполненность маршрута,
-//      просроченные документы и мешающие факторы;
-//   2) показываем чек-лист: при ошибках форма назначения заблокирована,
-//      при предупреждениях админ может подтвердить назначение галочкой;
-//   3) отправляем POST /schedule/sessions — сервер повторно проверяет всё
-//      то же самое (422 с blockers) и дубли заявок (409).
 import { ref, computed, onMounted } from 'vue';
 import api from '../api';
 import { usePageStore } from '../stores/page';
@@ -161,8 +138,6 @@ const isAdmin = computed(() => authStore.isAdmin);
 const recipientLabel = computed(() =>
   props.recipientName || readiness.value?.recipientName || `Реабилитант #${props.recipientId}`
 );
-// Форма доступна, когда нет жёстких препятствий и (при наличии предупреждений)
-// администратор подтвердил назначение.
 const formEnabled = computed(() => {
   const r = readiness.value;
   if (!r) return false;
@@ -209,7 +184,6 @@ const submit = async () => {
     const res = err?.response;
     error.value = res?.data?.message || 'Не удалось назначить диагностику';
     if (Array.isArray(res?.data?.blockers)) serverBlockers.value = res.data.blockers;
-    // Сервер мог вернуть свежую проверку — обновляем чек-лист.
     if (res?.data?.readiness) readiness.value = res.data.readiness;
   } finally {
     saving.value = false;
@@ -235,10 +209,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* Модалка идёт в зелёной гамме проекта. Акцентные токены переопределяем на
-   оверлее — всё внутреннее (кнопка «Назначить», фокус полей, галочка,
-   плашка-пояснение, спиннер) наследует их автоматически. Глобальный синий
-   --accent не трогаем: им ещё пользуются другие экраны. */
 .ad-overlay {
   --accent: var(--sage-700);
   --accent-hover: var(--sage-900);
@@ -296,8 +266,6 @@ onMounted(() => {
   font-size: .72rem; font-weight: 700; letter-spacing: .07em; text-transform: uppercase;
   color: var(--text-tertiary); margin-bottom: .65rem;
 }
-/* Стили .ad-section-head/.ad-pill/.ad-step* удалены вместе с блоком
-   «Заполненность карточки» — больше в разметке не встречаются. */
 
 .ad-blockers { display: grid; gap: .4rem; }
 .ad-blockers-tight { margin-top: .6rem; }

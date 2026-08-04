@@ -7,9 +7,6 @@
         <div class="title">{{ pageStore.title }}</div>
       </div>
     </div>
-    <!-- Кнопка смены темы и окно «Настройки» удалены вместе с тёмной темой и
-         режимом высокой контрастности: единственной настройкой была
-         контрастность, без неё окно осталось бы пустым. -->
   </header>
 </template>
 
@@ -38,6 +35,4 @@ const toggleSidebar = () => document.querySelector('.sidebar')?.classList.toggle
 @media (max-width: 768px) { .hamburger { display: block; } }
 .breadcrumb { font-size: 0.75rem; color: var(--text-secondary); }
 .title { font-size: 1.1rem; font-weight: 700; }
-/* Стили .right/.icon-btn/.switch/.slider удалены вместе с кнопками темы
-   и настроек — в разметке они больше не встречаются. */
 </style>

@@ -11,7 +11,6 @@
       </button>
     </header>
 
-    <!-- tabs + date nav -->
     <div class="sch-toolbar">
       <div class="sch-tabs">
         <button class="sch-tab" :class="{ active: tab === 'day' }" @click="tab = 'day'">Дневное расписание</button>
@@ -33,7 +32,6 @@
       </div>
     </div>
 
-    <!-- legend -->
     <div class="sch-legend">
       <span class="sch-leg"><i class="sch-swatch sch-swatch--diag"></i>Диагностика</span>
       <span class="sch-leg"><i class="sch-swatch sch-swatch--lesson"></i>Занятие</span>
@@ -42,7 +40,6 @@
 
     <div v-if="loading" class="sch-loading"><div class="sch-spinner"></div></div>
 
-    <!-- ============ DAY VIEW ============ -->
     <div v-else-if="tab === 'day'" class="sch-day card">
       <div class="sch-day-head">
         <div class="sch-day-title">{{ dayLabel }}</div>
@@ -50,7 +47,6 @@
       </div>
       <div v-if="dayEvents.length === 0" class="sch-empty">На этот день событий нет.</div>
       <div class="sch-timeline" :style="{ height: gridHeight + 'px' }">
-        <!-- slot rows -->
         <div class="sch-slots">
           <div
             v-for="s in slots"
@@ -63,9 +59,7 @@
             <span class="sch-slot-time" v-if="s.isHour">{{ s.label }}</span>
           </div>
         </div>
-        <!-- now line -->
         <div v-if="nowOffset !== null" class="sch-now" :style="{ top: nowOffset + 'px' }"><span></span></div>
-        <!-- events -->
         <div class="sch-events">
           <button
             v-for="ev in dayEvents"
@@ -83,7 +77,6 @@
       </div>
     </div>
 
-    <!-- ============ POOL VIEW: заявки на диагностику ============ -->
     <div v-else-if="tab === 'pool'" class="sch-pool">
       <p class="sch-pool-lead">
         <template v-if="canClaim">
@@ -157,10 +150,8 @@
       </div>
     </div>
 
-    <!-- ============ WEEK VIEW ============ -->
     <div v-else class="sch-week card">
       <div class="sch-week-grid">
-        <!-- header row -->
         <div class="sch-corner"></div>
         <div
           v-for="d in weekDays"
@@ -172,7 +163,6 @@
           <div class="sch-wday-num">{{ d.dayNum }}</div>
         </div>
 
-        <!-- body: time gutter + 7 day columns -->
         <div class="sch-wgutter">
           <div v-for="h in hours" :key="h" class="sch-whour" :style="{ height: slotHeight * 2 + 'px' }">
             <span>{{ pad(h) }}:00</span>
@@ -205,7 +195,6 @@
       </div>
     </div>
 
-    <!-- diagnostic fill modal -->
     <DiagnosticFillModal
       v-if="fillAssignmentId"
       :assignment-id="fillAssignmentId"
@@ -213,7 +202,6 @@
       @updated="onFillUpdated"
     />
 
-    <!-- diagnostic board (живая доска заявки) -->
     <DiagnosticBoardModal
       v-if="boardSessionId"
       :session-id="boardSessionId"
@@ -222,7 +210,6 @@
       @changed="refreshAll"
     />
 
-    <!-- claim modal: специалист выбирает только время -->
     <div v-if="claimSession" class="sch-overlay" @click.self="closeClaim">
       <div class="sch-create" role="dialog" aria-modal="true">
         <div class="sch-detail-head">
@@ -268,7 +255,6 @@
       </div>
     </div>
 
-    <!-- lesson detail modal -->
     <div v-if="detailEvent" class="sch-overlay" @click.self="detailEvent = null">
       <div class="sch-detail" role="dialog" aria-modal="true">
         <div class="sch-detail-head">
@@ -297,7 +283,6 @@
       </div>
     </div>
 
-    <!-- create modal -->
     <div v-if="createOpen" class="sch-overlay" @click.self="createOpen = false">
       <div class="sch-create" role="dialog" aria-modal="true">
         <div class="sch-detail-head">
@@ -393,15 +378,12 @@ import DiagnosticFillModal from '../components/DiagnosticFillModal.vue';
 import DiagnosticBoardModal from '../components/DiagnosticBoardModal.vue';
 
 const authStore = useAuthStore();
-// Кто создаёт заявку на диагностику (ресепшн/админ).
 const canAssign = computed(() => authStore.isAdmin || authStore.isEmployee);
-// Кто может «взять» реабилитанта себе — специалист (и админ для подстраховки).
 const canClaim = computed(() => authStore.isTeacher || authStore.isAdmin);
 
-// --- timeline geometry ---
-const DAY_START = 8;   // 08:00
-const DAY_END = 20;    // 20:00
-const slotHeight = 46; // px per 30 min
+const DAY_START = 8;
+const DAY_END = 20;
+const slotHeight = 46;
 const hours = Array.from({ length: DAY_END - DAY_START }, (_, i) => DAY_START + i);
 const slots = computed(() => {
   const out = [];
@@ -412,7 +394,6 @@ const slots = computed(() => {
 });
 const gridHeight = (DAY_END - DAY_START) * 2 * slotHeight;
 
-// --- state ---
 const tab = ref('day');
 const loading = ref(false);
 const events = ref([]);
@@ -423,7 +404,6 @@ const fillAssignmentId = ref(null);
 const boardSessionId = ref(null);
 const detailEvent = ref(null);
 
-// --- пул заявок на диагностику ---
 const pool = ref([]);
 const poolLoading = ref(false);
 const claimSession = ref(null);
@@ -431,7 +411,6 @@ const claiming = ref(false);
 const claimError = ref('');
 const claimForm = reactive({ startTime: '09:00', endTime: '09:30' });
 
-// create modal
 const createOpen = ref(false);
 const createMode = ref('assignment');
 const submitting = ref(false);
@@ -444,7 +423,6 @@ const form = reactive({
   title: '', date: currentDate.value, startTime: '09:00', endTime: '09:30', comment: ''
 });
 
-// --- date helpers ---
 function pad(n) { return String(n).padStart(2, '0'); }
 function toYmd(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function fromYmd(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
@@ -457,7 +435,7 @@ const MONTHS = ['января', 'февраля', 'марта', 'апреля', 
 
 function mondayOf(ymd) {
   const d = fromYmd(ymd);
-  const wd = d.getDay(); // 0 Sun..6 Sat
+  const wd = d.getDay();
   const diff = wd === 0 ? -6 : 1 - wd;
   d.setDate(d.getDate() + diff);
   return d;
@@ -485,11 +463,10 @@ function formatDate(ymd) {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
-// --- now line (only if viewing today) ---
 const nowTick = ref(Date.now());
 let nowTimer = null;
 const nowOffset = computed(() => {
-  nowTick.value; // reactive dep
+  nowTick.value;
   if (currentDate.value !== todayYmd) return null;
   const now = new Date();
   const min = now.getHours() * 60 + now.getMinutes();
@@ -497,7 +474,6 @@ const nowOffset = computed(() => {
   return (min - DAY_START * 60) / 30 * slotHeight;
 });
 
-// --- events ---
 const dayEvents = computed(() => eventsForDay(currentDate.value));
 function eventsForDay(ymd) {
   return events.value
@@ -521,8 +497,6 @@ async function loadEvents() {
   }
 }
 
-// --- пул заявок на диагностику -------------------------------------------
-// Заявку создаёт ресепшн (только дата). Специалисты сами разбирают её здесь.
 async function loadPool() {
   poolLoading.value = true;
   try {
@@ -536,15 +510,12 @@ async function loadPool() {
   }
 }
 
-// Счётчик на вкладке: для специалиста — сколько заявок он ещё может взять,
-// для координатора — сколько заявок в работе всего.
 const poolBadge = computed(() => {
   if (!pool.value.length) return 0;
   if (canClaim.value) return pool.value.filter((s) => !s.claimedByMe).length;
   return pool.value.length;
 });
 
-// Профиль (направление) текущего пользователя — подставляется при «взять себе».
 const myProfile = computed(() => {
   const id = authStore.user?.directionId;
   if (!id) return '';
@@ -556,12 +527,10 @@ function statusLabel(s) {
   return { open: 'свободна', in_progress: 'в работе', completed: 'завершена', cancelled: 'отменена' }[s] || s;
 }
 
-// Название профиля по блоку (direction приходит объектом).
 function blockProfile(b) {
   return PROFILE_LABELS[b.profileKey] || b.direction?.name || 'Направление';
 }
 
-// Доску заявки открываем тем, кто хоть что-то в ней видит.
 function canOpenBoard(s) {
   return canAssign.value || s.claimedByMe || s.canViewAll || s.canConclude;
 }
@@ -606,7 +575,6 @@ async function submitClaim() {
     });
     claimSession.value = null;
     await refreshAll();
-    // Сразу открываем блок — специалист может начать заполнять свой профиль.
     if (data?.assignmentId) fillAssignmentId.value = data.assignmentId;
   } catch (err) {
     claimError.value = err.response?.data?.message || 'Не удалось взять реабилитанта.';
@@ -627,7 +595,6 @@ async function refreshAll() {
   if (tab.value === 'pool' || pool.value.length) await loadPool();
 }
 
-// --- geometry for a single event block ---
 function evStyle(ev) {
   const startMin = Math.max(toMin(ev.startTime), DAY_START * 60);
   const endMin = Math.min(toMin(ev.endTime), DAY_END * 60);
@@ -651,7 +618,6 @@ function evSubtitle(ev) {
   return PROFILE_LABELS[pk] || ev.direction?.name || 'Диагностика';
 }
 
-// --- interactions ---
 function onEventClick(ev) {
   if (ev.type === 'diagnostic' && ev.assignmentId) {
     fillAssignmentId.value = ev.assignmentId;
@@ -678,7 +644,6 @@ function shift(dir) {
 }
 function goToday() { currentDate.value = todayYmd; loadEvents(); }
 
-// --- delete ---
 function canDelete(ev) {
   return canAssign.value || (authStore.isTeacher && ev.specialistUserId === authStore.user?.id);
 }
@@ -693,7 +658,6 @@ async function deleteEvent(ev) {
   }
 }
 
-// --- create ---
 function directionLabel(d) { return PROFILE_LABELS[d.profileKey] || d.name; }
 function specialistName(s) {
   const n = [s.lastName, s.firstName].filter(Boolean).join(' ');
@@ -727,7 +691,6 @@ async function submitCreate() {
   submitting.value = true;
   try {
     if (createMode.value === 'assignment') {
-      // Заявка на диагностику: только реабилитант + дата.
       if (!form.recipientId) {
         createError.value = 'Выберите реабилитанта.'; submitting.value = false; return;
       }
@@ -773,7 +736,6 @@ function resetForm() {
 onMounted(() => {
   document.documentElement.style.setProperty('--bg-app', '#F7F4ED');
   loadEvents();
-  // Счётчик свободных заявок нужен сразу — он висит на вкладке.
   loadDirections();
   loadPool();
   nowTimer = setInterval(() => { nowTick.value = Date.now(); }, 60000);
@@ -808,7 +770,6 @@ onUnmounted(() => {
   background: #B0533F; color: #fff; font-size: 0.68rem; font-weight: 700;
 }
 
-/* ---- пул заявок на диагностику ---- */
 .sch-pool { display: flex; flex-direction: column; gap: 0.9rem; }
 .sch-pool-lead { margin: 0; color: #4F564A; font-size: 0.9rem; line-height: 1.5; max-width: 62ch; }
 .sch-pool-warn {
@@ -877,7 +838,6 @@ onUnmounted(() => {
 .sch-spinner { width: 40px; height: 40px; margin: 0 auto; border: 4px solid rgba(95,126,69,0.2); border-top-color: #3F6E3F; border-radius: 50%; animation: spin 0.8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ---- day view ---- */
 .sch-day-head { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.35rem; border-bottom: 1px solid #EFEADC; }
 .sch-day-title { font-family: 'Lora', Georgia, serif; font-weight: 600; font-size: 1.1rem; color: #0F140F; }
 .sch-day-count { font-size: 0.8rem; color: #6E7368; }
@@ -910,7 +870,6 @@ onUnmounted(() => {
 .sch-now { position: absolute; left: 5.55rem; right: 1.35rem; height: 0; border-top: 2px solid #B0533F; z-index: 5; }
 .sch-now span { position: absolute; left: -5px; top: -5px; width: 9px; height: 9px; border-radius: 50%; background: #B0533F; }
 
-/* ---- week view ---- */
 .sch-week { padding: 0; }
 .sch-week-grid {
   display: grid;
@@ -943,7 +902,6 @@ onUnmounted(() => {
 .sch-wev.is-lesson { background: #E4EEF6; border-color: #B9D2E6; border-left-color: #3E6D99; color: #1F4568; }
 .sch-wev.is-done { background: #E0EBD1; border-color: #C0D4A6; border-left-color: #3F6E3F; color: #234623; }
 
-/* ---- shared modal bits ---- */
 .sch-overlay { position: fixed; inset: 0; z-index: 1000; background: rgba(17,34,17,0.45); display: flex; align-items: flex-start; justify-content: center; padding: 2.5rem 1rem; overflow-y: auto; }
 .sch-detail, .sch-create { background: #F7F4ED; width: 100%; max-width: 460px; border-radius: 1.1rem; border: 1px solid #E4DECF; box-shadow: 0 24px 60px rgba(17,34,17,0.28); overflow: hidden; }
 .sch-create { max-width: 540px; }

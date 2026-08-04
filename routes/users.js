@@ -17,9 +17,6 @@ router.get('/', authMiddleware, roleMiddleware('admin'), async (req, res) => {
   }
 })
 
-// Создание пользователя администратором.
-// ВАЖНО: в отличие от /auth/register, здесь НЕ выдаётся cookie/токен,
-// поэтому сессия администратора не подменяется на нового пользователя.
 router.post('/', authMiddleware, roleMiddleware('admin'), async (req, res) => {
   try {
     const {
@@ -41,9 +38,7 @@ router.post('/', authMiddleware, roleMiddleware('admin'), async (req, res) => {
       lastName: lastName || null,
       phone: phone || null,
       cabinet: cabinet || null,
-      // Проф. ориентированность актуальна только для преподавателя.
       directionId: finalRole === 'teacher' && directionId ? directionId : null,
-      // Права по диагностике выдаются точечно и только специалистам.
       canConclude: finalRole === 'teacher' ? canConclude === true : false,
       canViewAllResults: finalRole === 'teacher' ? canViewAllResults === true : false
     })
@@ -87,12 +82,10 @@ router.put('/:id', authMiddleware, async (req, res) => {
     if (phone !== undefined) user.phone = phone || null
     if (cabinet !== undefined) user.cabinet = cabinet || null
     if (directionId !== undefined) user.directionId = directionId || null
-    // Права по диагностике меняет ТОЛЬКО администратор.
     if (req.user.role === 'admin') {
       if (canConclude !== undefined) user.canConclude = canConclude === true
       if (canViewAllResults !== undefined) user.canViewAllResults = canViewAllResults === true
     }
-    // Проф. ориентированность и права по диагностике имеют смысл только у преподавателя.
     if (user.role !== 'teacher') {
       user.directionId = null
       user.canConclude = false

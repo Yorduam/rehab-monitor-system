@@ -1,12 +1,8 @@
 import { defineStore } from 'pinia'
 
-// Флаги на уровне модуля (не в state), чтобы обработчики истории не пушили
-// новую запись, когда мы САМИ восстанавливаем состояние из истории/URL.
 let restoring = false
 let historyInited = false
 
-// Заголовки страниц — нужны, когда пользователь открывает прямую ссылку
-// (#/recipients) или обновляет страницу: восстановить title из одного лишь URL.
 const PAGE_TITLES = {
   dashboard: 'Дашборд',
   recipients: 'Реабилитанты',
@@ -19,10 +15,6 @@ const PAGE_TITLES = {
   'recipient-details': 'Карточка реабилитанта'
 }
 
-// page + params -> hash-URL (#/recipients?recipientId=15) и обратно.
-// ИМЕННО смена URL заставляет кнопки браузера Назад/Вперёд работать надёжно —
-// в т.ч. во встроенных браузерах (VS Code Simple Browser, webview), которые
-// игнорируют pushState с тем же самым URL и считают, что мы «не уходили».
 function buildUrl(page, params = {}) {
   let url = '#/' + (page || 'dashboard')
   const pairs = Object.keys(params || {})
@@ -32,10 +24,6 @@ function buildUrl(page, params = {}) {
   return url
 }
 
-// history.replaceState/pushState клонируют аргумент алгоритмом structured clone,
-// а он НЕ умеет клонировать реактивные Proxy из Vue/Pinia (this.params — именно
-// такой) и бросает DataCloneError. Поэтому кладём в историю только «сырой»
-// сериализуемый снимок объекта.
 function plain(obj) {
   try {
     return JSON.parse(JSON.stringify(obj ?? {}))
@@ -67,16 +55,10 @@ export const usePageStore = defineStore('page', {
     params: {}
   }),
   actions: {
-    // Один раз: восстанавливает страницу из истории/URL, фиксирует стартовую
-    // запись с её собственным URL и вешает слушатели Назад/Вперёд.
-    // Вызывается лениво из setPage — работает даже без onMounted и переживает HMR.
     ensureHistory() {
       if (historyInited || typeof window === 'undefined') return
       historyInited = true
 
-      // Применить состояние страницы из записи истории, а если в записи нет
-      // state (частый случай во встроенных браузерах) — разобрать сам URL.
-      // Благодаря этому страница ПЕРЕКЛЮЧАЕТСЯ всегда, как только меняется адрес.
       const applyFromHistory = () => {
         const st = window.history.state && window.history.state.__page
         let target = st
@@ -93,7 +75,6 @@ export const usePageStore = defineStore('page', {
         restoring = false
       }
 
-      // Начальное состояние: перезагрузка (history.state) или прямая ссылка (hash).
       const saved = window.history.state && window.history.state.__page
       if (saved) {
         restoring = true
@@ -112,31 +93,23 @@ export const usePageStore = defineStore('page', {
         }
       }
 
-      // Фиксируем текущую страницу как стартовую запись истории c её URL,
-      // иначе кнопке «Назад» некуда возвращаться на первом переходе.
       window.history.replaceState(
         { __page: { page: this.current, title: this.title, params: plain(this.params) } },
         '',
         buildUrl(this.current, this.params)
       )
 
-      // Кнопки Назад/Вперёд. Слушаем ОБА события: popstate работает в обычных
-      // браузерах, hashchange — подстраховка для webview, где popstate «молчит».
       window.addEventListener('popstate', applyFromHistory)
       window.addEventListener('hashchange', applyFromHistory)
     },
 
-    // Совместимость: App.vue вызывает initHistory() в onMounted.
     initHistory() {
       this.ensureHistory()
     },
 
     setPage(page, title, params = {}) {
-      // Гарантируем, что стартовая запись и слушатели установлены ДО смены
-      // страницы, — иначе кнопке «Назад» некуда возвращаться.
       this.ensureHistory()
 
-      // Если ни страница, ни параметры не меняются — не плодим записи в истории.
       const sameState =
         this.current === page &&
         JSON.stringify(this.params || {}) === JSON.stringify(params || {})
@@ -145,8 +118,6 @@ export const usePageStore = defineStore('page', {
       this.title = title
       this.params = params
 
-      // Пушим НОВУЮ запись со своим URL, чтобы кнопка «Назад» работала.
-      // pushState НЕ вызывает popstate/hashchange — поэтому лишних срабатываний нет.
       if (!restoring && !sameState && typeof window !== 'undefined') {
         window.history.pushState(
           { __page: { page, title, params: plain(params) } },
@@ -157,7 +128,6 @@ export const usePageStore = defineStore('page', {
     },
 
     goBack() {
-      // Отдаём управление истории браузера — она сама вернёт предыдущую страницу.
       window.history.back()
     }
   }

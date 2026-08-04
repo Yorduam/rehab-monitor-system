@@ -5,8 +5,6 @@ import { generateDocument } from '../services/documentGenerator.js';
 
 const router = express.Router();
 
-// Сформировать заполненный документ (согласие/заявление) из данных мастера.
-// Возвращает готовый .docx/.xlsx файлом для скачивания.
 router.post('/generate', authMiddleware, async (req, res, next) => {
   try {
     const { docType, form } = req.body || {};
@@ -33,7 +31,6 @@ const recipientInclude = {
   attributes: ['id', 'firstName', 'middleName', 'lastName']
 };
 
-// Все документы по всем реабилитантам (для админа/учителя)
 router.get('/', authMiddleware, roleMiddleware('admin', 'teacher'), async (req, res, next) => {
   try {
     const docs = await RecipientDoc.findAll({
@@ -60,15 +57,12 @@ function pickFields(body) {
   return out;
 }
 
-// Приводим значения к строке, чтобы сравнение не спотыкалось о null/undefined
-// и о разное представление булевых (true / 1 / '1').
 const cmp = (v) => {
   if (v === null || v === undefined) return '';
   if (typeof v === 'boolean') return v ? '1' : '0';
   return String(v);
 };
 
-// Какие поля реально меняются этим патчем.
 function diffFields(doc, patch) {
   const changed = [];
   for (const [key, value] of Object.entries(patch)) {
@@ -113,8 +107,6 @@ router.post('/', authMiddleware, async (req, res, next) => {
   }
 });
 
-// История обновлений документа: кто, когда и по какой причине менял данные.
-// Отдаём в порядке «сначала свежие».
 router.get('/:id/history', authMiddleware, async (req, res, next) => {
   try {
     const doc = await RecipientDoc.findByPk(req.params.id);
@@ -140,11 +132,6 @@ router.get('/:id/history', authMiddleware, async (req, res, next) => {
   }
 });
 
-// Обновление документа. Старые данные НЕ теряются: перед записью снимаем
-// снимок прежних значений в RecipientDocVersions вместе с автором, датой и
-// обязательной причиной обновления.
-// Менять документы могут только сотрудник и администратор — преподаватель
-// работает с диагностикой, делопроизводство не его зона ответственности.
 router.put('/:id', authMiddleware, roleMiddleware('admin', 'employee'), async (req, res, next) => {
   try {
     const doc = await RecipientDoc.findByPk(req.params.id);
@@ -164,7 +151,6 @@ router.put('/:id', authMiddleware, roleMiddleware('admin', 'employee'), async (r
       return res.status(400).json({ message: 'Данные документа не изменились' });
     }
 
-    // Снимок ПРЕЖНЕЙ версии — до применения патча.
     const snapshot = doc.toJSON();
     await RecipientDocVersion.create({
       docId: doc.id,

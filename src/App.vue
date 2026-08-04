@@ -111,7 +111,6 @@ onUnmounted(() => {
 @keyframes spin { to { transform: rotate(360deg); } }
 
 :root {
-  /* Шрифты проекта — как в макете. */
   --font-serif: 'Lora', 'Times New Roman', Georgia, serif;
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --bg-app: #F7F4ED;
@@ -128,11 +127,6 @@ onUnmounted(() => {
   --accent-soft: #e0f0f9;
   --accent-text: #073450;
   --accent-border: #b0d0e6;
-  /* Зелёная шкала проекта. Раньше её объявляла у себя каждая страница
-     (Диагностика, карточка реабилитанта, кабинет сотрудника), из-за чего
-     экраны вне этих страниц — вход, чат-бот, модалки — красились старым
-     синим --accent. Выносим в :root как общие токены; локальные объявления
-     внутри страниц по-прежнему перекрывают эти значения. */
   --sage-900: #1E2F1E;
   --sage-800: #2A4129;
   --sage-700: #2F4A2F;
@@ -157,23 +151,14 @@ onUnmounted(() => {
   --shadow-lg: 0 12px 32px rgba(0,0,0,0.1);
   --transition: 0.2s ease;
 }
-/* Тёмная тема (body.dark) и режим высокой контрастности (body.high-contrast)
-   удалены — сайт работает только в светлой теме. Вместе с ними убраны
-   переключатель темы и окно «Настройки» в Topbar.vue. */
-body.large-text { font-size: 1.125rem; }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
-/* Шрифты — как в макете: Inter (основной, наследуется от body) и Lora
-   (заголовки/крупные числа). Компоненты сами выбирают начертание через
-   var(--font-sans)/var(--font-serif); глобального !important-переопределения
-   больше НЕТ — иначе оно затирало бы Lora в заголовках. */
 body {
   font-family: var(--font-sans);
   background: var(--bg-app);
   color: var(--text-primary);
   transition: background var(--transition), color var(--transition);
 }
-/* Элементы форм по умолчанию не наследуют шрифт — принудительно наследуем Inter. */
 input, select, textarea, button { font-family: inherit; }
 .app { display: flex; min-height: 100vh; }
 .main { flex: 1; margin-left: var(--sidebar-width, 260px); display: flex; flex-direction: column; }

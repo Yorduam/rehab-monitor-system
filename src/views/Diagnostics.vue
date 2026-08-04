@@ -2,14 +2,9 @@
   <div class="diagnostics-page" :class="{ 'diag-readonly': isEmployee }">
     <a class="skip-link" href="#stages-flow">Перейти к этапам диагностики</a>
 
-    <!-- Переключателя режимов больше нет: назначение здесь не создаётся.
-         Заявку ставит ресепшн из раздела «Реабилитанты» — только датой,
-         без выбора направления и специалиста. -->
 
     <div class="content" :class="{ 'is-gated': !recipientChosen }">
 
-      <!-- Ворота выбора: пока реабилитант не выбран, карточка диагностики скрыта
-           (см. CSS .content.is-gated), а на её месте — приглашение выбрать. -->
       <div class="diag-gate" v-show="!recipientChosen">
         <div class="diag-gate-card">
           <div class="diag-gate-iconwrap" aria-hidden="true">
@@ -141,7 +136,7 @@
                   <span class="badge progress">В работе</span>
                 </div>
                 <div class="sub-row">
-                  <span>Зернакова М.А., Букарева О.Б., Косторных С.Е.</span>
+                  <span data-role="stage-specialists" data-profile="psy log"></span>
                   <span class="sep" aria-hidden="true"></span>
                   <span>2 подраздела: психолог · логопед</span>
                   <span class="sep" aria-hidden="true"></span>
@@ -476,6 +471,8 @@
               </div>
 
                 <div class="subblock-actions">
+                  <span class="signed-note" style="color: var(--ink-subtle);" data-role="block-authors" data-profile="psy"></span>
+                  <div class="spacer"></div>
                   <button type="button" class="btn btn-primary btn-sm" data-action="finish-subblock">Завершить блок</button>
                 </div>
 
@@ -728,6 +725,8 @@
                 </fieldset>
 
                 <div class="subblock-actions">
+                  <span class="signed-note" style="color: var(--ink-subtle);" data-role="block-authors" data-profile="log"></span>
+                  <div class="spacer"></div>
                   <button type="button" class="btn btn-primary btn-sm" data-action="finish-subblock">Завершить блок</button>
                 </div>
 
@@ -754,7 +753,7 @@
                   <span class="badge progress">В процессе · 62 %</span>
                 </div>
                 <div class="sub-row">
-                  <span>Тенетко И.С. · специалист по реабилитации</span>
+                  <span data-role="stage-specialists" data-profile="afk"></span>
                   <span class="sep" aria-hidden="true"></span>
                   <span>Начато 16 мая</span>
                 </div>
@@ -944,9 +943,7 @@
               </fieldset>
 
               <div class="stage-actions">
-                <span class="signed-note" style="color: var(--ink-subtle);">
-                  Черновик · автосохранение
-                </span>
+                <span class="signed-note" style="color: var(--ink-subtle);" data-role="block-authors" data-profile="afk"></span>
                 <div class="spacer"></div>
                 <button type="button" class="btn btn-secondary btn-sm" data-action="save-draft"><span class="btn-label">Сохранить черновик</span></button>
                 <button type="button" class="btn btn-primary btn-sm" data-action="finish-stage">Завершить этап</button>
@@ -1110,7 +1107,7 @@
                 </div>
 
                 <div class="subblock-actions">
-                  <span class="signed-note" style="color: var(--ink-subtle);">Заполняет: Шильникова А.О.</span>
+                  <span class="signed-note" style="color: var(--ink-subtle);" data-role="block-authors" data-profile="izo"></span>
                   <div class="spacer"></div>
                   <button type="button" class="btn btn-secondary btn-sm" data-action="save-draft"><span class="btn-label">Сохранить черновик</span></button>
                   <button type="button" class="btn btn-primary btn-sm" data-action="finish-subblock">Завершить блок</button>
@@ -1217,7 +1214,7 @@
                 </div>
 
                 <div class="subblock-actions">
-                  <span class="signed-note" style="color: var(--ink-subtle);">Заполняет: Ремизова Д.В.</span>
+                  <span class="signed-note" style="color: var(--ink-subtle);" data-role="block-authors" data-profile="theatre"></span>
                   <div class="spacer"></div>
                   <button type="button" class="btn btn-secondary btn-sm" data-action="save-draft"><span class="btn-label">Сохранить черновик</span></button>
                   <button type="button" class="btn btn-primary btn-sm" data-action="finish-subblock">Завершить блок</button>
@@ -1377,7 +1374,7 @@
                 </div>
 
                 <div class="subblock-actions">
-                  <span class="signed-note" style="color: var(--ink-subtle);">Заполняют: Иванова Е.В. · Журавлева Т.А.</span>
+                  <span class="signed-note" style="color: var(--ink-subtle);" data-role="block-authors" data-profile="vocal instrument"></span>
                   <div class="spacer"></div>
                   <button type="button" class="btn btn-secondary btn-sm" data-action="save-draft"><span class="btn-label">Сохранить черновик</span></button>
                   <button type="button" class="btn btn-primary btn-sm" data-action="finish-subblock">Завершить блок</button>
@@ -1417,20 +1414,8 @@
             <div class="stage-body" id="stage-final-body" hidden>
 
               <div class="specialists-row" style="margin-top: 0; padding-top: 0; border-top: none; margin-bottom: 1.5rem;">
-                <div class="specialists-label">Заключение оформляют</div>
-                <div class="specialists-list" role="list">
-                  <span class="specialist-chip" role="listitem">
-                    <span class="av" aria-hidden="true">СА</span>
-                    Соколова А.Б.
-                    <button type="button" class="rm" aria-label="Убрать Соколова А.Б.">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
-                    </button>
-                  </span>
-                  <button type="button" class="specialist-add">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true" style="width: 0.75rem; height: 0.75rem;"><path d="M12 5v14M5 12h14"/></svg>
-                    Добавить специалиста
-                  </button>
-                </div>
+                <div class="specialists-label">Блоки заполнили</div>
+                <div class="specialists-list" role="list" data-role="stage-authors"></div>
               </div>
 
               <fieldset class="qgroup" style="margin-top: 0; padding-top: 0; border-top: none;">
@@ -1488,7 +1473,7 @@
               <span class="sni-num">01</span>
               <span class="sni-body">
                 <span class="sni-name">Психолог + логопед</span>
-                <span class="sni-spec">Зернакова М.А. +3</span>
+                <span class="sni-spec" data-role="stage-specialists-short" data-profile="psy log"></span>
               </span>
               <span class="sni-status progress" aria-label="в процессе"></span>
             </a>
@@ -1496,7 +1481,7 @@
               <span class="sni-num">02</span>
               <span class="sni-body">
                 <span class="sni-name">АФК</span>
-                <span class="sni-spec">Тенетко И.С.</span>
+                <span class="sni-spec" data-role="stage-specialists-short" data-profile="afk"></span>
               </span>
               <span class="sni-status progress" aria-label="в процессе"></span>
             </a>
@@ -1504,7 +1489,7 @@
               <span class="sni-num">03</span>
               <span class="sni-body">
                 <span class="sni-name">Соц.-культурная</span>
-                <span class="sni-spec">4 специалиста · ваш этап</span>
+                <span class="sni-spec" data-role="stage-specialists-short" data-profile="izo theatre vocal instrument"></span>
               </span>
               <span class="sni-status progress" aria-label="в процессе"></span>
             </a>
@@ -1512,7 +1497,7 @@
               <span class="sni-num">04</span>
               <span class="sni-body">
                 <span class="sni-name">Заключение</span>
-                <span class="sni-spec">Соколова А.</span>
+                <span class="sni-spec" data-role="conclusion-author"></span>
               </span>
               <span class="sni-status empty" aria-label="не начат"></span>
             </a>
@@ -1560,50 +1545,11 @@
       <span class="toast-body" id="toast-body">Этап завершён</span>
     </div>
 
-    <div class="modal-backdrop" id="specialist-modal" role="dialog" aria-modal="true" aria-labelledby="modal-title" hidden>
-      <div class="modal" role="document">
-        <header class="modal-head">
-          <div class="mh-body">
-            <div class="mh-title" id="modal-title">Добавить специалистов</div>
-            <div class="mh-sub" id="modal-context">для блока: <strong>—</strong></div>
-          </div>
-          <button type="button" class="modal-close" id="modal-close-btn" aria-label="Закрыть">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
-          </button>
-        </header>
-
-        <div class="modal-search">
-          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-          <label class="sr-only" for="modal-search-input">Поиск по фамилии</label>
-          <input id="modal-search-input" type="text" placeholder="Поиск по фамилии или роли…" autocomplete="off" />
-        </div>
-
-        <div class="modal-filters" role="tablist" aria-label="Фильтр по специальности">
-          <button type="button" class="modal-filter-chip active" role="tab" aria-selected="true" data-role="all">Все</button>
-          <button type="button" class="modal-filter-chip" role="tab" aria-selected="false" data-role="psychology">Психология</button>
-          <button type="button" class="modal-filter-chip" role="tab" aria-selected="false" data-role="afk">АФК</button>
-          <button type="button" class="modal-filter-chip" role="tab" aria-selected="false" data-role="izo">ИЗО</button>
-          <button type="button" class="modal-filter-chip" role="tab" aria-selected="false" data-role="theatre">Театр</button>
-          <button type="button" class="modal-filter-chip" role="tab" aria-selected="false" data-role="vocal">Вокал</button>
-        </div>
-
-        <div class="modal-list" id="modal-list" role="listbox" aria-multiselectable="true">
-
-        </div>
-
-        <footer class="modal-foot">
-          <span class="selected-count"><strong id="modal-sel-count">0</strong> выбрано</span>
-          <div class="modal-foot-spacer"></div>
-          <button type="button" class="btn btn-secondary btn-sm" id="modal-cancel-btn">Отмена</button>
-          <button type="button" class="btn btn-primary btn-sm" id="modal-add-btn" disabled style="opacity: 0.5; cursor: not-allowed;">Добавить</button>
-        </footer>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import api from '../api'
 import { fullName } from '../utils/recipient'
 import { usePageStore } from '../stores/page'
@@ -1612,23 +1558,12 @@ import { useAuthStore } from '../stores/auth'
 const pageStore = usePageStore()
 const authStore = useAuthStore()
 
-// Роль-специфика: преподаватель (куратор) заполняет диагностику только по
-// своей проф. области. Ему недоступны переключатель режимов и назначение.
 const isTeacher = computed(() => authStore.isTeacher)
-// Сотрудник: карточка диагностики доступна ТОЛЬКО для просмотра —
-// он видит этапы и данные, но не может их редактировать/сохранять.
 const isEmployee = computed(() => authStore.isEmployee)
-// Слушатели режима «только просмотр» для сотрудника (снимаются в onUnmounted).
 let employeeReadonlyGuards = null
-// profileKey проф. ориентации преподавателя (psy/log/izo/theatre/vocal/afk).
 const teacherProfileKey = ref('')
 
-// ── Ворота выбора реабилитанта ────────────────────────────────────────────
-// Карточка диагностики показывается ТОЛЬКО после явного выбора реабилитанта.
-// Сотрудник/Администратор выбирают из полного списка; преподаватель — только
-// из тех, кого направили на диагностику лично к нему (idSpecialist = его id).
 const recipientChosen = ref(false)
-// Сколько реабилитантов доступно преподавателю — определяет текст «ворот».
 const teacherAssignedCount = ref(0)
 
 const gateHasButton = computed(() =>
@@ -1652,9 +1587,6 @@ function openRecipientPicker() {
   if (typeof window.__openRecipientPicker === 'function') window.__openRecipientPicker()
 }
 
-// Режим вкладки всегда один — карточка диагностики. Старый режим
-// «Назначение на диагностику» (выбор направления и специалиста, POST /diagnostics)
-// упразднён: заявка ставится только датой из раздела «Реабилитанты».
 const diagMode = ref('card')
 
 function handleMobileStageChange(event) {
@@ -1662,20 +1594,16 @@ function handleMobileStageChange(event) {
   if (value) document.querySelector(value)?.scrollIntoView({ behavior: 'smooth' })
 }
 
-// Жёстко ограничивает карточку диагностики областью преподавателя (куратора).
-// Определяем profileKey по его directionId (проф. ориентация) и включаем
-// глобальную привязку, которую учитывает applyProfileRestriction в рантайме.
 async function lockTeacherProfile() {
   try {
     const directionId = authStore.user?.directionId
-    if (!directionId) return // область не задана — оставляем как есть
+    if (!directionId) return 
     const { data } = await api.get('/lists/directions')
     const dir = Array.isArray(data) ? data.find((d) => d.id === directionId) : null
     const key = dir?.profileKey || ''
     if (!key) return
     teacherProfileKey.value = key
     window.__forcedProfileKey = key
-    // Рантаж уже построил DOM (fetch резолвится после синхронной части onMounted).
     const apply = () => {
       if (typeof window.__applyProfileRestriction === 'function') {
         window.__applyProfileRestriction(key)
@@ -1692,22 +1620,16 @@ async function lockTeacherProfile() {
 onMounted(() => {
   document.title = 'ERP-Р • Диагностика'
 
-  // Сбрасываем возможную «залипшую» жёсткую привязку профиля от прошлой
-  // сессии (например, если до этого страницу открывал преподаватель).
   window.__forcedProfileKey = '';
 
   if (authStore.isTeacher) {
     lockTeacherProfile();
   }
 
-  // Роль «Сотрудник»: карточка диагностики только для просмотра.
-  // CSS прячет кнопки редактирования и глушит мышь; здесь блокируем ввод
-  // с клавиатуры (Tab+печать/пробел/стрелки в полях), не трогая рантайм —
-  // никаких disabled/readonly, чтобы не конфликтовать с lock/unlock подпанелей.
   if (authStore.isEmployee) {
     const isCardEditable = (el) => {
       if (!el || !el.closest) return false;
-      if (!el.closest('.content')) return false; // только карточка диагностики
+      if (!el.closest('.content')) return false; 
       const tag = el.tagName;
       return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
     };
@@ -1723,13 +1645,10 @@ onMounted(() => {
       const el = e.target;
       if (!isCardEditable(el)) return;
       const tag = el.tagName;
-      // Для select / чекбоксов / радио блокируем изменение значения клавишами,
-      // оставляя только выход по Tab/Escape.
       if (tag === 'SELECT' || (tag === 'INPUT' && (el.type === 'checkbox' || el.type === 'radio'))) {
         if (e.key !== 'Tab' && e.key !== 'Escape') { e.preventDefault(); e.stopPropagation(); }
         return;
       }
-      // Для текстовых полей блокируем ввод, но сохраняем навигацию.
       if (!NAV_KEYS.includes(e.key)) { e.preventDefault(); e.stopPropagation(); }
     };
     employeeReadonlyGuards = [
@@ -1741,8 +1660,6 @@ onMounted(() => {
     employeeReadonlyGuards.forEach(([evt, fn]) => document.addEventListener(evt, fn, true));
   }
 
-    // Тёплый кремовый фон на всю страницу (как в Дашборде) + поднимаем
-    // плавающую кнопку «Помощник ERP» над нижней панелью действий
     document.documentElement.style.setProperty('--bg-app', '#F7F4ED');
     document.documentElement.style.setProperty('--fab-offset', '4.75rem');
 
@@ -1760,19 +1677,9 @@ onMounted(() => {
       completed: false,
       lastReportData: null,
       assignments: [],
-      // Блоки ВСЕХ действующих заявок реабилитанта — как их отдал сервер.
-      // assignments выше урезан до блоков текущего пользователя, поэтому
-      // «пройден ли этап целиком» по нему считать нельзя: у преподавателя
-      // там лежит только его собственный блок.
       blocks: [],
-      // Заявка на диагностику выбранного реабилитанта и её итоговое
-      // заключение. Нужны этапу 04 «Сводное заключение»: он сохраняется
-      // не в блок специалиста, а в отдельную запись заключения по заявке.
       sessionId: null,
       conclusion: null,
-      // Этапы 01–03, которые ещё не пройдены. Пока список не пуст, этап 04
-      // закрыт: заключение — итог маршрута, а не отдельная самостоятельная
-      // запись. Считает сервер, здесь только держим ответ.
       conclusionBlockers: []
     };
     window.__diagnosticsRuntime = diagnosticsRuntime;
@@ -1892,81 +1799,43 @@ onMounted(() => {
       hydrateResultsForRecipient();
     }
 
-    // Карточка показывает ОДНУ диагностику — самую свежую действующую заявку
-    // реабилитанта. У одного человека таких заявок может быть несколько:
-    // прошлый круг диагностики закрыт (status = completed), новый идёт.
-    // Смешивать их блоки нельзя: от закрытой заявки подразделы приезжали бы
-    // уже запертыми, а кнопка «Завершить блок» могла записать результат в
-    // блок старой заявки поверх того, что специалист сдал в прошлый раз.
     function pickCurrentSession(sessions) {
       const live = (Array.isArray(sessions) ? sessions : []).filter((s) => s.status !== 'cancelled');
       if (!live.length) return null;
       return live.reduce((a, b) => (Number(b.id) > Number(a.id) ? b : a));
     }
 
-    // Подгружаем в карточку ранее сохранённые (завершённые) результаты диагностики
-    // выбранного реабилитанта. Каждая завершённая запись (по одной на профиль/
-    // направление) восстанавливается в свой блок — так администратор (и любой,
-    // кто открывает карточку) видит то, что заполнил преподаватель.
     async function hydrateResultsForRecipient() {
-      // Сначала полностью очищаем форму, чтобы данные одного реабилитанта не
-      // «протекали» на другого при переключении.
       if (typeof window.__resetFormState === 'function') {
         window.__resetFormState(document.querySelector('.diagnostics-page .content'));
       }
-      // И снимаем отметки «завершено» предыдущего реабилитанта: пока блок
-      // помечен завершённым, его поля заблокированы и значения следующего
-      // человека в них просто не попадут.
       if (typeof window.__clearCompletionMarks === 'function') window.__clearCompletionMarks();
+      diagnosticsRuntime.blocks = [];
+      if (typeof window.__renderBlockAuthors === 'function') window.__renderBlockAuthors();
 
       const recipientId = diagnosticsRuntime.currentRecipient?.id;
       if (!recipientId) return;
       if (typeof window.__applyFormState !== 'function') return;
       try {
-        // Источник тот же, что и у нижней панели, — блоки заявок на диагностику.
-        // Легаси-таблица ReResult (/diagnostics) пуста: новый порядок в неё не
-        // пишет, и заполненные преподавателем поля отсюда не возвращались.
-        //
-        // Чужие блоки сервер отдаёт с results = null, если у пользователя нет
-        // права видеть результаты коллег, — доступ фильтруется на бэкенде.
         const { data } = await api.get('/schedule/sessions', { params: { recipientId } });
-        // Строго блоки ТЕКУЩЕЙ заявки. Раньше здесь складывались блоки всех
-        // незакрытых заявок разом, включая уже завершённые: карточка второго
-        // круга диагностики открывалась с чужими, прошлогодними отметками.
         const target = pickCurrentSession(data);
         const blocks = target ? (target.blocks || []) : [];
-        // Держим полный список блоков заявки: по нему считается, пройден ли
-        // этап целиком, — и считается ОДИНАКОВО у всех, кто открыл карточку.
         diagnosticsRuntime.blocks = blocks;
         blocks
           .filter(b => b.blockStatus === 'completed' && b.results && b.results.formState)
           .forEach(b => window.__applyFormState(b.results.formState));
 
-        // Этап 04 «Сводное заключение» живёт не в блоке специалиста, а в
-        // отдельной записи заключения по заявке. Раньше карточка его вообще
-        // не читала: специалист с правом заключать вердикт сохранял текст,
-        // он ложился в базу, но администратор в карточке видел пустую форму.
-        // Заявка та же, что дала блоки выше, — итог и этапы 01–03 должны
-        // считаться по одному и тому же кругу диагностики.
         diagnosticsRuntime.sessionId = target?.id ?? null;
         diagnosticsRuntime.conclusion = target?.conclusion || null;
-        // Непройденные этапы 01–03 считает сервер — он же и откажет в выдаче
-        // заключения. Держим тот же список, чтобы этап 04 был закрыт заранее,
-        // а не отбивался ошибкой уже после того, как вердикт написали.
         diagnosticsRuntime.conclusionBlockers = Array.isArray(target?.missingStages)
           ? target.missingStages
           : [];
         if (typeof window.__applyConclusion === 'function') {
           window.__applyConclusion(diagnosticsRuntime.conclusion);
         }
-        // Маршрут диагностики должен показывать РЕАЛЬНОЕ состояние: этап
-        // горит зелёным, когда специалисты действительно сдали свои блоки.
-        // Делаем это после восстановления значений — завершённый блок
-        // блокируется на чтение, и клики восстановления в него уже не пройдут.
         if (typeof window.__applyCompletedBlocks === 'function') window.__applyCompletedBlocks(blocks);
-        // Замок этапа 04 ставим последним: applyCompletedBlocks перевешивает
-        // обработчики кнопок этапов и могла бы сбросить состояние кнопки.
         if (typeof window.__updateConclusionGate === 'function') window.__updateConclusionGate();
+        if (typeof window.__renderBlockAuthors === 'function') window.__renderBlockAuthors();
       } catch (err) {
         console.warn('Не удалось загрузить сохранённые результаты диагностики', err);
       }
@@ -1998,10 +1867,8 @@ onMounted(() => {
         if (rows.length) {
           diagnosticsRuntime.recipients = rows.map((row, idx) => normalizeRecipient(row, idx));
         } else {
-          // База пуста — оставляем локальный список, чтобы окно выбора работало.
           diagnosticsRuntime.recipients = FALLBACK_RECIPIENTS.map((row, idx) => normalizeRecipient(row, idx));
         }
-        // Реабилитант НЕ выбирается автоматически — выбор всегда явный («ворота»).
         renderRecipientList();
       } catch (err) {
 
@@ -2009,14 +1876,6 @@ onMounted(() => {
       }
     }
 
-    // Список для преподавателя: только реабилитанты, которых он ВЗЯЛ СЕБЕ
-    // в разделе «Расписание» → «Заявки на диагностику».
-    //
-    // Источник — GET /schedule/sessions: роли teacher сервер отдаёт только те
-    // заявки, где есть её собственный блок (DiagnosticAssignment). Раньше здесь
-    // опрашивался легаси-эндпоинт /diagnostics (таблица ReResult), в который
-    // новый порядок назначения вообще ничего не пишет, поэтому список всегда
-    // оставался пустым — сколько бы реабилитантов специалист ни взял.
     async function loadTeacherAssignedRecipients() {
       const specialistId = authStore.user?.id;
       if (!specialistId) {
@@ -2028,25 +1887,18 @@ onMounted(() => {
       try {
         const { data } = await api.get('/schedule/sessions');
         const sessions = Array.isArray(data) ? data : [];
-        // Уникальные реабилитанты (порядок сохраняем) с базовой инфой из заявки.
         const byId = new Map();
         for (const s of sessions) {
-          // Закрытая или отменённая заявка работы уже не требует.
           if (s.status === 'cancelled' || s.status === 'completed') continue;
           if (!(s.blocks || []).some((b) => b.isMine)) continue;
           const rec = s.recipient;
           if (rec && rec.id != null && !byId.has(rec.id)) byId.set(rec.id, rec);
         }
-        // Обогащаем полными данными (возраст/диагноз/группа) через /recipients/:id.
         const ids = [...byId.keys()];
         const full = await Promise.all(ids.map(async (id) => {
           try { return (await api.get('/recipients/' + id)).data; }
           catch { return byId.get(id); }
         }));
-        // Ключевое правило: реабилитант появляется здесь ТОЛЬКО после того, как
-        // преподаватель отметил его «Присутствует» на вкладке «Реабилитанты»
-        // (attendanceStatus === 'present' на сегодняшнюю дату). Пока присутствие
-        // не отмечено — на вкладке «Диагностика» реабилитанта нет.
         const d = new Date();
         const todayLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
         const present = full.filter((row) =>
@@ -2071,10 +1923,6 @@ onMounted(() => {
       return [dir, spec, date, done].filter(Boolean).join(' · ');
     }
 
-    // Блоки заявки, в которые можно писать результат. Раньше список брался из
-    // легаси-таблицы ReResult (/diagnostics) — новый порядок туда не пишет,
-    // поэтому в нижней панели всегда было «нет ожидающих назначений», и
-    // результат сохранить было некуда.
     async function loadAssignmentsForRecipient() {
       const select = document.getElementById('assignment-target');
       if (!select) return;
@@ -2088,19 +1936,13 @@ onMounted(() => {
       }
       try {
         const response = await api.get('/schedule/sessions', { params: { recipientId } });
-        // Только блоки текущей заявки. Прежде сюда попадали блоки ВСЕХ
-        // незакрытых заявок реабилитанта, в том числе давно завершённых, —
-        // и запись результата могла уйти в блок прошлой диагностики.
         const target = pickCurrentSession(response?.data);
         const isTeacher = authStore.isTeacher;
         let pending = [];
         for (const b of (target?.blocks || [])) {
-          // Специалист пишет только в свой блок — чужой доступен лишь на чтение,
-          // и сервер всё равно отклонит запись (403).
           if (isTeacher && !b.isMine) continue;
           pending.push(b);
         }
-        // Преподаватель сохраняет результат только в назначения своей области.
         if (window.__forcedProfileKey) {
           pending = pending.filter(b => !b.profileKey || b.profileKey === window.__forcedProfileKey);
         }
@@ -2125,9 +1967,6 @@ onMounted(() => {
       }
     }
 
-    // Профиль специалиста (Direction.profileKey) → место в карточке.
-    // Та же таблица продублирована в PROFILE_BLOCKS ниже по файлу и в
-    // STAGE_BY_PROFILE в routes/schedule.js — менять их можно только вместе.
     const BLOCK_BY_PROFILE = {
       psy:     { stage: 'psy', sub: 'psy' },
       log:     { stage: 'psy', sub: 'log' },
@@ -2138,13 +1977,6 @@ onMounted(() => {
     };
     const blockPlace = (b) => BLOCK_BY_PROFILE[b?.profileKey || b?.direction?.profileKey || ''] || null;
 
-    // Собственные блоки пользователя в этом месте карточки. Чужие сюда не
-    // попадают намеренно: в этап 01 пишут двое (психолог и логопед), и если
-    // закрывать его «за всех» одним снимком формы, результат одного
-    // специалиста лёг бы поверх результата другого.
-    // Кроме того, пишем только в блоки ТЕКУЩЕЙ заявки: у реабилитанта может
-    // быть уже закрытая диагностика прошлого круга с точно таким же блоком
-    // того же специалиста, и запись ушла бы в неё — поверх прошлых результатов.
     function ownBlocksAt(stageKey, subKey) {
       const sid = diagnosticsRuntime.sessionId;
       return (diagnosticsRuntime.assignments || []).filter((a) => {
@@ -2152,36 +1984,20 @@ onMounted(() => {
         if (!place || place.stage !== stageKey) return false;
         if (subKey && place.sub !== subKey) return false;
         if (a.isMine !== true) return false;
-        // Сервер отдаёт заявку блока; если он её не назвал — не рискуем.
         return sid != null && String(a.diagnosticSessionId) === String(sid);
       });
     }
 
-    // Этап пройден, когда сданы ВСЕ блоки заявки по нему. Считаем по полному
-    // списку с сервера, а не по своим назначениям, — иначе каждый видел бы
-    // «пройдено» по своему кусочку.
     function stageIsDone(stageKey) {
       const inStage = (diagnosticsRuntime.blocks || []).filter((b) => blockPlace(b)?.stage === stageKey);
       return inStage.length > 0 && inStage.every((b) => b.blockStatus === 'completed');
     }
 
-    // Сдать свои блоки этапа/подраздела в БД.
-    //
-    // Раньше кнопки «Завершить блок» и «Завершить этап» ничего не отправляли:
-    // они красили карточку, писали «Этап завершён» и на этом всё. Запись шла
-    // только через нижнюю панель «Завершить диагностику», где нужно вручную
-    // выбрать назначение. Поэтому зелёный этап видел лишь тот, кто нажал, у
-    // остальных он оставался «в работе», а этап 04 не открывался никогда.
-    //
-    // Возвращает { ok, stageDone }. Красить карточку можно только при ok:
-    // раскраску всё равно делает сервер через hydrateResultsForRecipient.
     async function persistStageBlocks(stageKey, subKey, btn) {
       if (!diagnosticsRuntime.currentRecipient?.id) {
         showToast('Сначала выберите реабилитанта.', 4200);
         return { ok: false, stageDone: false };
       }
-      // Заявку определяет hydrateResultsForRecipient. Без неё непонятно, в
-      // какой круг диагностики писать, — лучше отказать, чем угадывать.
       if (!diagnosticsRuntime.sessionId) {
         showToast('Не удалось определить заявку на диагностику — выберите реабилитанта заново.', 5200);
         return { ok: false, stageDone: false };
@@ -2199,8 +2015,6 @@ onMounted(() => {
       try {
         for (const a of mine) {
           const profileKey = a.profileKey || a.direction?.profileKey || '';
-          // Без профиля снимок вышел бы на всю карточку (scope = null), и при
-          // восстановлении такой снимок стёр бы блоки других специалистов.
           if (!profileKey) {
             showToast('У назначения не указана область специалиста — обратитесь к администратору.', 5600);
             return { ok: false, stageDone: false };
@@ -2212,8 +2026,6 @@ onMounted(() => {
             ? window.__collectReportData()
             : {};
           const results = Object.assign({}, reportData, formState ? { formState } : {});
-          // Сервер проставит blockStatus=completed, время завершения и
-          // синхронизирует событие в расписании. Чужой блок отдаёт 403.
           await api.post('/schedule/assignments/' + a.id + '/complete', { results });
         }
       } catch (err) {
@@ -2224,8 +2036,6 @@ onMounted(() => {
         if (btn && btn.isConnected) btn.disabled = wasDisabled;
       }
 
-      // Перечитываем состояние с сервера и перекрашиваем карточку по нему.
-      // Так «пройденные этапы» совпадают у всех, кто её открыл.
       await loadAssignmentsForRecipient();
       await hydrateResultsForRecipient();
       return { ok: true, stageDone: stageIsDone(stageKey) };
@@ -2240,28 +2050,18 @@ onMounted(() => {
         return false;
       }
       try {
-        // Профиль назначения определяет, состояние КАКОГО блока карточки
-        // сохранять (и куда потом восстанавливать у администратора).
         const assignment = (diagnosticsRuntime.assignments || []).find(a => String(a.id) === String(assignmentId));
         const profileKey = assignment?.profileKey || assignment?.direction?.profileKey || '';
-        // Без профиля снимок делается со всей карточки (scope = null). Такая
-        // запись при восстановлении перетирает блоки других специалистов,
-        // поэтому лучше честно отказать, чем испортить чужие результаты.
         if (!profileKey) {
           showToast('Не удалось определить область специалиста у выбранного назначения — результат не сохранён.', 5600);
           return false;
         }
         const reportData = diagnosticsRuntime.lastReportData
           || (typeof window.__collectReportData === 'function' ? window.__collectReportData() : {});
-        // Полный снимок заполненных полей блока — чтобы данные преподавателя
-        // не терялись и подгружались обратно в карточку при просмотре.
         const formState = typeof window.__snapshotFormState === 'function'
           ? window.__snapshotFormState(profileKey)
           : null;
         const results = Object.assign({}, reportData, formState ? { formState } : {});
-        // Завершаем свой этап заявки: сервер проставит blockStatus=completed,
-        // время завершения и синхронизирует событие в расписании. Писать можно
-        // только в собственный блок — чужой отдаёт 403.
         await api.post('/schedule/assignments/' + assignmentId + '/complete', { results });
         showToast('Результаты сохранены в карточке реабилитанта. <strong>Этап диагностики завершён.</strong>', 4600);
         await loadAssignmentsForRecipient();
@@ -2344,7 +2144,7 @@ onMounted(() => {
           </span>`;
         btn.addEventListener('click', () => {
           updateRecipientUI(r);
-          recipientChosen.value = true; // выбор сделан — «ворота» вниз, карточка открыта
+          recipientChosen.value = true; 
           window.setDiagnosticCompleted?.(false);
           closeRecipientModal();
         });
@@ -2372,14 +2172,7 @@ onMounted(() => {
 
     (function initRecipientSwitcher() {
       ensureRecipientModal();
-      // Стартовый placeholder на время загрузки — без «жёстко зашитой» Марии.
-      // Реальный реабилитант выбирается в loadRecipientsFromProject() после
-      // получения списка из базы.
-      // Выбор реабилитанта всегда явный — сохранённого из localStorage больше
-      // НЕ восстанавливаем автоматически. Показываем нейтральный плейсхолдер, а
-      // поверх карточки — «ворота» выбора (см. recipientChosen в шаблоне).
       updateRecipientUI({ id: '', fullName: '—', diagnosis: '', groupName: '', code: '', age: '' }, { silent: true });
-      // Позволяем «воротам» (Vue-кнопке) открывать это же модальное окно выбора.
       window.__openRecipientPicker = openRecipientModal;
       if (authStore.isTeacher) {
         loadTeacherAssignedRecipients();
@@ -2945,26 +2738,14 @@ onMounted(() => {
             const stageTitle = card.querySelector('.stage-info .title');
             const title = stageTitle ? stageTitle.textContent.trim() : 'Этап';
 
-            // Этап 04 — не косметика: это реальная выдача заключения по заявке.
-            // Раньше кнопка лишь перекрашивала карточку, ничего не отправляя, —
-            // отсюда и «написал вердикт, сохранил, а изменений нет».
-            // Не сохранилось (нет права, не сданы блоки, пустая форма) —
-            // этап не закрываем, чтобы не создавать видимость успеха.
             if (stageKey === 'final') {
               const saved = await window.__submitConclusion?.(btn);
               if (!saved) return;
               setStageStatus(stageKey, 'done');
               lockStageBody(card);
             } else {
-              // Этапы 01–03 тоже не косметика: кнопка сдаёт блок специалиста
-              // в БД. Раньше она лишь перекрашивала карточку — поэтому
-              // «завершённый» этап видел только тот, кто нажал, а у коллег и
-              // у администратора он оставался «в работе».
               const res = await window.__persistStageBlocks?.(stageKey, null, btn);
               if (!res || !res.ok) return;
-              // Дальше карточку красит сервер (hydrate → applyCompletedBlocks),
-              // здесь ничего не выставляем: этап закрывают все его специалисты
-              // вместе, и один сданный блок его ещё не завершает.
               if (!res.stageDone) {
                 showToast('Ваш блок сохранён. <strong>Этап ждёт остальных специалистов.</strong>', 4600);
                 return;
@@ -3165,15 +2946,9 @@ onMounted(() => {
             const key = panel.id.replace('subpanel-', '');
             const blockTitle = panel.querySelector('.subpanel-head .t');
 
-            // Сначала запись в БД, и только потом отметка «сдано». Раньше
-            // кнопка ничего не отправляла: блок закрывался лишь на экране
-            // нажавшего, а в базе оставался незаполненным — из-за этого у
-            // разных преподавателей карточка показывала разные этапы.
             const res = await window.__persistStageBlocks?.(stageCard.dataset.stage, key, btn);
             if (!res || !res.ok) return;
 
-            // Зелёную точку, замок панели и кнопку «Отредактировать блок»
-            // расставляет hydrate по ответу сервера — здесь только сообщение.
             if (typeof showToast === 'function') {
               showToast('Блок завершён: <strong>' + (blockTitle ? blockTitle.textContent.trim() : '') + '</strong>');
             }
@@ -3224,8 +2999,6 @@ onMounted(() => {
         final: 'Сводное заключение'
       };
 
-      // Профиль специалиста (Direction.profileKey) → конкретный блок формы.
-      // sub === null означает, что у этапа нет подразделов (АФК — один блок).
       const PROFILE_BLOCKS = {
         psy:     { stage: 'psy', sub: 'psy' },
         log:     { stage: 'psy', sub: 'log' },
@@ -3236,20 +3009,11 @@ onMounted(() => {
       };
       const ALL_STAGES = ['psy', 'afk', 'soc', 'final'];
 
-      // Этап 04 «Сводное заключение» не принадлежит ни одному профилю: его
-      // оформляет тот, кому администратор выдал право заключать вердикт
-      // (флаг User.canConclude), и сам администратор. Ограничение по профилю
-      // раньше прятало этот этап у ЛЮБОГО преподавателя — в том числе у того,
-      // у кого право есть. Из-за этого специалист вместо нормальной формы
-      // заключения («Решение по итогам» + обоснование) видел только урезанный
-      // вариант в «Расписании», и формы у него и у администратора расходились.
       function viewerCanConclude() {
         const u = authStore.user;
         return !!u && (u.role === 'admin' || u.canConclude === true);
       }
 
-      // Три варианта решения этапа 04 в порядке их следования в разметке.
-      // Тот же порядок задаёт обработчик клика (idx 0 → yes, 1 → trial, 2 → no).
       const VERDICT_KEYS = ['recommended', 'trial', 'rejected'];
 
       function q(selector, root = document) { return root.querySelector(selector); }
@@ -3303,16 +3067,6 @@ onMounted(() => {
         return out.join('. ');
       }
 
-      function specialistsFrom(selector, defaults) {
-        const root = q(selector) || document;
-        const names = qa('.specialist-chip', root).map(chip => {
-          const clone = chip.cloneNode(true);
-          clone.querySelectorAll('button, svg, .av').forEach(el => el.remove());
-          return text(clone);
-        }).filter(Boolean);
-        return unique(names).length ? unique(names).join(', ') : defaults;
-      }
-
       function selectedVerdict() {
         const selected = q('#stage-final .verdict-option.selected') || q('#stage-final .verdict-option');
         const title = text(q('.vt', selected)) || 'Рекомендованы';
@@ -3334,11 +3088,6 @@ onMounted(() => {
         const recipient = diagnosticsRuntime.currentRecipient || FALLBACK_RECIPIENTS[0];
         const reportDate = new Date();
 
-        // Кто заполняет блок — берём из заявки на диагностику. Блок закреплён за
-        // тем специалистом, который взял его себе в «Расписании», и заполнить его
-        // может только он со своего аккаунта. Раньше имена набирались руками через
-        // «Блок заполняют» → «+ Добавить специалиста»; этот выбор убран, поэтому
-        // подпись под блоком берётся из самого назначения.
         function blockSpecialists(profileKey) {
           const names = (diagnosticsRuntime.assignments || [])
             .filter(a => (a.profileKey || a.direction?.profileKey || '') === profileKey)
@@ -3391,9 +3140,6 @@ onMounted(() => {
       function autoFinishStage(stageKey) {
         const card = q('.stage-card[data-stage="' + stageKey + '"]');
         if (!card || card.dataset.status === 'done') return;
-        // Сводное заключение нельзя закрыть визуально, пока оно не сохранено
-        // на сервере: иначе этап выглядит завершённым, а в базе пусто —
-        // ровно та ситуация «сохранил, а изменений нет».
         if (stageKey === 'final' && !diagnosticsRuntime.conclusion) return;
 
         qa(':scope > .stage-body > .subpanel', card).filter(panel => !panel.classList.contains('profile-hidden')).forEach(panel => {
@@ -3420,16 +3166,6 @@ onMounted(() => {
         if (typeof window.__updateStageReadiness === 'function') window.__updateStageReadiness(card);
       }
 
-      // ============================================================
-      //  РЕАЛЬНЫЕ СТАТУСЫ «МАРШРУТА ДИАГНОСТИКИ»
-      //  Плитки этапов (01 · Психолог + логопед и т.д.) были статической
-      //  разметкой: этап загорался зелёным только у того, кто прямо сейчас,
-      //  в этой же вкладке, нажал «Завершить этап». Поэтому администратор,
-      //  открывая карточку, всегда видел оранжевое «В работе», хотя психолог
-      //  и логопед свои блоки уже сдали. Теперь статус считается по блокам
-      //  заявок из БД (DiagnosticAssignment.blockStatus) — и он одинаков для
-      //  всех, кто открыл карточку.
-      // ============================================================
       const EDIT_SUBBLOCK_BTN =
         '<button type="button" class="btn btn-secondary btn-sm" data-action="edit-subblock">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true" style="width: 0.9375rem; height: 0.9375rem;">' +
@@ -3437,10 +3173,6 @@ onMounted(() => {
       const FINISH_SUBBLOCK_BTN =
         '<button type="button" class="btn btn-primary btn-sm" data-action="finish-subblock">Завершить блок</button>';
 
-      // Исходный вид индикаторов (значки этапов и точки подразделов). Нужен,
-      // чтобы при переключении на другого реабилитанта вернуть маршрут в
-      // стартовое состояние: иначе на карточке следующего человека остались
-      // бы зелёные отметки предыдущего.
       const pristineMarks = new Map();
       function rememberPristineMarks() {
         if (pristineMarks.size) return;
@@ -3452,7 +3184,6 @@ onMounted(() => {
         return q(':scope > .stage-body > .stage-actions [data-role="pending-hint"]', card);
       }
 
-      // Снимает отметки «завершено», проставленные по данным БД.
       function clearCompletionMarks() {
         rememberPristineMarks();
 
@@ -3470,8 +3201,6 @@ onMounted(() => {
           }
         });
 
-        // Возвращаем подписи и точки ровно к исходным (setStageStatus умеет
-        // вернуть цвет, но не исходный текст «В работе» / «В процессе · 62 %»).
         pristineMarks.forEach((snap, el) => {
           el.className = snap.cls;
           if (snap.text !== undefined) el.textContent = snap.text;
@@ -3485,14 +3214,11 @@ onMounted(() => {
       }
       window.__clearCompletionMarks = clearCompletionMarks;
 
-      // Раскрашивает маршрут по блокам заявок реабилитанта.
-      // assignments — блоки (DiagnosticAssignment) всех незакрытых заявок.
       function applyCompletedBlocks(assignments) {
         const list = Array.isArray(assignments) ? assignments : [];
         if (!list.length) return;
         rememberPristineMarks();
 
-        // Раскладываем блоки заявок по этапам формы через профиль специалиста.
         const stages = new Map();
         list.forEach(a => {
           const key = a.profileKey || a.direction?.profileKey || '';
@@ -3503,8 +3229,6 @@ onMounted(() => {
           const isDone = a.blockStatus === 'completed';
           bucket.total += 1;
           if (isDone) bucket.done += 1;
-          // Один и тот же подраздел мог назначаться повторно — «завершён»
-          // побеждает, иначе новая заявка снимала бы уже готовую отметку.
           if (place.sub) bucket.subs.set(place.sub, (bucket.subs.get(place.sub) || false) || isDone);
         });
 
@@ -3512,9 +3236,6 @@ onMounted(() => {
           const card = q('.stage-card[data-stage="' + stageKey + '"]');
           if (!card) return;
 
-          // 1. Сданный подраздел: зелёная точка, поля только на чтение,
-          //    кнопка «Отредактировать блок» (свой блок специалист может
-          //    открыть заново, чужой — уже нет, это решает сервер).
           bucket.subs.forEach((isDone, sub) => {
             if (!isDone) return;
             const panel = q('#subpanel-' + sub, card);
@@ -3525,24 +3246,14 @@ onMounted(() => {
             if (finishSub) finishSub.outerHTML = EDIT_SUBBLOCK_BTN;
           });
 
-          // 2. Этап зелёный, когда сданы ВСЕ назначенные по нему блоки.
-          //    Считаем именно по назначениям, а не по числу подразделов формы:
-          //    в этапе 03 их три, но заявка почти никогда не включает все.
           const stageDone = bucket.total > 0 && bucket.done === bucket.total;
           if (!stageDone) {
             if (typeof window.__updateStageReadiness === 'function') window.__updateStageReadiness(card);
           } else {
-            // АФК — единственный этап без подразделов, там нечего блокировать
-            // по частям. Где подразделы есть, второй слой блокировки не ставим:
-            // lockSubpanel и lockStageBody пишут в один data-locked-prev и
-            // после этого поля уже не разблокировать.
             const panels = qa(':scope > .stage-body > .subpanel', card);
             if (!panels.length && typeof window.__lockStageBody === 'function') window.__lockStageBody(card);
             if (typeof window.__setStageStatus === 'function') window.__setStageStatus(stageKey, 'done');
             if (typeof window.__replaceFinishButton === 'function') window.__replaceFinishButton(card, 'edit');
-            // Подсказка «осталось N подразделов» считает все подразделы формы,
-            // включая те, которых в заявке не было, — на завершённом этапе она
-            // только путает.
             const hint = stagePendingHint(card);
             if (hint) hint.style.display = 'none';
           }
@@ -3580,7 +3291,6 @@ onMounted(() => {
       }
       window.setDiagnosticCompleted = setDiagnosticCompleted;
 
-      // Профиль активного назначения (по выбранному пункту в #assignment-target).
       function selectedAssignmentProfileKey() {
         const select = document.getElementById('assignment-target');
         const id = select && select.value ? String(select.value) : '';
@@ -3590,24 +3300,17 @@ onMounted(() => {
         return found?.direction?.profileKey || '';
       }
 
-      // Ограничивает форму одним блоком по профилю специалиста.
-      // Пустой profileKey снимает ограничение (показывает все этапы).
       function applyProfileRestriction(profileKey) {
-        // Жёсткая привязка к области преподавателя (куратора): что бы ни
-        // выбрали в назначении, форма всегда ограничена его профилем.
         if (window.__forcedProfileKey) profileKey = window.__forcedProfileKey;
 
-        // Сброс предыдущего ограничения.
         qa('.profile-hidden').forEach(el => el.classList.remove('profile-hidden'));
         qa('#mobile-stage option').forEach(o => { o.hidden = false; });
 
         const block = profileKey ? PROFILE_BLOCKS[profileKey] : null;
-        if (!block) return; // нет профиля → форма без ограничений
+        if (!block) return; 
 
-        // Прячем все «чужие» этапы: карточки, плитки маршрута, боковую навигацию, мобильный список.
         ALL_STAGES.forEach(stage => {
           if (stage === block.stage) return;
-          // …кроме сводного заключения, если у специалиста есть право его выдать.
           if (stage === 'final' && viewerCanConclude()) return;
           q('.stage-card[data-stage="' + stage + '"]')?.classList.add('profile-hidden');
           q('.stage-tile[data-stage="' + stage + '"]')?.classList.add('profile-hidden');
@@ -3616,14 +3319,12 @@ onMounted(() => {
           if (opt) opt.hidden = true;
         });
 
-        // Раскрываем целевой этап.
         const card = q('.stage-card[data-stage="' + block.stage + '"]');
         if (!card) return;
         card.classList.remove('collapsed');
         q(':scope > .stage-body', card)?.removeAttribute('hidden');
         q(':scope > .stage-head-clickable', card)?.setAttribute('aria-expanded', 'true');
 
-        // Внутри этапа оставляем только нужный подраздел (если он есть).
         if (block.sub) {
           qa(':scope > .stage-body > .subpanel', card).forEach(panel => {
             const key = panel.id.replace('subpanel-', '');
@@ -3652,23 +3353,10 @@ onMounted(() => {
       window.__applyProfileRestriction = applyProfileRestriction;
       window.__applyAssignmentProfile = function () { applyProfileRestriction(selectedAssignmentProfileKey()); };
 
-      // ============================================================
-      //  СОХРАНЕНИЕ И ВОССТАНОВЛЕНИЕ СОСТОЯНИЯ ФОРМЫ ДИАГНОСТИКИ
-      //  Раньше результат преподавателя (выбранные варианты, тексты,
-      //  специалисты) сохранялся в БД только как «отчёт», но никогда не
-      //  подгружался обратно в карточку — поэтому администратор видел
-      //  пустую форму. Здесь мы делаем полноценный снимок блока и умеем
-      //  восстанавливать его ПОВТОРНО ПРОИГРЫВАЯ КЛИКИ по элементам,
-      //  чтобы отработали все обработчики (цвета, aria, шкалы, суммы).
-      // ============================================================
-      // Все «выбираемые» контролы блока (чекбоксы-чипы + radio-подобные кнопки).
       const FORM_SEL = '.chip, .seg-btn, .triple-btn, .point-btn, .scale-tick, .gmfcs-card, .level-card, .theatre-option, .verdict-option';
-      // Все свободные текстовые поля блока.
       const FORM_TXT = 'textarea, input[type="text"], input[type="number"], input[type="search"]';
-      // Классы визуального состояния, которые нужно снять при сбросе блока.
       const FORM_STATE_CLASSES = ['active', 'selected', 'sage', 'amber', 'rose', 'yes', 'partial', 'no', 'low', 'mid', 'high', 'trial', 'below'];
 
-      // Корневой элемент блока по профилю специалиста. Пустой профиль → вся карточка.
       function blockRootForProfile(profileKey) {
         const block = profileKey ? PROFILE_BLOCKS[profileKey] : null;
         if (!block) return document.querySelector('.diagnostics-page .content');
@@ -3676,29 +3364,16 @@ onMounted(() => {
         return document.querySelector('.stage-card[data-stage="' + block.stage + '"]');
       }
 
-      // Снимок состояния блока (или всей карточки при пустом профиле).
       function snapshotFormState(profileKey) {
         const root = blockRootForProfile(profileKey);
         if (!root) return null;
         const sel = qa(FORM_SEL, root).map(el =>
           (el.classList.contains('active') || el.classList.contains('selected')) ? 1 : 0);
         const txt = qa(FORM_TXT, root).map(el => el.value || '');
-        const specialists = [];
-        qa('.specialists-list', root).forEach((list, li) => {
-          qa('.specialist-chip', list).forEach(chip => {
-            const av = chip.querySelector('.av');
-            const clone = chip.cloneNode(true);
-            clone.querySelectorAll('button, svg, .av').forEach(e => e.remove());
-            const color = Array.from(chip.classList).find(c => c !== 'specialist-chip') || '';
-            specialists.push({ li, initials: av ? av.textContent.trim() : '', name: text(clone), color });
-          });
-        });
-        return { scope: profileKey || null, sel, txt, specialists };
+        return { scope: profileKey || null, sel, txt };
       }
       window.__snapshotFormState = snapshotFormState;
 
-      // Полный сброс блока к «пустому» виду (снимаем выбор, чистим тексты,
-      // убираем специалистов, обнуляем производные суммы/шкалы).
       function resetFormState(root) {
         if (!root) return;
         qa(FORM_SEL, root).forEach(el => {
@@ -3719,45 +3394,10 @@ onMounted(() => {
       }
       window.__resetFormState = resetFormState;
 
-      // Восстанавливаем сохранённых специалистов, воссоздавая их «чипы».
-      function injectSpecialists(root, list) {
-        if (!root || !Array.isArray(list) || !list.length) return;
-        const lists = qa('.specialists-list', root);
-        list.forEach(sp => {
-          const target = lists[sp.li] || lists[0];
-          if (!target) return;
-          const exists = qa('.specialist-chip', target).some(c => {
-            const av = c.querySelector('.av');
-            return av && av.textContent.trim() === sp.initials;
-          });
-          if (exists) return;
-          const addBtn = target.querySelector('.specialist-add');
-          const chip = document.createElement('span');
-          chip.className = 'specialist-chip ' + (sp.color || '');
-          chip.setAttribute('role', 'listitem');
-          chip.innerHTML =
-            '<span class="av" aria-hidden="true">' + escapeHtml(sp.initials) + '</span>' +
-            escapeHtml(sp.name) +
-            '<button type="button" class="rm" aria-label="Убрать ' + escapeHtml(sp.name) + '">' +
-            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>' +
-            '</button>';
-          if (addBtn) target.insertBefore(chip, addBtn); else target.appendChild(chip);
-          const rm = chip.querySelector('.rm');
-          if (rm) rm.addEventListener('click', () => chip.remove());
-        });
-      }
-
-      // Восстановление снимка в карточку: сброс блока + проигрывание кликов,
-      // чтобы отработали штатные обработчики и производные значения.
       function applyFormState(fs) {
         if (!fs) return;
         const root = blockRootForProfile(fs.scope);
         if (!root) return;
-        // Снимок без области (scope = null) относится ко ВСЕЙ карточке — так
-        // сохранялись записи, у которых не удалось определить профиль
-        // специалиста. Сбрасывать по нему форму нельзя: блоки коллег в
-        // карточке уже восстановлены, и сброс стёр бы их. Чистим только
-        // тогда, когда точно знаем свой блок.
         if (fs.scope) resetFormState(root);
         const selEls = qa(FORM_SEL, root);
         (fs.sel || []).forEach((on, i) => { if (on && selEls[i]) selEls[i].click(); });
@@ -3766,20 +3406,9 @@ onMounted(() => {
           const el = txtEls[i];
           if (el && val) { el.value = val; el.dispatchEvent(new Event('input', { bubbles: true })); }
         });
-        injectSpecialists(root, fs.specialists);
       }
       window.__applyFormState = applyFormState;
 
-      // ============================================================
-      //  ЭТАП 04 «СВОДНОЕ ЗАКЛЮЧЕНИЕ»
-      //  Заключение — не блок специалиста: оно одно на заявку и хранится
-      //  отдельной записью (DiagnosticConclusions), а не внутри results
-      //  назначения. Раньше карточка этого не знала: кнопки этапа были
-      //  чисто косметическими, на сервер ничего не уходило и оттуда ничего
-      //  не читалось. Поэтому специалист с правом заключать вердикт писал
-      //  текст в «Расписании», он ложился в базу — а администратор в
-      //  карточке по-прежнему видел пустую форму и «изменений нет».
-      // ============================================================
       const DEFAULT_SIGNED_NOTE = 'Финальное заключение по диагностике';
 
       function formatIssuedAt(value) {
@@ -3791,7 +3420,6 @@ onMounted(() => {
         });
       }
 
-      // Подпись под формой: кто и когда выдал заключение.
       function updateSignedNote(concl) {
         const note = q('#stage-final .stage-actions .signed-note');
         if (!note) return;
@@ -3801,7 +3429,6 @@ onMounted(() => {
         note.textContent = 'Заключение выдал: ' + who + (when ? ', ' + when : '');
       }
 
-      // Что сейчас выбрано и написано в форме заключения.
       function readConclusionForm() {
         const card = q('#stage-final');
         if (!card) return null;
@@ -3814,19 +3441,12 @@ onMounted(() => {
         };
       }
 
-      // Замок этапа 04. Заключение — итог маршрута, а не самостоятельная
-      // запись: пока по какому-то из этапов 01–03 нет ни одного сданного
-      // блока, форму заполнять нельзя. Именно этого не хватало — специалист
-      // с правом заключать вердикт мог выдать заключение, когда из троих
-      // этапов пройден был только его собственный.
       function updateConclusionGate() {
         const card = q('#stage-final');
         if (!card) return;
-        // Заключение уже выдано — этап закрыт своим замком, тут ничего не решаем.
         if (diagnosticsRuntime.conclusion) return;
 
         const blockers = diagnosticsRuntime.conclusionBlockers || [];
-        // Нет заявки — заключение выдавать вообще не по чему; это тоже замок.
         const reason = !diagnosticsRuntime.sessionId
           ? 'У реабилитанта нет действующей заявки на диагностику.'
           : (blockers.length
@@ -3848,7 +3468,6 @@ onMounted(() => {
           else finishBtn.removeAttribute('title');
         }
 
-        // Пояснение прямо в этапе: какие именно этапы ещё не пройдены.
         let note = body && q(':scope > .stage-gate-banner', body);
         if (!blocked) { if (note) note.remove(); return; }
         if (!body) return;
@@ -3867,8 +3486,6 @@ onMounted(() => {
       }
       window.__updateConclusionGate = updateConclusionGate;
 
-      // Восстановление сохранённого заключения в форму (при открытии карточки).
-      // Вердикт «проигрываем» кликом, чтобы отработала штатная подсветка.
       function applyConclusion(concl) {
         const card = q('#stage-final');
         if (!card) return;
@@ -3885,16 +3502,12 @@ onMounted(() => {
         }
         updateSignedNote(concl);
 
-        // Заключение уже выдано — этап закрыт. Переоткрыть его можно
-        // штатной кнопкой «Отредактировать этап».
         if (typeof window.__setStageStatus === 'function') window.__setStageStatus('final', 'done');
         if (typeof window.__lockStageBody === 'function') window.__lockStageBody(card);
         if (typeof window.__replaceFinishButton === 'function') window.__replaceFinishButton(card, 'edit');
       }
       window.__applyConclusion = applyConclusion;
 
-      // Выдача заключения на сервер. Возвращает true, только если сохранилось, —
-      // иначе кнопка «Завершить этап» не должна закрывать этап.
       async function submitConclusion(btn) {
         const form = readConclusionForm();
         if (!form) return false;
@@ -3904,9 +3517,6 @@ onMounted(() => {
           showToast('У реабилитанта нет действующей заявки на диагностику — заключение сохранить некуда.', 5200);
           return false;
         }
-        // Этап 04 — итог этапов 01–03. Ту же проверку делает сервер; здесь она
-        // нужна, чтобы отказ был сразу и с понятным перечнем, а не 422 после
-        // того, как вердикт уже написан.
         const blockers = diagnosticsRuntime.conclusionBlockers || [];
         if (blockers.length) {
           showToast('Заключение выдаётся после этапов 01–03. Ещё не пройдены: <strong>' +
@@ -3933,16 +3543,11 @@ onMounted(() => {
           diagnosticsRuntime.conclusionBlockers = Array.isArray(data?.missingStages)
             ? data.missingStages
             : [];
-          // Косметику (замок, статус, кнопку) доделает общий обработчик этапа —
-          // здесь обновляем только подпись «кто и когда».
           updateSignedNote(diagnosticsRuntime.conclusion);
+          if (typeof window.__renderBlockAuthors === 'function') window.__renderBlockAuthors();
           return true;
         } catch (err) {
-          // 403 — нет права заключать; 422 — этапы 01–03 не пройдены;
-          // 400 — слишком короткий текст. Сообщение сервера показываем как есть.
           const payload = err?.response?.data || {};
-          // Сервер вернул актуальный перечень непройденных этапов — забираем его
-          // и закрываем этап, чтобы кнопка сразу перестала обещать невозможное.
           if (Array.isArray(payload.missingStages)) {
             diagnosticsRuntime.conclusionBlockers = payload.missingStages;
             updateConclusionGate();
@@ -4380,10 +3985,6 @@ onMounted(() => {
       }
 
       q('[data-action="finish-diagnostic"]')?.addEventListener('click', async () => {
-        // Сводное заключение сохраняем отдельно и ДО общего завершения: у него
-        // собственный адрес на сервере (заключение по заявке, а не результат
-        // блока). Если этап 04 не показан — права заключать нет, шаг пропускаем;
-        // если уже закрыт кнопкой «Завершить этап» — повторно не отправляем.
         const finalCard = q('.stage-card[data-stage="final"]');
         if (finalCard &&
             !finalCard.classList.contains('profile-hidden') &&
@@ -4392,13 +3993,6 @@ onMounted(() => {
         }
         const ok = finishDiagnostic();
         if (!ok) return;
-        // Преподаватель: жёстко закрепляем его профиль ДО сохранения результата.
-        // Иначе после публикации назначение исчезает из списка ожидающих, и
-        // loadAssignmentsForRecipient() вызывает applyProfileRestriction('') с
-        // пустым profileKey — тогда снимаются все .profile-hidden и на экране
-        // раскрываются чужие блоки (только для просмотра). Фиксируем profileKey
-        // выбранного назначения в window.__forcedProfileKey, чтобы карточка
-        // осталась на собственном (завершённом) блоке преподавателя.
         if (authStore.isTeacher && !window.__forcedProfileKey) {
           const key = selectedAssignmentProfileKey();
           if (key) window.__forcedProfileKey = key;
@@ -4682,220 +4276,117 @@ onMounted(() => {
       });
     })();
 
-    (function() {
-      const STAFF = [
-        { id: 'zer',  initials: 'ЗМ', name: 'Зернакова М.А.',    role: 'Психолог',                roleKey: 'psychology', color: 'sage' },
-        { id: 'buk',  initials: 'БО', name: 'Букарева О.Б.',     role: 'Психолог',                roleKey: 'psychology', color: 'blue' },
-        { id: 'kos',  initials: 'КС', name: 'Косторных С.Е.',    role: 'Психолог',                roleKey: 'psychology', color: 'amber' },
-        { id: 'nik',  initials: 'НЕ', name: 'Никитина Е.С.',     role: 'Психолог · дефектолог',   roleKey: 'psychology', color: 'plum' },
-        { id: 'ten',  initials: 'ТИ', name: 'Тенетко И.С.',      role: 'АФК · реабилитолог',      roleKey: 'afk',        color: 'rose' },
-        { id: 'efr',  initials: 'ЕЯ', name: 'Ефремов Я.С.',      role: 'АФК',                     roleKey: 'afk',        color: 'rose' },
-        { id: 'shi',  initials: 'ША', name: 'Шильникова А.О.',   role: 'Педагог · ИЗО',           roleKey: 'izo',        color: 'plum' },
-        { id: 'lev',  initials: 'ЛИ', name: 'Левина И.К.',       role: 'Педагог · ИЗО',           roleKey: 'izo',        color: 'plum' },
-        { id: 'rem',  initials: 'РД', name: 'Ремизова Д.В.',     role: 'Педагог · театр',         roleKey: 'theatre',    color: 'amber' },
-        { id: 'kar',  initials: 'КА', name: 'Карпова А.Н.',      role: 'Педагог · театр',         roleKey: 'theatre',    color: 'amber' },
-        { id: 'iva',  initials: 'ИЕ', name: 'Иванова Е.В.',      role: 'Педагог · вокал',         roleKey: 'vocal',      color: 'teal' },
-        { id: 'zhu',  initials: 'ЖТ', name: 'Журавлева Т.А.',    role: 'Педагог · инструмент',    roleKey: 'vocal',      color: 'teal' },
-        { id: 'sok',  initials: 'СА', name: 'Соколова А.Б.',     role: 'Куратор',                 roleKey: 'psychology', color: 'sage' },
-      ];
+    (function () {
+      const AUTHOR_EMPTY = 'Исполнитель не назначен';
+      const CHIP_COLORS = {
+        psy: 'sage', log: 'teal', izo: 'plum',
+        theatre: 'amber', vocal: 'teal', instrument: 'teal', afk: 'rose'
+      };
 
-      const modal = document.getElementById('specialist-modal');
-      const listEl = document.getElementById('modal-list');
-      const searchInput = document.getElementById('modal-search-input');
-      const filterBtns = modal.querySelectorAll('.modal-filter-chip');
-      const ctxLabel = document.getElementById('modal-context');
-      const selCountEl = document.getElementById('modal-sel-count');
-      const addBtn = document.getElementById('modal-add-btn');
-      const cancelBtn = document.getElementById('modal-cancel-btn');
-      const closeBtn = document.getElementById('modal-close-btn');
+      const profileOf = (b) => b?.profileKey || b?.direction?.profileKey || '';
+      const nameOf = (b) => normalizeSpaces(b?.specialistName || b?.specialist?.fullName || '');
 
-      let currentRoleFilter = 'all';
-      let currentQuery = '';
-      let selectedIds = new Set();
-      let alreadyAddedIds = new Set();
-      let currentTargetRow = null;
-      let lastFocusedEl = null;
-
-      function getAlreadyAdded(addBtn) {
-        const row = addBtn.closest('.specialists-row, .specialists-list');
-        if (!row) return new Set();
-        const ids = new Set();
-        row.querySelectorAll('.specialist-chip').forEach(chip => {
-
-          const av = chip.querySelector('.av');
-          const init = av ? av.textContent.trim() : '';
-          STAFF.forEach(s => { if (s.initials === init) ids.add(s.id); });
+      function uniqueNames(names) {
+        const seen = new Set();
+        const out = [];
+        names.forEach((name) => {
+          if (!name || seen.has(name)) return;
+          seen.add(name);
+          out.push(name);
         });
-        return ids;
+        return out;
       }
 
-      function render() {
-        const q = currentQuery.toLowerCase().trim();
-        const items = STAFF.filter(s => {
-          const matchesRole = currentRoleFilter === 'all' || s.roleKey === currentRoleFilter;
-          const matchesQuery = !q || s.name.toLowerCase().includes(q) || s.role.toLowerCase().includes(q);
-          return matchesRole && matchesQuery;
+      function blocksFor(profiles) {
+        const wanted = String(profiles || '').split(/\s+/).filter(Boolean);
+        if (!wanted.length) return [];
+        return (diagnosticsRuntime.blocks || []).filter((b) => wanted.includes(profileOf(b)));
+      }
+
+      function authorsText(profiles) {
+        const list = blocksFor(profiles);
+        const done = uniqueNames(list.filter((b) => b.blockStatus === 'completed').map(nameOf));
+        if (done.length) return (done.length > 1 ? 'Заполнили: ' : 'Заполнил: ') + done.join(' · ');
+        const assigned = uniqueNames(list.map(nameOf));
+        if (assigned.length) return (assigned.length > 1 ? 'Заполняют: ' : 'Заполняет: ') + assigned.join(' · ');
+        return AUTHOR_EMPTY;
+      }
+
+      function initialsOf(name) {
+        const parts = normalizeSpaces(name).split(' ').filter(Boolean);
+        if (!parts.length) return '—';
+        return ((parts[0][0] || '') + (parts[1] ? parts[1][0] : '')).toUpperCase();
+      }
+
+      function shortName(name) {
+        const parts = normalizeSpaces(name).split(' ').filter(Boolean);
+        if (!parts.length) return '';
+        if (parts.length === 1) return parts[0];
+        return parts[0] + ' ' + parts[1][0].toUpperCase() + '.';
+      }
+
+      function namesFor(profiles) {
+        return uniqueNames(blocksFor(profiles).map(nameOf));
+      }
+
+      function renderStageSpecialists() {
+        document.querySelectorAll('[data-role="stage-specialists"]').forEach((el) => {
+          const names = namesFor(el.dataset.profile);
+          el.textContent = names.length ? names.join(' · ') : 'Специалисты не назначены';
         });
-
-        listEl.innerHTML = '';
-        if (!items.length) {
-          listEl.innerHTML = '<div class="staff-empty">Никого не нашли по этим параметрам</div>';
-          return;
-        }
-
-        items.forEach(s => {
-          const isAdded = alreadyAddedIds.has(s.id);
-          const isSelected = selectedIds.has(s.id);
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.className = 'staff-item ' + s.color + (isAdded ? ' added' : '') + (isSelected ? ' selected' : '');
-          btn.setAttribute('role', 'option');
-          btn.setAttribute('aria-selected', String(isSelected));
-          btn.dataset.id = s.id;
-          btn.innerHTML = `
-            <span class="staff-av" aria-hidden="true">${s.initials}</span>
-            <span class="staff-body">
-              <span class="staff-name">${s.name}</span>
-              <span class="staff-role">${s.role}${isAdded ? ' · уже добавлен' : ''}</span>
-            </span>
-            <span class="staff-check" aria-hidden="true">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.5"><polyline points="20 6 9 17 4 12"/></svg>
-            </span>
-          `;
-          if (!isAdded) {
-            btn.addEventListener('click', () => {
-              if (selectedIds.has(s.id)) selectedIds.delete(s.id);
-              else selectedIds.add(s.id);
-              updateSelectionState();
-            });
-          }
-          listEl.appendChild(btn);
+        document.querySelectorAll('[data-role="stage-specialists-short"]').forEach((el) => {
+          const names = namesFor(el.dataset.profile);
+          el.textContent = names.length
+            ? shortName(names[0]) + (names.length > 1 ? ' +' + (names.length - 1) : '')
+            : 'нет назначений';
+        });
+        document.querySelectorAll('[data-role="conclusion-author"]').forEach((el) => {
+          const author = normalizeSpaces(diagnosticsRuntime.conclusion?.authorName || '');
+          el.textContent = author ? shortName(author) : 'не выдано';
         });
       }
 
-      function updateSelectionState() {
-        listEl.querySelectorAll('.staff-item').forEach(it => {
-          const id = it.dataset.id;
-          const sel = selectedIds.has(id);
-          it.classList.toggle('selected', sel);
-          it.setAttribute('aria-selected', String(sel));
-        });
-        selCountEl.textContent = selectedIds.size;
-        const has = selectedIds.size > 0;
-        addBtn.disabled = !has;
-        addBtn.style.opacity = has ? '1' : '0.5';
-        addBtn.style.cursor = has ? 'pointer' : 'not-allowed';
+      function renderStageAuthors() {
+        const list = document.querySelector('[data-role="stage-authors"]');
+        if (!list) return;
+        const seen = new Set();
+        const chips = [];
+        (diagnosticsRuntime.blocks || [])
+          .filter((b) => b.blockStatus === 'completed')
+          .forEach((b) => {
+            const name = nameOf(b);
+            if (!name || seen.has(name)) return;
+            seen.add(name);
+            chips.push(
+              '<span class="specialist-chip ' + (CHIP_COLORS[profileOf(b)] || '') + '" role="listitem">' +
+              '<span class="av" aria-hidden="true">' + escapeHtml(initialsOf(name)) + '</span>' +
+              escapeHtml(name) +
+              '</span>'
+            );
+          });
+        list.innerHTML = chips.length
+          ? chips.join('')
+          : '<span class="specialists-empty">Пока ни один блок не заполнен</span>';
       }
 
-      function open(addBtn) {
-        currentTargetRow = addBtn;
-        selectedIds = new Set();
-        alreadyAddedIds = getAlreadyAdded(addBtn);
-        currentQuery = '';
-        currentRoleFilter = 'all';
-        searchInput.value = '';
-        filterBtns.forEach(b => {
-          const isAll = b.dataset.role === 'all';
-          b.classList.toggle('active', isAll);
-          b.setAttribute('aria-selected', String(isAll));
+      function renderBlockAuthors() {
+        document.querySelectorAll('[data-role="block-authors"]').forEach((el) => {
+          el.textContent = authorsText(el.dataset.profile);
         });
-
-        const stageCard = addBtn.closest('.stage-card');
-        const subpanel = addBtn.closest('.subpanel');
-        const stageTitle = stageCard ? stageCard.querySelector('.stage-info .title') : null;
-        const blockTitle = subpanel ? subpanel.querySelector('.subpanel-head .t') : null;
-        let ctx = '—';
-        if (stageTitle && blockTitle) ctx = stageTitle.textContent.trim() + ' · ' + blockTitle.textContent.trim();
-        else if (stageTitle) ctx = stageTitle.textContent.trim();
-        ctxLabel.innerHTML = 'для блока: <strong>' + ctx + '</strong>';
-
-        render();
-        updateSelectionState();
-
-        lastFocusedEl = document.activeElement;
-        modal.classList.add('open');
-        modal.hidden = false;
-        document.body.style.overflow = 'hidden';
-        setTimeout(() => searchInput.focus(), 60);
+        renderStageSpecialists();
+        renderStageAuthors();
       }
 
-      function close() {
-        modal.classList.remove('open');
-        modal.hidden = true;
-        document.body.style.overflow = '';
-        if (lastFocusedEl && typeof lastFocusedEl.focus === 'function') lastFocusedEl.focus();
-      }
-
-      function addSelected() {
-        if (!currentTargetRow || !selectedIds.size) return;
-        const row = currentTargetRow.closest('.specialists-list');
-        if (!row) { close(); return; }
-
-        selectedIds.forEach(id => {
-          const s = STAFF.find(x => x.id === id);
-          if (!s) return;
-          const chip = document.createElement('span');
-          chip.className = 'specialist-chip ' + s.color;
-          chip.setAttribute('role', 'listitem');
-          chip.innerHTML = `
-            <span class="av" aria-hidden="true">${s.initials}</span>
-            ${s.name}
-            <button type="button" class="rm" aria-label="Убрать ${s.name}">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
-            </button>
-          `;
-          row.insertBefore(chip, currentTargetRow);
-
-          chip.querySelector('.rm').addEventListener('click', () => chip.remove());
-        });
-        close();
-      }
-
-      function bindAdd(btn) {
-        btn.addEventListener('click', (e) => {
-          e.preventDefault();
-          open(btn);
-        });
-      }
-      document.querySelectorAll('.specialist-add').forEach(bindAdd);
-
-      document.querySelectorAll('.specialist-chip .rm').forEach(rm => {
-        rm.addEventListener('click', () => {
-          const chip = rm.closest('.specialist-chip');
-          if (chip) chip.remove();
-        });
-      });
-
-      closeBtn.addEventListener('click', close);
-      cancelBtn.addEventListener('click', close);
-      addBtn.addEventListener('click', addSelected);
-      modal.addEventListener('click', (e) => { if (e.target === modal) close(); });
-      document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && modal.classList.contains('open')) close();
-      });
-
-      searchInput.addEventListener('input', () => { currentQuery = searchInput.value; render(); updateSelectionState(); });
-      filterBtns.forEach(b => {
-        b.addEventListener('click', () => {
-          filterBtns.forEach(x => { x.classList.remove('active'); x.setAttribute('aria-selected', 'false'); });
-          b.classList.add('active');
-          b.setAttribute('aria-selected', 'true');
-          currentRoleFilter = b.dataset.role;
-          render();
-          updateSelectionState();
-        });
-      });
+      window.__renderBlockAuthors = renderBlockAuthors;
+      renderBlockAuthors();
     })();
     });
 
 onUnmounted(() => {
   document.documentElement.style.removeProperty('--bg-app');
   document.documentElement.style.removeProperty('--fab-offset');
-  // Снимаем жёсткую привязку профиля, чтобы она не «протекла» на другую роль.
   window.__forcedProfileKey = '';
-  // Снимаем мост к окну выбора реабилитанта.
   window.__openRecipientPicker = null;
-  // Снимаем слушатели режима «только просмотр» сотрудника.
   if (employeeReadonlyGuards) {
     employeeReadonlyGuards.forEach(([evt, fn]) => document.removeEventListener(evt, fn, true));
     employeeReadonlyGuards = null;
@@ -4907,13 +4398,7 @@ onUnmounted(() => {
 <style>
 @import url("https://fonts.googleapis.com/css2?family=Lora:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap");
 
-/* ============================================================
-   «Ворота» выбора реабилитанта: пока реабилитант не выбран,
-   вся карточка диагностики скрыта, показывается только приглашение.
-   Палитра — родная «бумажно-шалфейная» (--paper / --sage-* / --ink-*).
-   ============================================================ */
 .content.is-gated > *:not(.diag-gate) { display: none !important; }
-/* Ворота центрируем по середине доступной области страницы. */
 .diag-gate {
   display: flex;
   align-items: center;
@@ -4921,8 +4406,6 @@ onUnmounted(() => {
   min-height: 70vh;
   padding: 2rem 1rem;
 }
-/* Карточка — ГОРИЗОНТАЛЬНАЯ: круглая иконка слева, текст и действия справа.
-   Просторные отступы, чтобы иконка не упиралась в края (как в макете). */
 .diag-gate-card {
   position: relative;
   display: flex;
@@ -4931,7 +4414,6 @@ onUnmounted(() => {
   max-width: 1040px;
   width: 100%;
   padding: 3.875rem 4.25rem;
-  /* Мягкая шалфейная «подсветка» слева поверх бумажного фона. */
   background:
     radial-gradient(120% 150% at 14% 50%, var(--sage-50, #EEF4E2) 0%, rgba(238, 244, 226, 0) 55%),
     var(--paper, #fff);
@@ -4942,8 +4424,6 @@ onUnmounted(() => {
     0 2px 4px rgba(30, 47, 30, 0.04),
     0 32px 64px -32px rgba(30, 47, 30, 0.32);
 }
-/* Внешний круг-ореол: мягкая радиальная подсветка вокруг иконки.
-   Отдельным элементом (не псевдо-z-index), поэтому виден поверх карточки. */
 .diag-gate-iconwrap {
   flex: none;
   width: 200px;
@@ -4953,7 +4433,6 @@ onUnmounted(() => {
   place-items: center;
   background: radial-gradient(circle, rgba(95, 126, 69, 0.16) 0%, rgba(95, 126, 69, 0.06) 54%, rgba(95, 126, 69, 0) 72%);
 }
-/* Внутренний круг с заливкой градиентом шалфея. */
 .diag-gate-icon {
   width: 152px;
   height: 152px;
@@ -4965,7 +4444,6 @@ onUnmounted(() => {
   box-shadow: 0 20px 40px -14px rgba(30, 47, 30, 0.5);
 }
 .diag-gate-icon svg { width: 68px; height: 68px; }
-/* Правая колонка — текст и действия, выравнивание по левому краю. */
 .diag-gate-body {
   min-width: 0;
   text-align: left;
@@ -4984,7 +4462,6 @@ onUnmounted(() => {
   max-width: 460px;
   margin: 0 0 1.875rem;
 }
-/* Строка действий с кнопкой — слегка сдвинута правее относительно текста. */
 .diag-gate-actions {
   display: flex;
   align-items: center;
@@ -5011,7 +4488,6 @@ onUnmounted(() => {
 .diag-gate-btn.btn-primary:active { transform: translateY(0); }
 .diag-gate-btn svg { width: 18px; height: 18px; }
 
-/* Узкие экраны — складываем карточку в колонку и центрируем. */
 @media (max-width: 700px) {
   .diag-gate-card {
     flex-direction: column;
@@ -5027,19 +4503,11 @@ onUnmounted(() => {
   .diag-gate-icon svg { width: 56px; height: 56px; }
 }
 
-/* ============================================================
-   Роль «Сотрудник» — карточка диагностики ТОЛЬКО для просмотра.
-   Этапы и данные видны; все инструменты редактирования скрыты,
-   поля недоступны для мыши (клавиатуру глушит JS-гвард).
-   Затрагивает только режим карточки (.content / .save-bar),
-   режим «Назначение» и другие роли не трогаются.
-   ============================================================ */
 .diagnostics-page.diag-readonly .content [data-action="save-draft"],
 .diagnostics-page.diag-readonly .content [data-action="finish-stage"],
 .diagnostics-page.diag-readonly .content [data-action="finish-subblock"],
 .diagnostics-page.diag-readonly .content [data-action="edit-stage"],
-.diagnostics-page.diag-readonly .content [data-action="edit-subblock"],
-.diagnostics-page.diag-readonly .content .specialist-add {
+.diagnostics-page.diag-readonly .content [data-action="edit-subblock"] {
   display: none !important;
 }
 .diagnostics-page.diag-readonly .save-bar {
@@ -5328,31 +4796,6 @@ onUnmounted(() => {
       pointer-events: none;
     }
 
-    .diagnostics-page .modal-filters{
-      padding: 0 1.25rem 0.875rem;
-      display: flex;
-      gap: 0.375rem;
-      flex-wrap: wrap;
-      border-bottom: 0.0625rem solid var(--line-soft);
-    }
-    .diagnostics-page .modal-filter-chip{
-      min-height: 2rem;
-      padding: 0.3125rem 0.75rem;
-      border-radius: 999px;
-      background: var(--paper-soft);
-      border: 0.0625rem solid var(--line);
-      font-size: 0.8125rem;
-      color: var(--ink-muted);
-      font-weight: 500;
-      transition: background 0.15s, color 0.15s, border-color 0.15s;
-    }
-    .diagnostics-page .modal-filter-chip:hover:not(.active){ background: var(--paper); color: var(--ink-strong); }
-    .diagnostics-page .modal-filter-chip.active{
-      background: var(--sage-900);
-      color: #F4F8EC;
-      border-color: var(--sage-900);
-    }
-
     .diagnostics-page .modal-list{
       overflow-y: auto;
       flex: 1 1 auto;
@@ -5388,11 +4831,6 @@ onUnmounted(() => {
       background: var(--sage-500);
       color: #FFFFFF;
     }
-    .diagnostics-page .staff-item.amber .staff-av{ background: var(--amber-500); }
-    .diagnostics-page .staff-item.blue .staff-av{ background: var(--blue-500); }
-    .diagnostics-page .staff-item.plum .staff-av{ background: var(--plum-500); }
-    .diagnostics-page .staff-item.teal .staff-av{ background: var(--teal-500); }
-    .diagnostics-page .staff-item.rose .staff-av{ background: var(--rose-500); }
     .diagnostics-page .staff-item .staff-body{ flex: 1; min-width: 0; }
     .diagnostics-page .staff-item .staff-name{
       font-size: 0.9375rem;
@@ -5425,16 +4863,6 @@ onUnmounted(() => {
       border-color: var(--sage-500);
     }
     .diagnostics-page .staff-item.selected .staff-check svg{ opacity: 1; transform: scale(1); }
-    .diagnostics-page .staff-item.added{
-      opacity: 0.55;
-      cursor: not-allowed;
-      pointer-events: none;
-    }
-    .diagnostics-page .staff-item.added .staff-check{
-      background: var(--sage-100);
-      border-color: var(--sage-100);
-    }
-    .diagnostics-page .staff-item.added .staff-check svg{ opacity: 1; color: var(--sage-700); }
     .diagnostics-page .staff-empty{
       padding: 2rem 1rem;
       text-align: center;
@@ -5461,7 +4889,6 @@ onUnmounted(() => {
       .diagnostics-page .modal{ max-height: calc(100vh - 1rem); border-radius: 0.875rem; }
       .diagnostics-page .modal-head{ padding: 1rem 1rem 0.875rem; }
       .diagnostics-page .modal-search{ padding: 0.75rem 1rem; }
-      .diagnostics-page .modal-filters{ padding: 0 1rem 0.75rem; }
       .diagnostics-page .modal-list{ padding: 0.375rem; }
       .diagnostics-page .modal-foot{ padding: 0.75rem 1rem; flex-wrap: wrap; }
       .diagnostics-page .modal-foot .btn{ flex: 1; }
@@ -5634,7 +5061,6 @@ onUnmounted(() => {
     }
     .diagnostics-page .icon-btn:hover{ background: var(--paper); color: var(--ink); }
     .diagnostics-page .icon-btn svg{ width: 1.0625rem; height: 1.0625rem; }
-    /* ===== Переключатель режимов (карточка / назначение) ===== */
     .diagnostics-page .diag-modebar{
       max-width: 87.5rem;
       width: 100%;
@@ -5668,7 +5094,6 @@ onUnmounted(() => {
       box-shadow: 0 0.25rem 0.75rem rgba(47, 74, 47, 0.22);
     }
 
-    /* ===== Режим «Назначение на диагностику» ===== */
     .diagnostics-page .diag-assign-view{
       max-width: 62rem;
       width: 100%;
@@ -6170,7 +5595,6 @@ onUnmounted(() => {
     .diagnostics-page .stage-card + .stage-card{ margin-top: 1rem; }
 
     .diagnostics-page .stage-card.collapsed .stage-body{ display: none; }
-    /* Ограничение формы по профилю специалиста: скрытые блоки полностью убраны из потока. */
     .diagnostics-page .profile-hidden{ display: none !important; }
     .diagnostics-page .stage-card .stage-body.is-collapsing{
       display: block !important;
@@ -6287,8 +5711,6 @@ onUnmounted(() => {
     .diagnostics-page .stage-locked-banner strong{ font-weight: 600; }
     .diagnostics-page .stage-locked-banner .slb-text{ flex: 1; min-width: 0; }
 
-    /* Этап 04 закрыт, пока не пройдены этапы 01–03. Не «завершён», а «рано» —
-       поэтому янтарный, а не зелёный, как у баннера завершённого этапа. */
     .diagnostics-page .stage-gate-banner{
       display: flex;
       align-items: center;
@@ -7429,29 +6851,11 @@ onUnmounted(() => {
     .diagnostics-page .specialist-chip.teal .av{ background: var(--teal-500); }
     .diagnostics-page .specialist-chip.rose{ background: var(--rose-50); border-color: var(--rose-100); color: var(--rose-700); }
     .diagnostics-page .specialist-chip.rose .av{ background: var(--rose-500); }
-    .diagnostics-page .specialist-chip .rm{
-      width: 1.125rem; height: 1.125rem;
-      display: grid; place-items: center;
-      border-radius: 50%;
-      margin-left: 0.0625rem;
-    }
-    .diagnostics-page .specialist-chip .rm:hover{ background: rgba(0,0,0,0.06); }
-    .diagnostics-page .specialist-chip .rm svg{ width: 0.6875rem; height: 0.6875rem; }
-    .diagnostics-page .specialist-add{
-      display: inline-flex;
-      align-items: center;
-      gap: 0.3125rem;
-      padding: 0.3125rem 0.625rem;
-      min-height: 2rem;
-      background: transparent;
-      border: 0.0625rem dashed var(--line-strong);
-      border-radius: 999px;
+    .diagnostics-page .specialists-empty{
       font-size: 0.8125rem;
       color: var(--ink-muted);
-      font-weight: 500;
+      align-self: center;
     }
-    .diagnostics-page .specialist-add:hover{ color: var(--sage-700); border-color: var(--sage-500); background: var(--sage-50); }
-    .diagnostics-page .specialist-add svg{ width: 0.75rem; height: 0.75rem; }
     .diagnostics-page .mobile-route{ display: none; }
     .diagnostics-page .mobile-route select{
       width: 100%;

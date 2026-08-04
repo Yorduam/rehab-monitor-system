@@ -123,7 +123,6 @@ const renderRadar = () => {
       selectedRecipient.value.creativityScore || 0
     ];
     const targetScores = [4, 3, 3, 4];
-    // Тёмной темы больше нет — цвета графика всегда светлые.
     const textColor = '#4F564A';
     const gridColor = '#E4DECF';
     chart = new Chart(ctx, {
@@ -155,7 +154,6 @@ onUnmounted(() => {
 
 
 <style scoped>
-/* ---- Warm paper theme (matches Реабилитанты / Дашборд) ---- */
 .progress-page { font-family: 'Inter', system-ui, sans-serif; color: #131713; }
 
 .p-header { margin-bottom: 1.5rem; }

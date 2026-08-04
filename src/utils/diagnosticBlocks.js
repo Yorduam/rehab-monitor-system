@@ -1,8 +1,3 @@
-// Схема блоков диагностики по профилю специалиста (Direction.profileKey).
-// Используется модальным окном заполнения: специалист видит и редактирует
-// ТОЛЬКО блок, соответствующий его профилю (логопед — «Речь», не разделы
-// психолога и т.д.). Результаты сохраняются как { criteria: { id: value },
-// comment } в поле DiagnosticAssignment.results.
 
 export const PROFILE_LABELS = {
   psy: 'Психолог',
@@ -14,7 +9,6 @@ export const PROFILE_LABELS = {
   theatre: 'Театр'
 };
 
-// Единая шкала оценки для всех критериев (0–4).
 export const SCALE = [
   { value: 0, short: '0', label: 'Не проявляется' },
   { value: 1, short: '1', label: 'С помощью / редко' },
@@ -105,17 +99,14 @@ export const DIAGNOSTIC_BLOCKS = {
   }
 };
 
-// Блок по профилю (или null, если профиль неизвестен/не задан).
 export function getBlock(profileKey) {
   return DIAGNOSTIC_BLOCKS[profileKey] || null;
 }
 
-// Человекочитаемое название профиля.
 export function profileLabel(profileKey) {
   return PROFILE_LABELS[profileKey] || 'Специалист';
 }
 
-// Создать пустую структуру результатов для блока.
 export function emptyResults(profileKey) {
   const block = getBlock(profileKey);
   const criteria = {};
@@ -123,7 +114,6 @@ export function emptyResults(profileKey) {
   return { criteria, comment: '' };
 }
 
-// Средний балл по заполненным критериям (для сводки), либо null.
 export function averageScore(results) {
   if (!results || !results.criteria) return null;
   const vals = Object.values(results.criteria).filter(v => v !== null && v !== undefined && v !== '');

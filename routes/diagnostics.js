@@ -7,15 +7,12 @@ const router = express.Router();
 const resultInclude = [
   { model: Recipient, as: 'recipient', attributes: ['id', 'firstName', 'middleName', 'lastName'] },
   { model: Direction, as: 'direction', attributes: ['id', 'name', 'profileKey'] },
-  // Специалист диагностики — учётная запись (User). idSpecialist = userId.
   { model: User, as: 'specialist', attributes: ['id', 'firstName', 'lastName', 'email'] }
 ];
 
 const specialistName = (u) =>
   u ? ([u.lastName, u.firstName].filter(Boolean).join(' ').trim() || u.email) : null;
 
-// Приводим специалиста-пользователя к прежней форме { id, fullName },
-// чтобы фронтенд (ожидающий specialist.fullName) не менялся.
 function serializeResult(row) {
   const json = row.toJSON();
   json.specialist = row.specialist
@@ -33,9 +30,6 @@ router.get('/', authMiddleware, async (req, res) => {
     const where = {};
     if (req.query.recipientId) where.idRecipient = parseInt(req.query.recipientId);
     if (req.query.directionId) where.idDirection = parseInt(req.query.directionId);
-    // Фильтр по специалисту (учётной записи преподавателя) — нужен, чтобы
-    // преподаватель на вкладке «Диагностика» видел только тех реабилитантов,
-    // которых направили на диагностику именно к нему (idSpecialist = его userId).
     if (req.query.specialistId) where.idSpecialist = parseInt(req.query.specialistId);
 
     const { count, rows } = await ReResult.findAndCountAll({
@@ -59,12 +53,6 @@ router.get('/', authMiddleware, async (req, res) => {
   }
 });
 
-// Легаси-назначение (ReResult + событие в расписании) с явным выбором
-// направления и специалиста. Штатный путь теперь другой: ресепшн создаёт заявку
-// только датой через POST /schedule/sessions, а специалисты разбирают её сами.
-// Этот маршрут оставлен админу для ручного разбора старых записей и закрыт для
-// остальных ролей: он не проверяет ни маршрут реабилитанта, ни документы,
-// ни дубли — то есть в обход всех проверок готовности.
 router.post('/', authMiddleware, roleMiddleware('admin'), async (req, res) => {
   const t = await sequelize.startUnmanagedTransaction();
   try {
@@ -78,11 +66,6 @@ router.post('/', authMiddleware, roleMiddleware('admin'), async (req, res) => {
       published: published ?? false
     }, { transaction: t });
 
-    // Направление на диагностику должно попасть в расписание специалиста, иначе
-    // реабилитант не появится на вкладке «Реабилитанты» у преподавателя
-    // (та вкладка показывает только тех, у кого есть ScheduleEvent с этим специалистом).
-    // Форма назначения диагностики не задаёт время — ставим слот по умолчанию.
-    // Дедуп: если событие на эту дату/специалиста/направление уже есть — не плодим дубли.
     if (idRecipient && idSpecialist && date) {
       const existing = await ScheduleEvent.findOne({
         where: {
