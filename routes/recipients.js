@@ -202,6 +202,87 @@ const onlyDigits = (s) => (s || '').replace(/\D/g, '');
 
 class IntakeError extends Error {}
 
+// Поиск дублей ведётся ТОЛЬКО по данным реабилитанта. Представителя не
+// проверяем сознательно: у одного опекуна законно бывает несколько подопечных.
+const normName = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+const normDoc  = (s) => String(s || '').trim().replace(/[\s-]/g, '').toUpperCase();
+
+const briefRecipient = (r) => ({
+  id: r.id,
+  lastName: r.lastName,
+  firstName: r.firstName,
+  middleName: r.middleName,
+  birthDate: r.birthDate,
+  status: r.status,
+  groupName: r.group?.groupName || null
+});
+
+// Ключ — фамилия + имя + дата рождения. Отчество в ключ не входит: оно
+// необязательное, поэтому «Иванов Иван» и «Иванов Иван Иванович» с одной датой
+// рождения обязаны попасть в подсказку. Но если отчество заполнено у обоих и
+// они разные — это заведомо разные люди, такую пару отбрасываем.
+async function findNameMatches({ firstName, lastName, middleName, birthDate }, excludeId) {
+  if (!birthDate || !normName(firstName) || !normName(lastName)) return [];
+
+  const where = { birthDate };
+  if (excludeId) where.id = { [Op.ne]: excludeId };
+
+  const rows = await Recipient.findAll({ where, include: [groupInclude], limit: 50 });
+  const mid = normName(middleName);
+
+  return rows.filter((r) =>
+    normName(r.lastName) === normName(lastName) &&
+    normName(r.firstName) === normName(firstName) &&
+    !(mid && normName(r.middleName) && normName(r.middleName) !== mid)
+  );
+}
+
+// Серию сверяем в нормализованном виде, чтобы «IV-АБ» и «IV АБ» не разошлись.
+// Номер селективный и хранится как есть (фронт пишет только цифры), поэтому по
+// нему сужаем выборку в SQL, а серию сравниваем уже в JS.
+async function findDocMatch({ docSeries, docNumber }, excludeId) {
+  const num = normDoc(docNumber);
+  const ser = normDoc(docSeries);
+  if (!num || !ser) return null;
+
+  const rows = await RecipientDoc.findAll({
+    where: { docNumber: num },
+    include: [{ model: Recipient, as: 'recipient', include: [groupInclude] }],
+    limit: 50
+  });
+
+  const hit = rows.find((d) =>
+    normDoc(d.docSeries) === ser && (!excludeId || d.recipientId !== excludeId)
+  );
+  if (!hit) return null;
+
+  return {
+    ...(hit.recipient ? briefRecipient(hit.recipient) : { id: hit.recipientId }),
+    docType: hit.docType,
+    docSeries: hit.docSeries,
+    docNumber: hit.docNumber
+  };
+}
+
+// Живая проверка из мастера добавления. Ничего не меняет, только отвечает, что
+// нашлось: совпадение ФИО+даты рождения — предупреждение, совпадение серии и
+// номера документа — блокирующее (один документ не может быть у двух людей).
+router.post('/check-duplicate', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
+  try {
+    const { firstName, middleName, lastName, birthDate, docSeries, docNumber, excludeId } = req.body || {};
+    const skip = Number(excludeId) || null;
+
+    const [nameRows, docMatch] = await Promise.all([
+      findNameMatches({ firstName, middleName, lastName, birthDate }, skip),
+      findDocMatch({ docSeries, docNumber }, skip)
+    ]);
+
+    res.json({ nameMatches: nameRows.map(briefRecipient), docMatch });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
   const { recipient = {}, representative = {}, doc = {}, nozologyClasses = [], crg = {}, groupId } = req.body;
 
@@ -215,6 +296,20 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
       if (dup) {
         return res.status(409).json({ message: `Реабилитант с таким СНИЛС (${doc.snils}) уже зарегистрирован в системе` });
       }
+    }
+
+    // Серия+номер документа блокируют сохранение: один документ физически не
+    // может принадлежать двум людям. Совпадение ФИО+даты рождения здесь
+    // намеренно НЕ проверяется — полные тёзки-ровесники бывают, мастер
+    // предупреждает о них на своей стороне и даёт сохранить осознанно.
+    const docDup = await findDocMatch({ docSeries: doc.docSeries, docNumber: doc.docNumber });
+    if (docDup) {
+      const fio = [docDup.lastName, docDup.firstName, docDup.middleName].filter(Boolean).join(' ');
+      return res.status(409).json({
+        message: `Документ ${doc.docSeries} ${doc.docNumber} уже зарегистрирован` +
+          (fio ? ` за реабилитантом ${fio}` : '') +
+          '. Один документ не может принадлежать двум людям.'
+      });
     }
 
     const result = await sequelize.transaction(async (t) => {
@@ -248,21 +343,54 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
       const uniqSuffix = crypto.randomBytes(5).toString('hex');
 
       const repPhone = representative.telephone || '';
-      const rep = await LegalRepresentative.create({
-        firstName: representative.firstName || '',
-        middleName: representative.middleName || '',
-        lastName: representative.lastName || '',
-        telephone: repPhone,
-        email: `lr-${onlyDigits(repPhone) || 'na'}-${uniqSuffix}@intake.local`,
-        passportSeries: representative.passportSeries || '',
-        passportNumber: representative.passportNumber || '',
-        passportIssuer: representative.passportIssuer || '',
-        passportIssuerDate: representative.passportIssuerDate || null,
-        passportDeptCode: representative.passportDeptCode || '',
-        passportReg: representative.passportReg || ''
-      }, { transaction: t });
+      const repSeries = String(representative.passportSeries || '').trim();
+      const repNumber = String(representative.passportNumber || '').trim();
 
-      const phonePlaceholder = `no-phone-${uniqSuffix}`;
+      // У одного опекуна законно бывает несколько подопечных, поэтому на второго
+      // ребёнка второго представителя не заводим. Ключ — паспорт: по паре
+      // серия+номер в БД стоит UNIQUE (le_passport), то есть схема сама говорит,
+      // что это одна личность. Телефон ключом быть не может — им опекун делится
+      // с супругом, а вот паспортом нет.
+      let rep = repSeries && repNumber
+        ? await LegalRepresentative.findOne({
+            where: { passportSeries: repSeries, passportNumber: repNumber },
+            transaction: t
+          })
+        : null;
+
+      if (rep) {
+        // Данные могли поправить или обновить (сменился телефон, прописка).
+        // Переносим только заполненное: пустое поле второй анкеты не должно
+        // затирать то, что оператор ввёл в первой.
+        const fresh = {};
+        const carry = (field, value) => {
+          const v = typeof value === 'string' ? value.trim() : value;
+          if (v !== '' && v != null && v !== rep[field]) fresh[field] = v;
+        };
+        carry('firstName', representative.firstName);
+        carry('middleName', representative.middleName);
+        carry('lastName', representative.lastName);
+        carry('telephone', repPhone);
+        carry('passportIssuer', representative.passportIssuer);
+        carry('passportIssuerDate', representative.passportIssuerDate);
+        carry('passportDeptCode', representative.passportDeptCode);
+        carry('passportReg', representative.passportReg);
+        if (Object.keys(fresh).length) await rep.update(fresh, { transaction: t });
+      } else {
+        rep = await LegalRepresentative.create({
+          firstName: representative.firstName || '',
+          middleName: representative.middleName || '',
+          lastName: representative.lastName || '',
+          telephone: repPhone,
+          email: `lr-${onlyDigits(repPhone) || 'na'}-${uniqSuffix}@intake.local`,
+          passportSeries: repSeries,
+          passportNumber: repNumber,
+          passportIssuer: representative.passportIssuer || '',
+          passportIssuerDate: representative.passportIssuerDate || null,
+          passportDeptCode: representative.passportDeptCode || '',
+          passportReg: representative.passportReg || ''
+        }, { transaction: t });
+      }
 
       const recEmail = `rcp-${onlyDigits(doc.snils) || 'na'}-${uniqSuffix}@intake.local`;
       const tempHash = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
@@ -276,7 +404,7 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
         lastName: recipient.lastName,
         birthDate: recipient.birthDate || null,
         email: recEmail,
-        telephone: repPhone || phonePlaceholder,
+        telephone: repPhone,
         photo: '',
         status: recipient.status || 'draft',
         diagnosis: recipient.diagnosis || '',
@@ -317,9 +445,14 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
     }
     if (err?.name === 'SequelizeUniqueConstraintError') {
       const path = err?.errors?.[0]?.path || '';
-      const msg = /snils/i.test(path)
-        ? 'Реабилитант с таким СНИЛС уже зарегистрирован в системе'
-        : `Запись с такими данными уже существует (${path || 'дубликат'})`;
+      let msg = `Запись с такими данными уже существует (${path || 'дубликат'})`;
+      if (/snils/i.test(path)) {
+        msg = 'Реабилитант с таким СНИЛС уже зарегистрирован в системе';
+      } else if (/le_telephone/i.test(path)) {
+        msg = 'Этот номер телефона уже записан за другим законным представителем. ' +
+          'Если это тот же человек — проверьте серию и номер его паспорта: ' +
+          'по паспорту представитель находится и переиспользуется автоматически.';
+      }
       return res.status(409).json({ message: msg });
     }
     next(err);

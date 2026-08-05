@@ -208,6 +208,20 @@
                 </div>
               </div>
 
+              <div v-if="dupNames.length" class="rw-dup rw-dup-warn">
+                <span class="rw-dup-ico" aria-hidden="true">!</span>
+                <div class="rw-dup-text">
+                  <b class="rw-dup-title">Похоже, такой реабилитант уже есть</b>
+                  <span class="rw-dup-sub">Совпали фамилия, имя и дата рождения. Если это полный тёзка — продолжайте заполнять карточку.</span>
+                  <ul class="rw-dup-list">
+                    <li v-for="p in dupNames" :key="p.id">
+                      {{ dupFio(p) }}, {{ dupDate(p.birthDate) }}
+                      <span class="rw-dup-meta">{{ p.groupName ? p.groupName + ' · ' : '' }}{{ dupStatusLabel(p.status) }}</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+
               <div class="rw-divider"><span class="rw-dv-label">Медицинские сведения и реабилитационная группа</span><span class="rw-dv-line"></span></div>
               <div class="rw-fg">
                 <div class="rw-f rw-c12">
@@ -378,6 +392,18 @@
                 </div>
               </div>
 
+              <div v-if="dupDoc" class="rw-dup rw-dup-block">
+                <span class="rw-dup-ico" aria-hidden="true">×</span>
+                <div class="rw-dup-text">
+                  <b class="rw-dup-title">Такой документ уже зарегистрирован</b>
+                  <span class="rw-dup-sub">
+                    {{ dupDoc.docType }} {{ dupDoc.docSeries }} {{ dupDoc.docNumber }} принадлежит реабилитанту
+                    {{ dupFio(dupDoc) }}{{ dupDoc.birthDate ? ', ' + dupDate(dupDoc.birthDate) : '' }}.
+                    Сохранить карточку с этим документом нельзя — проверьте серию и номер.
+                  </span>
+                </div>
+              </div>
+
               <div class="rw-divider"><span class="rw-dv-label">Адрес регистрации</span><span class="rw-dv-line"></span></div>
               <div class="rw-fg">
                 <div class="rw-f rw-c4">
@@ -478,6 +504,13 @@
                     <div class="rw-ut-body">
                       <div class="rw-ut-title">{{ t.title }}</div>
                       <div class="rw-ut-meta">{{ uploads[t.k] ? uploads[t.k].name : t.meta }}</div>
+                      <button
+                        v-if="uploads[t.k]" type="button" class="rw-ut-view"
+                        @click.prevent.stop="openPreview(uploads[t.k], t.title)"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        Посмотреть
+                      </button>
                     </div>
                     <span class="rw-ut-action">
                       <svg v-if="!uploads[t.k]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -556,6 +589,13 @@
                     <div class="rw-ut-body">
                       <div class="rw-ut-title">{{ t.title }}</div>
                       <div class="rw-ut-meta">{{ signedUploads[t.k] ? signedUploads[t.k].name : t.meta }}</div>
+                      <button
+                        v-if="signedUploads[t.k]" type="button" class="rw-ut-view"
+                        @click.prevent.stop="openPreview(signedUploads[t.k], t.title)"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        Посмотреть
+                      </button>
                     </div>
                     <span class="rw-ut-action">
                       <svg v-if="!signedUploads[t.k]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -670,6 +710,29 @@
       </div>
     </div>
 
+   </div>
+
+   <div v-if="preview" class="rw-pv" @click.self="closePreview">
+     <div class="rw-pv-box" role="dialog" aria-modal="true" aria-label="Просмотр документа">
+       <div class="rw-pv-head">
+         <div class="rw-pv-titles">
+           <div class="rw-pv-title">{{ preview.title }}</div>
+           <div class="rw-pv-sub">{{ preview.name }} · {{ preview.size }}</div>
+         </div>
+         <a class="rw-pv-btn" :href="preview.url" :download="preview.name">
+           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+           Скачать
+         </a>
+         <button class="rw-pv-btn rw-pv-close" type="button" aria-label="Закрыть просмотр" @click="closePreview">
+           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+         </button>
+       </div>
+       <div class="rw-pv-body">
+         <img v-if="preview.kind === 'image'" class="rw-pv-img" :src="preview.url" :alt="preview.title" />
+         <iframe v-else-if="preview.kind === 'pdf'" class="rw-pv-frame" :src="preview.url" :title="preview.title"></iframe>
+         <div v-else class="rw-pv-none">Этот формат браузер показать не умеет — скачайте файл, чтобы открыть его.</div>
+       </div>
+     </div>
    </div>
   </div>
 </template>
@@ -1069,6 +1132,103 @@ const gotoFirstMissing = () => {
   if (missingFields.value.length) gotoField(missingFields.value[0]);
 };
 
+// Черновик разложен на две части: поля лежат в localStorage, файлы — в
+// IndexedDB. В localStorage файлы класть нельзя: там около 5 МБ на домен, а
+// base64 раздувает вложение ещё на треть — пара сканов выбьет квоту целиком.
+// IndexedDB хранит File как есть, вместе с именем и MIME-типом, поэтому
+// восстановленный файл уходит на сервер тем же путём, что и только что выбранный.
+const DRAFT_FILES_DB = 'addRecipientDraftFiles';
+const DRAFT_FILES_STORE = 'files';
+const draftFileKey = (kind, k) => `${kind}:${k}`;
+
+const openDraftFilesDb = () => new Promise((resolve, reject) => {
+  const req = indexedDB.open(DRAFT_FILES_DB, 1);
+  req.onupgradeneeded = () => {
+    if (!req.result.objectStoreNames.contains(DRAFT_FILES_STORE)) {
+      req.result.createObjectStore(DRAFT_FILES_STORE);
+    }
+  };
+  req.onsuccess = () => resolve(req.result);
+  req.onerror = () => reject(req.error);
+});
+
+const withDraftFiles = async (mode, fn) => {
+  const db = await openDraftFilesDb();
+  try {
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(DRAFT_FILES_STORE, mode);
+      fn(tx.objectStore(DRAFT_FILES_STORE));
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
+};
+
+const readDraftFiles = async () => {
+  const db = await openDraftFilesDb();
+  try {
+    return await new Promise((resolve, reject) => {
+      const tx = db.transaction(DRAFT_FILES_STORE, 'readonly');
+      const store = tx.objectStore(DRAFT_FILES_STORE);
+      const keys = store.getAllKeys();
+      const values = store.getAll();
+      tx.oncomplete = () => resolve({ keys: keys.result, values: values.result });
+      tx.onerror = () => reject(tx.error);
+    });
+  } finally {
+    db.close();
+  }
+};
+
+const dropDraftFiles = async () => {
+  try { await withDraftFiles('readwrite', (s) => s.clear()); } catch (e) { console.error(e); }
+};
+
+// Молча потерять скан нельзя: человек решит, что он в черновике, закроет мастер
+// и останется без файла. Предупреждаем один раз за сеанс, чтобы не спамить.
+let draftFileWarned = false;
+const rememberDraftFile = async (kind, key, file) => {
+  try {
+    await withDraftFiles('readwrite', (s) => s.put(file, draftFileKey(kind, key)));
+  } catch (e) {
+    console.error(e);
+    if (!draftFileWarned) {
+      draftFileWarned = true;
+      alert(
+        'Файл прикреплён, но сохранить его в черновик не удалось — в браузере не хватает места.\n\n' +
+        'Карточку можно заполнять дальше, но если закрыть мастер, приложенные сканы придётся выбрать заново.'
+      );
+    }
+  }
+};
+
+const restoreDraftFiles = async () => {
+  try {
+    const { keys, values } = await readDraftFiles();
+    const main = {};
+    const signed = {};
+    keys.forEach((rawKey, i) => {
+      const file = values[i];
+      if (!(file instanceof Blob)) return;
+      const str = String(rawKey);
+      const sep = str.indexOf(':');
+      if (sep < 0) return;
+      const kind = str.slice(0, sep);
+      const k = str.slice(sep + 1);
+      if (kind === 'signed') signed[k] = file;
+      else if (kind === 'main') main[k] = file;
+    });
+    // Свежий выбор пользователя приоритетнее восстановленного черновика.
+    uploads.value = { ...main, ...uploads.value };
+    signedUploads.value = { ...signed, ...signedUploads.value };
+  } catch (e) {
+    console.error(e);
+  }
+};
+
 const loadDraft = () => {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
@@ -1083,16 +1243,18 @@ const saveDraft = () => {
   try { localStorage.setItem(DRAFT_KEY, JSON.stringify(f.value)); } catch (e) {}
 };
 const clearDraft = () => {
-  if (!confirm('Очистить черновик? Все введённые данные будут удалены безвозвратно.')) return;
+  if (!confirm('Очистить черновик? Все введённые данные и приложенные сканы будут удалены безвозвратно.')) return;
   f.value = makeEmptyForm();
   uploads.value = {};
   signedUploads.value = {};
   docsGenerated.value = false;
   step.value = 1;
   try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+  dropDraftFiles();
 };
 
 loadDraft();
+restoreDraftFiles();
 watch(f, saveDraft, { deep: true });
 
 const onlyDigits = (s, max) => s.replace(/\D/g, '').slice(0, max);
@@ -1155,11 +1317,55 @@ function onDocSeries(e) {
 
 const onFile = (key, e) => {
   const file = e.target.files[0];
-  if (file) uploads.value = { ...uploads.value, [key]: file };
+  if (!file) return;
+  uploads.value = { ...uploads.value, [key]: file };
+  rememberDraftFile('main', key, file);
 };
 const onSignedFile = (key, e) => {
   const file = e.target.files[0];
-  if (file) signedUploads.value = { ...signedUploads.value, [key]: file };
+  if (!file) return;
+  signedUploads.value = { ...signedUploads.value, [key]: file };
+  rememberDraftFile('signed', key, file);
+};
+
+// Просмотр приложенного скана. По имени файла не видно, тот ли документ
+// приложили, поэтому показываем его содержимое прямо в мастере.
+const preview = ref(null);
+
+const fileSize = (bytes) => {
+  if (bytes < 1024) return `${bytes} Б`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} МБ`;
+};
+
+const fileKind = (file) => {
+  const type = file.type || '';
+  if (type.startsWith('image/')) return 'image';
+  if (type === 'application/pdf') return 'pdf';
+  // Восстановленный из черновика файл тип сохраняет, но у скана с редкого
+  // сканера его может не быть — тогда смотрим на расширение.
+  const ext = String(file.name || '').split('.').pop().toLowerCase();
+  if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext)) return 'image';
+  if (ext === 'pdf') return 'pdf';
+  return 'other';
+};
+
+const closePreview = () => {
+  if (!preview.value) return;
+  URL.revokeObjectURL(preview.value.url);
+  preview.value = null;
+};
+
+const openPreview = (file, title) => {
+  if (!file) return;
+  closePreview();
+  preview.value = {
+    url: URL.createObjectURL(file),
+    name: file.name || 'файл',
+    size: fileSize(file.size || 0),
+    kind: fileKind(file),
+    title
+  };
 };
 
 const downloadingDoc = ref('');
@@ -1213,6 +1419,76 @@ const fileToBase64 = (file) => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
+// Проверка на дубликаты. Ключей два, и ведут они себя по-разному:
+// ФИО+дата рождения только предупреждают (полные тёзки-ровесники бывают),
+// серия+номер документа блокируют сохранение. Данные представителя не
+// проверяются — у одного опекуна законно бывает несколько подопечных.
+const dupNames = ref([]);
+const dupDoc = ref(null);
+const dupChecking = ref(false);
+
+let dupTimer = null;
+let dupSeq = 0;
+
+const dupPayload = () => ({
+  firstName:  f.value.rFirst,
+  middleName: f.value.rMid,
+  lastName:   f.value.rLast,
+  birthDate:  f.value.rBirth || null,
+  docSeries:  f.value.rDocSeries,
+  docNumber:  f.value.rDocNum,
+});
+
+const runDupCheck = async () => {
+  const payload = dupPayload();
+  const hasFio = payload.lastName.trim() && payload.firstName.trim() && payload.birthDate;
+  const hasDoc = payload.docSeries.trim() && payload.docNumber.length === 6;
+
+  if (!hasFio && !hasDoc) {
+    dupNames.value = [];
+    dupDoc.value = null;
+    return { nameMatches: [], docMatch: null };
+  }
+
+  const seq = ++dupSeq;
+  dupChecking.value = true;
+  try {
+    const { data } = await api.post('/recipients/check-duplicate', payload);
+    if (seq !== dupSeq) return null; // пришёл более свежий запрос, этот ответ уже неактуален
+    dupNames.value = data?.nameMatches || [];
+    dupDoc.value = data?.docMatch || null;
+    return { nameMatches: dupNames.value, docMatch: dupDoc.value };
+  } catch (e) {
+    // Недоступная проверка не должна мешать заполнять карточку: гасим баннеры
+    // и пропускаем дальше. Жёсткая защита по документу всё равно есть в /intake.
+    console.error(e);
+    if (seq === dupSeq) { dupNames.value = []; dupDoc.value = null; }
+    return null;
+  } finally {
+    if (seq === dupSeq) dupChecking.value = false;
+  }
+};
+
+watch(
+  () => [f.value.rLast, f.value.rFirst, f.value.rMid, f.value.rBirth, f.value.rDocSeries, f.value.rDocNum].join(''),
+  () => {
+    if (dupTimer) clearTimeout(dupTimer);
+    dupTimer = setTimeout(runDupCheck, 500);
+  }
+);
+
+const dupFio = (p) => [p.lastName, p.firstName, p.middleName].filter(Boolean).join(' ');
+
+const dupDate = (d) => {
+  if (!d) return '';
+  const [y, m, day] = String(d).slice(0, 10).split('-');
+  return `${day}.${m}.${y}`;
+};
+
+const dupStatusLabel = (s) => (
+  s === 'archived' ? 'в архиве' : s === 'draft' ? 'черновик' : 'активен'
+);
+
 const save = async () => {
   if (!f.value.rLast || !f.value.rFirst) {
     alert('Заполните ФИО реабилитанта (шаг 2)');
@@ -1223,6 +1499,33 @@ const save = async () => {
     step.value = steps.length;
     return;
   }
+
+  // Перепроверяем дубли прямо перед отправкой: пока карточку заполняли, такого
+  // реабилитанта мог завести кто-то другой.
+  if (dupTimer) { clearTimeout(dupTimer); dupTimer = null; }
+  const dup = await runDupCheck();
+
+  if (dup?.docMatch) {
+    alert(
+      `Нельзя сохранить: документ ${f.value.rDocSeries} ${f.value.rDocNum} уже зарегистрирован за реабилитантом ` +
+      `${dupFio(dup.docMatch)}. Один документ не может принадлежать двум людям — проверьте серию и номер.`
+    );
+    gotoField({ step: 2, a: '#rd-ser' });
+    return;
+  }
+
+  if (dup?.nameMatches?.length) {
+    const list = dup.nameMatches.map((p) => `• ${dupFio(p)}, ${dupDate(p.birthDate)}`).join('\n');
+    const ok = confirm(
+      `В системе уже есть реабилитант с такими ФИО и датой рождения:\n\n${list}\n\n` +
+      'Если это другой человек (полный тёзка), продолжайте. Сохранить карточку?'
+    );
+    if (!ok) {
+      gotoField({ step: 2, a: '#r-last' });
+      return;
+    }
+  }
+
   saving.value = true;
   try {
 
@@ -1298,6 +1601,7 @@ const save = async () => {
     }
 
     try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+    await dropDraftFiles();
     emit('saved', createdRecipient);
     emit('close');
   } catch (err) {
@@ -1318,7 +1622,8 @@ const closeDropdowns = (e) => {
 
 const onKey = (e) => {
   if (e.key === 'Escape') {
-    if (missingOpen.value)       { missingOpen.value = false; }
+    if (preview.value)           { closePreview(); }
+    else if (missingOpen.value)  { missingOpen.value = false; }
     else if (nosologyOpen.value) { nosologyOpen.value = false; }
     else { emit('close'); }
   }
@@ -1333,6 +1638,8 @@ onUnmounted(() => {
   document.removeEventListener('keydown', onKey);
   document.removeEventListener('click', closeDropdowns);
   document.body.style.overflow = '';
+  if (dupTimer) clearTimeout(dupTimer);
+  closePreview();
 });
 </script>
 
@@ -2365,5 +2672,124 @@ onUnmounted(() => {
   .rw-mf-body { max-height: 15rem; }
   .rw-sb-ok { display: none; }
   .rw-mf-btn { padding: 0.625rem 0.75rem; font-size: 0.875rem; }
+}
+
+/* Баннеры проверки на дубликаты */
+.rw-dup {
+  display: flex; gap: 0.625rem; align-items: flex-start;
+  margin: 0.25rem 0 1rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid;
+  border-radius: var(--rw-radius-md);
+}
+.rw-dup-warn  { background: var(--rw-amber-50); border-color: var(--rw-amber-100); }
+.rw-dup-block { background: var(--rw-rose-50);  border-color: var(--rw-rose-100); }
+
+.rw-dup-ico {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 1.25rem; height: 1.25rem; margin-top: 0.0625rem;
+  border-radius: 50%;
+  font-size: 0.8125rem; font-weight: 700; line-height: 1;
+  color: #FFFFFF;
+}
+.rw-dup-warn  .rw-dup-ico { background: var(--rw-amber-500); }
+.rw-dup-block .rw-dup-ico { background: var(--rw-rose-500); }
+
+.rw-dup-text { flex: 1; min-width: 0; }
+
+.rw-dup-title { display: block; font-size: 0.875rem; font-weight: 600; }
+.rw-dup-warn  .rw-dup-title { color: var(--rw-amber-700); }
+.rw-dup-block .rw-dup-title { color: var(--rw-rose-700); }
+
+.rw-dup-sub {
+  display: block; margin-top: 0.1875rem;
+  font-size: 0.8125rem; line-height: 1.45; color: var(--rw-ink-muted);
+}
+
+.rw-dup-list { margin: 0.5rem 0 0; padding-left: 1.125rem; }
+.rw-dup-list li { font-size: 0.8125rem; line-height: 1.5; color: var(--rw-ink-strong); }
+.rw-dup-meta { color: var(--rw-ink-subtle); }
+
+/* Кнопка «Посмотреть» лежит поверх прозрачного input[type=file], который
+   растянут на всю плитку, — без z-index клик уходил бы в выбор файла. */
+.rw-ut-view {
+  position: relative; z-index: 2;
+  margin-top: 0.4375rem;
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  font-family: inherit; font-size: 0.8125rem; font-weight: 600;
+  color: var(--rw-sage-700);
+  background: var(--rw-paper);
+  border: 1px solid var(--rw-sage-100);
+  border-radius: 999px;
+  padding: 0.25rem 0.6875rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.rw-ut-view:hover { background: var(--rw-sage-100); border-color: var(--rw-sage-500); }
+.rw-ut-view svg { width: 0.875rem; height: 0.875rem; flex: 0 0 0.875rem; }
+
+.rw-pv {
+  position: fixed; inset: 0; z-index: 100;
+  background: rgba(15, 20, 15, .72);
+  display: flex; align-items: center; justify-content: center;
+  padding: 2rem;
+  animation: rwOverlayIn 0.18s ease;
+}
+.rw-pv-box {
+  width: 100%; max-width: 56rem; max-height: 100%;
+  display: flex; flex-direction: column;
+  background: var(--rw-paper);
+  border-radius: var(--rw-radius-lg);
+  box-shadow: 0 2rem 5rem rgba(15, 20, 15, .45);
+  overflow: hidden;
+}
+.rw-pv-head {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.875rem 1.125rem;
+  border-bottom: 1px solid var(--rw-line-soft);
+  background: var(--rw-paper-soft);
+}
+.rw-pv-titles { flex: 1 1 auto; min-width: 0; }
+.rw-pv-title {
+  font-size: 0.9375rem; font-weight: 600; color: var(--rw-ink-strong);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rw-pv-sub {
+  font-size: 0.8125rem; color: var(--rw-ink-muted); margin-top: 0.125rem;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rw-pv-btn {
+  flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  font-family: inherit; font-size: 0.8125rem; font-weight: 600;
+  color: var(--rw-ink-strong); text-decoration: none;
+  background: var(--rw-paper);
+  border: 1px solid var(--rw-line-strong);
+  border-radius: var(--rw-radius-sm);
+  padding: 0.375rem 0.6875rem;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.rw-pv-btn:hover { background: var(--rw-paper-soft); border-color: var(--rw-sage-500); }
+.rw-pv-btn svg { width: 0.9375rem; height: 0.9375rem; flex: 0 0 0.9375rem; }
+.rw-pv-close { padding: 0.375rem; }
+
+.rw-pv-body {
+  flex: 1 1 auto; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--rw-canvas);
+  padding: 1rem;
+  overflow: auto;
+}
+.rw-pv-img { max-width: 100%; max-height: 76vh; object-fit: contain; border-radius: var(--rw-radius-sm); }
+.rw-pv-frame { width: 100%; height: 76vh; border: 0; border-radius: var(--rw-radius-sm); background: var(--rw-paper); }
+.rw-pv-none { font-size: 0.875rem; color: var(--rw-ink-muted); text-align: center; padding: 3rem 1rem; }
+
+@media (max-width: 900px) {
+  .rw-pv { padding: 0; }
+  .rw-pv-box { max-width: none; height: 100%; border-radius: 0; }
+  .rw-pv-img { max-height: none; }
+  .rw-pv-frame { height: 100%; }
 }
 </style>

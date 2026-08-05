@@ -9,7 +9,7 @@ const Recipient = sequelize.define('Recipient', {
   lastName: { type: DataTypes.STRING(50), allowNull: false },
   birthDate: { type: DataTypes.DATEONLY, allowNull: true },
   email: { type: DataTypes.STRING(50), allowNull: false, unique: true },
-  telephone: { type: DataTypes.STRING(20), allowNull: false, unique: true },
+  telephone: { type: DataTypes.STRING(20), allowNull: false },
 
   photo: {
     type: DataTypes.BLOB('long'),
