@@ -153,6 +153,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import api from '../api';
 import { useAuthStore } from '../stores/auth';
 import { fullName } from '../utils/recipient';
+import { notifySaved } from '../utils/toast';
 import { SCALE, getBlock, profileLabel, averageScore } from '../utils/diagnosticBlocks';
 
 const authStore = useAuthStore();
@@ -252,6 +253,7 @@ const saveDraft = async () => {
     await api.patch(`/schedule/assignments/${props.assignmentId}`, payload());
     emit('updated');
     await load();
+    notifySaved('Черновик диагностики сохранён');
   } catch (err) {
     alert(err.response?.data?.message || 'Не удалось сохранить');
   } finally {
@@ -266,6 +268,7 @@ const completeStage = async () => {
     assignment.value = res.assignment;
     session.value = res.session;
     emit('updated');
+    notifySaved('Этап завершён, результаты сохранены');
   } catch (err) {
     alert(err.response?.data?.message || 'Не удалось завершить этап');
   } finally {
@@ -280,6 +283,7 @@ const reopen = async () => {
     assignment.value = res.assignment;
     session.value = res.session;
     emit('updated');
+    notifySaved('Этап снова открыт для редактирования');
   } catch (err) {
     alert(err.response?.data?.message || 'Не удалось изменить статус');
   } finally {

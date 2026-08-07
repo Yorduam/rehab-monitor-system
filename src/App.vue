@@ -21,6 +21,10 @@
       <Login />
     </div>
   </div>
+
+  <!-- Вне v-if/v-else нарочно: уведомления живут поверх любой страницы и не
+       должны исчезать вместе с ней. -->
+  <ToastHost />
 </template>
 
 <script setup>
@@ -31,6 +35,7 @@ import Sidebar from './components/Sidebar.vue';
 import Topbar from './components/Topbar.vue';
 import ChatFab from './components/ChatFab.vue';
 import MobileBottomNav from './components/MobileBottomNav.vue';
+import ToastHost from './components/ToastHost.vue';
 import Login from './views/Login.vue';
 import Dashboard from './views/Dashboard.vue';
 import Recipients from './views/Recipients.vue';

@@ -757,6 +757,7 @@ import { useAuthStore } from '../stores/auth';
 import { usePageStore } from '../stores/page';
 import api from '../api';
 import { fullName, recipientAge, initials, statusLabel } from '../utils/recipient';
+import { notifySaved } from '../utils/toast';
 import Modal from '../components/Modal.vue';
 import RecipientsPager from '../components/RecipientsPager.vue';
 import AddRecipientWizard from '../components/AddRecipientWizard.vue';
@@ -1040,6 +1041,9 @@ const setAttendance = async (r, status) => {
   attendanceSaving.value = { ...attendanceSaving.value, [r.id]: true };
   try {
     await api.put(`/recipients/${r.id}/attendance`, { status });
+    // Ключ один на все отметки: по журналу кликают подряд по многим детям,
+    // и без него плашки выстроились бы столбом на весь экран.
+    notifySaved(`Посещение отмечено: ${fullName(r)}`, { key: 'attendance' });
   } catch (err) {
     console.error('setAttendance', err);
     r.attendanceStatus = prevStatus;
@@ -1190,10 +1194,17 @@ const editRecipient = (r) => {
 };
 const saveRecipient = async () => {
   try {
-    if (editId.value) await api.put(`/recipients/${editId.value}`, form.value);
-    else              await api.post('/recipients', form.value);
+    const editing = !!editId.value;
+    // ФИО берём до закрытия модалки: если closeModal когда-нибудь начнёт
+    // сбрасывать форму, сообщение не превратится в безымянное.
+    const fio = [form.value.lastName, form.value.firstName].filter(Boolean).join(' ').trim();
+    if (editing) await api.put(`/recipients/${editId.value}`, form.value);
+    else         await api.post('/recipients', form.value);
     await loadRecipients();
     closeModal();
+    notifySaved(editing
+      ? (fio ? `Изменения сохранены: ${fio}` : 'Изменения сохранены')
+      : (fio ? `Реабилитант ${fio} добавлен` : 'Реабилитант добавлен'));
   } catch (err) { console.error(err); alert('Ошибка сохранения'); }
 };
 const deleteRecipient = async (id) => {

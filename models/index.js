@@ -19,6 +19,7 @@ import ScheduleEvent from './ScheduleEvent.js';
 import DiagnosticAssignment from './DiagnosticAssignment.js';
 import DiagnosticSession from './DiagnosticSession.js';
 import DiagnosticConclusion from './DiagnosticConclusion.js';
+import AccessLog from './AccessLog.js';
 
 Recipient.belongsTo(User, { as: 'user', foreignKey: 'userId' });
 User.hasOne(Recipient, { as: 'recipient', foreignKey: 'userId' });
@@ -93,6 +94,12 @@ DiagnosticSession.hasOne(DiagnosticConclusion, { as: 'conclusion', foreignKey: '
 DiagnosticConclusion.belongsTo(Recipient, { as: 'recipient', foreignKey: 'recipientId' });
 DiagnosticConclusion.belongsTo(User, { as: 'author', foreignKey: 'authorId' });
 
+// Связи журнала объявлены без внешних ключей в БД: запись о доступе должна
+// пережить удаление и пользователя, и реабилитанта — иначе удаление карточки
+// стирало бы след того, кто её смотрел.
+AccessLog.belongsTo(User, { as: 'user', foreignKey: 'userId', foreignKeyConstraints: false });
+AccessLog.belongsTo(Recipient, { as: 'recipient', foreignKey: 'recipientId', foreignKeyConstraints: false });
+
 export {
   sequelize,
   User,
@@ -112,5 +119,6 @@ export {
   ScheduleEvent,
   DiagnosticAssignment,
   DiagnosticSession,
-  DiagnosticConclusion
+  DiagnosticConclusion,
+  AccessLog
 };

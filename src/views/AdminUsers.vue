@@ -232,6 +232,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import api from '../api';
+import { notifySaved } from '../utils/toast';
 import Modal from '../components/Modal.vue';
 import Pagination from '../components/Pagination.vue';
 
@@ -329,8 +330,13 @@ const loadUsers = async () => {
   const { data } = await api.get('/users');
   users.value = data;
 };
+// У пользователя нет поля name — только фамилия, имя и почта.
+const userLabel = (u) =>
+  [u?.lastName, u?.firstName].filter(Boolean).join(' ').trim() || u?.email || 'пользователь';
+
 const updateRole = async (user) => {
   await api.put(`/users/${user.id}`, { role: user.role });
+  notifySaved(`Роль сохранена: ${userLabel(user)}`);
 };
 const resetPassword = (user) => {
   selectedUser.value = user;
@@ -340,9 +346,10 @@ const resetPassword = (user) => {
 };
 const saveNewPassword = async () => {
   if (newPassword.value !== confirmPassword.value) return alert('Пароли не совпадают');
+  const who = userLabel(selectedUser.value);
   await api.put(`/users/${selectedUser.value.id}`, { password: newPassword.value });
   passwordModalVisible.value = false;
-  alert('Пароль изменён');
+  notifySaved(`Пароль изменён: ${who}`);
 };
 const deleteUser = async (id) => {
   if (confirm('Удалить пользователя?')) {
@@ -392,6 +399,7 @@ const saveUser = async () => {
     await api.put(`/users/${u.id}`, payload);
     await loadUsers();
     editModalVisible.value = false;
+    notifySaved(`Пользователь сохранён: ${userLabel(u)}`);
   } catch (err) {
     const msg = err.response?.data?.message || 'Не удалось сохранить изменения';
     alert(msg);
@@ -408,6 +416,7 @@ const createUser = async () => {
     await api.post('/users', payload);
     await loadUsers();
     addModalVisible.value = false;
+    notifySaved(`Пользователь создан: ${userLabel(payload)}`);
   } catch (err) {
     const msg = err.response?.data?.message || 'Не удалось создать пользователя';
     alert(msg);

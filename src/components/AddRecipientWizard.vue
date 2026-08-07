@@ -10,9 +10,13 @@
           <span class="rw-bc-cur">Добавление реабилитанта</span>
         </nav>
         <div class="rw-topbar-right">
-          <span class="rw-save-state">
+          <span
+            v-if="draftState" class="rw-save-state"
+            :class="{ 'is-saving': draftState === 'saving' }"
+            role="status" aria-live="polite"
+          >
             <span class="rw-save-dot"></span>
-            Черновик сохранён
+            {{ draftState === 'saving' ? 'Сохранение…' : 'Черновик сохранён' }}
           </span>
           <button class="rw-clear-btn" type="button" @click="clearDraft" title="Очистить все поля черновика">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
@@ -740,6 +744,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import api from '../api';
+import { notifySaved } from '../utils/toast';
 
 const props = defineProps({
   groupsList: { type: Array, default: () => [] }
@@ -1193,6 +1198,11 @@ let draftFileWarned = false;
 const rememberDraftFile = async (kind, key, file) => {
   try {
     await withDraftFiles('readwrite', (s) => s.put(file, draftFileKey(kind, key)));
+    // Запись скана в черновик — единственная долгая операция в мастере, и
+    // внешне она ничем себя не проявляла: непонятно, лёг файл в черновик или
+    // нет. Ключ один на все сканы, чтобы при быстрой загрузке нескольких файлов
+    // плашки не выросли столбом на весь экран.
+    notifySaved(`Скан «${file.name}» сохранён в черновик`, { key: 'draft-scan' });
   } catch (e) {
     console.error(e);
     if (!draftFileWarned) {
@@ -1236,14 +1246,41 @@ const loadDraft = () => {
     const saved = JSON.parse(raw);
     if (saved && typeof saved === 'object') {
       f.value = { ...makeEmptyForm(), ...saved };
+      // Черновик действительно есть — надпись в шапке честна с первой секунды.
+      draftState.value = 'saved';
     }
   } catch (e) {  }
 };
+// Состояние черновика для надписи в шапке. Раньше там висело статическое
+// «Черновик сохранён» — оно было нарисовано всегда, ещё до того, как человек
+// что-либо ввёл, то есть попросту обманывало. Теперь надпись появляется только
+// после реальной записи и отмечает сам момент сохранения.
+const draftState = ref('');   // '' — черновика нет | 'saving' | 'saved'
+let draftStateTimer = null;
+// Очистка черновика сбрасывает f, а на f висит deep-watcher — он бы тут же
+// записал пустой черновик обратно, и надпись сказала бы «сохранён» сразу после
+// «очищено». Поэтому ровно одну запись после очистки пропускаем.
+let skipNextDraftSave = false;
+
 const saveDraft = () => {
-  try { localStorage.setItem(DRAFT_KEY, JSON.stringify(f.value)); } catch (e) {}
+  if (skipNextDraftSave) { skipNextDraftSave = false; return; }
+  let ok = false;
+  try {
+    localStorage.setItem(DRAFT_KEY, JSON.stringify(f.value));
+    ok = true;
+  } catch (e) {
+    console.error(e);
+  }
+  if (!ok) return;                       // не сохранилось — врать не будем
+  draftState.value = 'saving';
+  if (draftStateTimer) clearTimeout(draftStateTimer);
+  // Задержка нужна, иначе «Сохранение…» сменяется быстрее, чем читается,
+  // и человек видит только неподвижное «Черновик сохранён».
+  draftStateTimer = setTimeout(() => { draftState.value = 'saved'; }, 400);
 };
 const clearDraft = () => {
   if (!confirm('Очистить черновик? Все введённые данные и приложенные сканы будут удалены безвозвратно.')) return;
+  skipNextDraftSave = true;
   f.value = makeEmptyForm();
   uploads.value = {};
   signedUploads.value = {};
@@ -1251,6 +1288,32 @@ const clearDraft = () => {
   step.value = 1;
   try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
   dropDraftFiles();
+  if (draftStateTimer) clearTimeout(draftStateTimer);
+  draftState.value = '';
+  notifySaved('Черновик очищен');
+};
+
+// После удачной отправки в базу черновика уже нет. Мастер при этом тоже
+// закрывается, но сообщать о черновике на выходе нельзя: поверх «Реабилитант
+// сохранён» легло бы «Черновик сохранён», и вышло бы, будто данные разом и
+// ушли в базу, и остались лежать черновиком.
+let savedToDb = false;
+
+// Надпись о черновике живёт в шапке мастера и уезжает вместе с ним, поэтому
+// человек, закрывший недозаполненную карточку, не понимает, сохранилось ли
+// хоть что-нибудь. Подтверждаем черновик в момент закрытия.
+//
+// Смотрим именно на размонтирование, а не на клик по крестику: из мастера
+// уходят ещё и через «Реабилитанты» в шапке, кнопку «Отменить», Esc, боковое
+// меню и кнопку «назад» в браузере. Во всех этих случаях компонент
+// размонтируется, а обработчик крестика не сработает.
+const draftKept = () => {
+  if (savedToDb) return;
+  const hasFiles =
+    Object.keys(uploads.value).length > 0 || Object.keys(signedUploads.value).length > 0;
+  // Молчим, если сохранять было нечего: на пустом мастере уведомление ни о чём.
+  if (!draftState.value && !hasFiles) return;
+  notifySaved('Черновик сохранён — при следующем открытии всё будет на месте');
 };
 
 loadDraft();
@@ -1602,6 +1665,13 @@ const save = async () => {
 
     try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
     await dropDraftFiles();
+    savedToDb = true;
+    draftState.value = '';
+    // Уведомление шлём отсюда, а не из родителя: мастер открывают и со
+    // страницы «Реабилитанты», и с Дашборда, а на Дашборде событие 'saved'
+    // никто не слушал — сохранение там проходило вообще без единого слова.
+    const fio = [f.value.rLast, f.value.rFirst].filter(Boolean).join(' ').trim();
+    notifySaved(fio ? `Реабилитант ${fio} сохранён` : 'Реабилитант сохранён');
     emit('saved', createdRecipient);
     emit('close');
   } catch (err) {
@@ -1639,7 +1709,9 @@ onUnmounted(() => {
   document.removeEventListener('click', closeDropdowns);
   document.body.style.overflow = '';
   if (dupTimer) clearTimeout(dupTimer);
+  if (draftStateTimer) clearTimeout(draftStateTimer);
   closePreview();
+  draftKept();
 });
 </script>
 
@@ -1782,6 +1854,9 @@ onUnmounted(() => {
   background: var(--rw-sage-500);
   flex: 0 0 0.4375rem;
 }
+/* Пока идёт запись — точка бледнее, чтобы момент сохранения был заметен
+   боковым зрением и без чтения самой надписи. */
+.rw-save-state.is-saving .rw-save-dot { background: var(--rw-ink-muted); }
 .rw-close-btn {
   width: 2.25rem; height: 2.25rem;
   border-radius: 0.5rem;

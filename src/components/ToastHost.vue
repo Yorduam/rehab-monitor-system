@@ -1,0 +1,96 @@
+<template>
+  <!-- role="status" + aria-live="polite" — чтобы программа экранного доступа
+       прочитала сообщение, но не перебивала человека на полуслове. -->
+  <div class="toast-host" role="status" aria-live="polite">
+    <transition-group name="toast">
+      <button
+        v-for="t in toasts"
+        :key="t.id"
+        type="button"
+        class="toast"
+        @click="dismissToast(t.id)"
+        title="Скрыть"
+      >
+        <span class="toast-icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        </span>
+        <!-- Только текстовая интерполяция, без v-html: сюда попадают имена и
+             названия файлов, введённые человеком. -->
+        <span class="toast-text">{{ t.text }}</span>
+      </button>
+    </transition-group>
+  </div>
+</template>
+
+<script setup>
+import { toasts, dismissToast } from '../utils/toast';
+</script>
+
+<style scoped>
+.toast-host {
+  position: fixed;
+  right: 1.25rem;
+  bottom: 1.25rem;
+  /* Выше мастера добавления реабилитанта (.rw-overlay, z-index 500) и его
+     окна просмотра скана (100), иначе уведомление о сохранении спряталось бы
+     ровно под тем окном, из которого сохраняли. */
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.5rem;
+  /* Сам контейнер кликов не ловит — иначе невидимая полоса перекрывала бы
+     кнопки в углу экрана. Плашки ловят, у них pointer-events возвращён. */
+  pointer-events: none;
+}
+.toast {
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  max-width: 26rem;
+  padding: 0.75rem 1rem;
+  border: 0.0625rem solid var(--sage-400);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  box-shadow: var(--shadow-lg);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: 0.875rem;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+.toast:hover { border-color: var(--sage-500); }
+.toast-icon {
+  flex: 0 0 1.25rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: var(--sage-500);
+  color: #fff;
+}
+.toast-icon svg { width: 0.75rem; height: 0.75rem; }
+.toast-text { min-width: 0; }
+
+.toast-enter-active, .toast-leave-active { transition: opacity 0.2s ease, transform 0.2s ease; }
+.toast-enter-from { opacity: 0; transform: translateY(0.5rem); }
+.toast-leave-to   { opacity: 0; transform: translateY(0.5rem); }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast-enter-active, .toast-leave-active { transition: none; }
+}
+
+@media (max-width: 48rem) {
+  .toast-host {
+    left: 1rem;
+    right: 1rem;
+    /* Выше нижней навигации на телефоне, иначе плашка ляжет прямо на неё. */
+    bottom: 5.5rem;
+    align-items: stretch;
+  }
+  .toast { max-width: none; }
+}
+</style>

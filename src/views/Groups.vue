@@ -144,6 +144,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import api from '../api'
 import { useAuthStore } from '../stores/auth'
 import { fullName, recipientAge } from '../utils/recipient'
+import { notifySaved } from '../utils/toast'
 import Modal from '../components/Modal.vue'
 import Pagination from '../components/Pagination.vue'
 
@@ -218,11 +219,13 @@ const assignRecipient = async () => {
   assignBusyId.value = id
   assignError.value = ''
   try {
+    const groupName = selectedGroup.value.name
     await api.put(`/recipients/${id}`, { groupId: selectedGroup.value.id })
     assignRecipientId.value = ''
     await loadParticipants(selectedGroup.value.id)
     await Promise.all([loadGroups(), loadAllRecipients()])
     if (selectedGroup.value) selectedGroup.value.participantsCount = participants.value.length
+    notifySaved(`Реабилитант добавлен в группу «${groupName}»`)
   } catch (err) {
     console.error('assignRecipient', err)
     assignError.value = err.response?.data?.message || 'Не удалось добавить реабилитанта в группу'
@@ -241,6 +244,7 @@ const removeRecipient = async (recipient) => {
     await loadParticipants(selectedGroup.value.id)
     await Promise.all([loadGroups(), loadAllRecipients()])
     if (selectedGroup.value) selectedGroup.value.participantsCount = participants.value.length
+    notifySaved(`«${fullName(recipient)}» откреплён от группы`)
   } catch (err) {
     console.error('removeRecipient', err)
     assignError.value = err.response?.data?.message || 'Не удалось открепить реабилитанта'
@@ -323,13 +327,18 @@ const saveGroup = async () => {
   try {
     const payload = { ...form.value }
     payload.curatorUserId = payload.curatorUserId || null
-    if (editId.value) {
+    const editing = !!editId.value
+    const name = payload.name || ''
+    if (editing) {
       await api.put(`/groups/${editId.value}`, payload)
     } else {
       await api.post('/groups', payload)
     }
     await loadGroups()
     modalVisible.value = false
+    notifySaved(editing
+      ? (name ? `Группа «${name}» сохранена` : 'Изменения сохранены')
+      : (name ? `Группа «${name}» создана` : 'Группа создана'))
   } catch (err) {
     console.error(err)
     alert('Ошибка сохранения')

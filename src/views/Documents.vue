@@ -146,6 +146,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { fullName } from '../utils/recipient';
+import { notifySaved } from '../utils/toast';
 import api from '../api';
 import Modal from '../components/Modal.vue';
 
@@ -246,13 +247,15 @@ const openEditModal = (d) => {
 const saveDoc = async () => {
   const payload = { ...form.value };
   try {
-    if (editingDoc.value) {
+    const editing = !!editingDoc.value;
+    if (editing) {
       await api.put(`/documents/${editingDoc.value.id}`, payload);
     } else {
       await api.post('/documents', payload);
     }
     modalVisible.value = false;
     await reload();
+    notifySaved(editing ? 'Документ сохранён' : 'Документ добавлен');
   } catch (err) {
     console.error(err);
     alert('Ошибка при сохранении документа');

@@ -11,6 +11,11 @@ import {
   ScheduleEvent, Direction
 } from '../models/index.js';
 import { getRecipientReadiness } from '../services/recipientReadiness.js';
+import { buildScanFileName } from '../services/scanFileName.js';
+import {
+  CATEGORIES, CATEGORY_LABELS, REASON_CODES, GRANT_MS,
+  hasGrant, grantAccess, validateReason, logAccess, redactRecipient, isAdmin
+} from '../services/dataAccess.js';
 
 const router = express.Router();
 
@@ -162,11 +167,34 @@ router.get('/', authMiddleware, async (req, res, next) => {
   }
 });
 
+// Справочник для интерфейса: какие бывают категории и причины. Держим на
+// сервере, чтобы список причин был один и тот же в форме и в журнале.
+// Объявлен ДО '/:id' нарочно: иначе Express посчитал бы «access» за id.
+router.get('/access/options', authMiddleware, (req, res) => {
+  res.json({
+    categories: CATEGORIES.map((code) => ({ code, label: CATEGORY_LABELS[code] })),
+    reasons: REASON_CODES,
+    grantMinutes: Math.round(GRANT_MS / 60000)
+  });
+});
+
 router.get('/:id', authMiddleware, async (req, res, next) => {
   try {
     const recipient = await Recipient.findByPk(req.params.id, { include: detailInclude });
     if (!recipient) return res.status(404).json({ message: 'Реабилитант не найден' });
-    res.json(recipient);
+
+    // Закрытые поля не «прячутся на экране», а вырезаются из ответа: иначе их
+    // видно во вкладке «Сеть» браузера, и вся защита превращается в картинку.
+    const payload = redactRecipient(recipient, req.user);
+
+    // Администратору данные открыты без запроса, но факт просмотра всё равно
+    // записываем — иначе в аудите дыра размером с самого привилегированного
+    // пользователя.
+    if (isAdmin(req.user)) {
+      await logAccess(req, { recipientId: recipient.id, category: 'passport', action: 'view' });
+    }
+
+    res.json(payload);
   } catch (err) {
     next(err);
   }
@@ -567,6 +595,7 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
 
     const docTypes = await DocType.findAll();
     const codeToId = new Map(docTypes.map((d) => [d.code, d.id]));
+    const codeToName = new Map(docTypes.map((d) => [d.code, d.name]));
 
     if (!canReplace) {
       const requestedTypeIds = scans
@@ -610,7 +639,18 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
         represId: recipient.representativeId,
         docType: docTypeId,
         storageKey: `db://${checksum}`,
-        originalName: originalName || `${docKey}.bin`,
+        // Имя с компьютера оператора не сохраняем: оно ничего не говорит о
+        // документе (в базе лежали десятки файлов «Гусь.jfif»). Собираем своё —
+        // по нему сразу видно, чей это документ, какой и когда приложен.
+        originalName: buildScanFileName({
+          recipientId: recipient.id,
+          lastName: recipient.lastName,
+          firstName: recipient.firstName,
+          middleName: recipient.middleName,
+          docTypeName: codeToName.get(docKey),
+          originalName,
+          uploadedAt: now
+        }),
         mimeType: mimeType || 'application/octet-stream',
         sizeBytes: buffer.length,
         checksum_sha256: checksum,
@@ -641,6 +681,13 @@ router.get('/:id/scans', authMiddleware, async (req, res, next) => {
     const where = { recipId: req.params.id };
     if (!includeArchived) where.isCurrent = true;
 
+    if (!hasGrant(req.user, Number(req.params.id), 'scans')) {
+      await logAccess(req, { recipientId: Number(req.params.id), category: 'scans', action: 'denied' });
+      // Пустой список, а не 403: интерфейс должен показать закрытый блок с
+      // кнопкой, а не ошибку — человек не сделал ничего плохого.
+      return res.json({ locked: true, category: 'scans', scans: [] });
+    }
+
     const scans = await RecipientScanDoc.findAll({
       where,
       attributes: { exclude: ['fileData'] },
@@ -650,7 +697,12 @@ router.get('/:id/scans', authMiddleware, async (req, res, next) => {
       ],
       order: [['docType', 'ASC'], ['id', 'DESC']]
     });
-    res.json(scans);
+    if (isAdmin(req.user)) {
+      await logAccess(req, { recipientId: Number(req.params.id), category: 'scans', action: 'view' });
+    }
+    // Форма ответа одна и та же в обоих случаях — и когда список закрыт, и
+    // когда открыт. Иначе фронтенду пришлось бы гадать, что ему пришло.
+    res.json({ locked: false, category: 'scans', scans });
   } catch (err) {
     next(err);
   }
@@ -658,14 +710,71 @@ router.get('/:id/scans', authMiddleware, async (req, res, next) => {
 
 router.get('/:id/scans/:scanId/file', authMiddleware, async (req, res, next) => {
   try {
+    // Файл — самое ценное, что тут есть, и раньше на него стояла только
+    // проверка «залогинен»: любой педагог мог скачать скан паспорта любого
+    // ребёнка, зная лишь id. Теперь без разрешения файл не отдаётся.
+    if (!hasGrant(req.user, Number(req.params.id), 'scans')) {
+      await logAccess(req, {
+        recipientId: Number(req.params.id), category: 'scans',
+        action: 'denied', scanId: Number(req.params.scanId)
+      });
+      return res.status(403).json({ message: 'Нет доступа к сканам. Запросите доступ с указанием причины.' });
+    }
+
     const scan = await RecipientScanDoc.findOne({
       where: { id: req.params.scanId, recipId: req.params.id }
     });
     if (!scan || !scan.fileData) return res.status(404).json({ message: 'Файл не найден' });
 
+    // Скачивание отмечаем отдельно от просмотра списка: это более весомое
+    // действие, и в журнале оно должно стоять своей строкой.
+    await logAccess(req, {
+      recipientId: Number(req.params.id), category: 'scans',
+      action: 'download', scanId: scan.id
+    });
+
     res.setHeader('Content-Type', scan.mimeType || 'application/octet-stream');
     res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(scan.originalName)}"`);
     res.send(scan.fileData);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Запрос доступа к закрытой категории данных: причина обязательна, доступ
+// выдаётся на ограниченное время и только на этого реабилитанта.
+router.post('/:id/access', authMiddleware, async (req, res, next) => {
+  try {
+    const recipientId = Number(req.params.id);
+    const { category, reasonCode, reasonText } = req.body || {};
+
+    if (!CATEGORIES.includes(category)) {
+      return res.status(400).json({ message: 'Неизвестная категория данных' });
+    }
+
+    const recipient = await Recipient.findByPk(recipientId, { attributes: ['id'] });
+    if (!recipient) return res.status(404).json({ message: 'Реабилитант не найден' });
+
+    // Администратору причину не задаём — доступ у него и так открыт. Но сам
+    // запрос отмечаем, чтобы в журнале осталась строка.
+    if (isAdmin(req.user)) {
+      await logAccess(req, { recipientId, category, action: 'view' });
+      return res.json({ ok: true, category, expiresAt: null, admin: true });
+    }
+
+    const problem = validateReason(reasonCode, reasonText);
+    if (problem) {
+      await logAccess(req, { recipientId, category, action: 'denied', reasonCode, reasonText });
+      return res.status(400).json({ message: problem, field: 'reason' });
+    }
+
+    const expiresAt = grantAccess(req.user, recipientId, category);
+    await logAccess(req, {
+      recipientId, category, action: 'view',
+      reasonCode, reasonText: String(reasonText ?? '').trim() || null
+    });
+
+    res.json({ ok: true, category, expiresAt: new Date(expiresAt).toISOString() });
   } catch (err) {
     next(err);
   }

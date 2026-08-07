@@ -191,6 +191,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import api from '../api';
 import { useAuthStore } from '../stores/auth';
 import { fullName } from '../utils/recipient';
+import { notifySaved } from '../utils/toast';
 import { SCALE, getBlock, profileLabel, averageScore } from '../utils/diagnosticBlocks';
 
 const POLL_MS = 15000;
@@ -321,6 +322,7 @@ async function submitConclusion() {
     session.value = data;
     editingConclusion.value = false;
     emit('changed');
+    notifySaved('Заключение сохранено');
   } catch (err) {
     conclError.value = err.response?.data?.message || 'Не удалось сохранить заключение.';
   } finally {

@@ -373,6 +373,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import api from '../api';
 import { useAuthStore } from '../stores/auth';
 import { fullName } from '../utils/recipient';
+import { notifySaved } from '../utils/toast';
 import { PROFILE_LABELS } from '../utils/diagnosticBlocks';
 import DiagnosticFillModal from '../components/DiagnosticFillModal.vue';
 import DiagnosticBoardModal from '../components/DiagnosticBoardModal.vue';
@@ -575,6 +576,7 @@ async function submitClaim() {
     });
     claimSession.value = null;
     await refreshAll();
+    notifySaved('Реабилитант взят в работу, время занятия сохранено');
     if (data?.assignmentId) fillAssignmentId.value = data.assignmentId;
   } catch (err) {
     claimError.value = err.response?.data?.message || 'Не удалось взять реабилитанта.';
@@ -702,6 +704,7 @@ async function submitCreate() {
       createOpen.value = false;
       resetForm();
       await switchToPool();
+      notifySaved('Заявка на диагностику создана');
       return;
     }
 
@@ -719,6 +722,7 @@ async function submitCreate() {
     createOpen.value = false;
     resetForm();
     await loadEvents();
+    notifySaved(`Занятие «${body.title}» сохранено в расписании`);
   } catch (err) {
     const d = err.response?.data;
     createError.value = d?.blockers?.length

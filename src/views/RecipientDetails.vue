@@ -49,15 +49,21 @@
       </div>
 
       <section class="hero" aria-label="Сводка по реабилитанту">
-        <button v-if="photoUrl" type="button" class="hero-banner hero-banner-photo" @click="heroPhotoOpen = true" aria-label="Открыть фото на весь экран">
-          <img :src="photoUrl" alt="" />
-          <span class="hero-banner-zoom" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
-          </span>
-        </button>
-        <div v-else class="hero-banner" aria-hidden="true"></div>
+        <!-- Задник шапки одинаковый у всех реабилитантов. Раньше сюда растягивалось
+             само фото, и фоном карточки оказывалось то, что было позади ребёнка:
+             у каждого своё — стена, окно, улица. Само фото не потерялось: оно в
+             кружке ниже и по клику открывается на весь экран, как и раньше. -->
+        <div class="hero-banner" aria-hidden="true"></div>
         <div class="hero-body">
-          <img v-if="photoUrl" :src="photoUrl" class="hero-avatar-img" alt="" />
+          <button
+            v-if="photoUrl" type="button" class="hero-avatar-btn"
+            @click="heroPhotoOpen = true" aria-label="Открыть фото на весь экран"
+          >
+            <img :src="photoUrl" class="hero-avatar-img" alt="" />
+            <span class="hero-avatar-zoom" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+            </span>
+          </button>
           <div v-else class="hero-avatar" aria-hidden="true">{{ initials(recipient) }}</div>
 
           <div class="hero-identity">
@@ -376,17 +382,42 @@
             </div>
           </div>
           <div class="card-body">
+            <!-- Открытая часть: ФИО, дата рождения, группа инвалидности и место
+                 обучения персональными данными в смысле этой задачи не считаются
+                 и нужны в работе постоянно. -->
             <dl class="kv-grid">
               <div class="kv kv-full"><dt class="kv-key">ФИО</dt><dd class="kv-val"><span class="kv-text">{{ fullName(recipient) || '—' }}</span></dd></div>
               <div class="kv"><dt class="kv-key">Дата рождения</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(recipient.birthDate) }}<template v-if="age != null"> · {{ age }} {{ yearsWord(age) }}</template></span></dd></div>
               <div class="kv"><dt class="kv-key">Группа инвалидности</dt><dd class="kv-val"><span class="kv-text">{{ recipient.disableGroup || '—' }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">Телефон</dt><dd class="kv-val"><span class="kv-text">{{ recipient.telephone || '—' }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">E-mail</dt><dd class="kv-val"><span class="kv-text">{{ recipient.email || recipient.user?.email || '—' }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">СНИЛС</dt><dd class="kv-val"><span class="kv-text">{{ doc?.snils || '—' }}</span></dd></div>
               <div class="kv"><dt class="kv-key">Место обучения</dt><dd class="kv-val"><span class="kv-text">{{ doc?.educationPlace || '—' }}</span></dd></div>
-              <div class="kv kv-full"><dt class="kv-key">Адрес регистрации</dt><dd class="kv-val"><span class="kv-text">{{ doc?.regAddress || '—' }}</span></dd></div>
-              <div class="kv kv-full"><dt class="kv-key">Адрес проживания</dt><dd class="kv-val"><span class="kv-text">{{ (doc?.factSameReg ? doc?.regAddress : doc?.factAddress) || '—' }}</span></dd></div>
             </dl>
+
+            <LockedBlock
+              class="rd-locked"
+              :locked="isLocked('contacts')" category="contacts" :recipient-id="recipientId"
+              title="Адреса и телефоны" short-title="контакты"
+              :fields="['Телефон', 'E-mail', 'Адрес регистрации', 'Адрес проживания']"
+              @unlocked="onUnlocked"
+            >
+              <dl class="kv-grid">
+                <div class="kv"><dt class="kv-key">Телефон</dt><dd class="kv-val"><span class="kv-text">{{ recipient.telephone || '—' }}</span></dd></div>
+                <div class="kv"><dt class="kv-key">E-mail</dt><dd class="kv-val"><span class="kv-text">{{ recipient.email || recipient.user?.email || '—' }}</span></dd></div>
+                <div class="kv kv-full"><dt class="kv-key">Адрес регистрации</dt><dd class="kv-val"><span class="kv-text">{{ doc?.regAddress || '—' }}</span></dd></div>
+                <div class="kv kv-full"><dt class="kv-key">Адрес проживания</dt><dd class="kv-val"><span class="kv-text">{{ (doc?.factSameReg ? doc?.regAddress : doc?.factAddress) || '—' }}</span></dd></div>
+              </dl>
+            </LockedBlock>
+
+            <LockedBlock
+              class="rd-locked"
+              :locked="isLocked('passport')" category="passport" :recipient-id="recipientId"
+              title="Паспортные данные и СНИЛС" short-title="СНИЛС"
+              :fields="['СНИЛС']"
+              @unlocked="onUnlocked"
+            >
+              <dl class="kv-grid">
+                <div class="kv"><dt class="kv-key">СНИЛС</dt><dd class="kv-val"><span class="kv-text">{{ doc?.snils || '—' }}</span></dd></div>
+              </dl>
+            </LockedBlock>
           </div>
         </section>
 
@@ -402,18 +433,45 @@
             </button>
           </div>
           <div class="card-body">
-            <div v-if="!doc && !recipient.diagnosis && !recipient.crgMain && !recipient.nozologyRef" class="rd-inline-empty">Медкарта не заполнена</div>
-            <dl v-else class="kv-grid">
-              <div class="kv kv-full"><dt class="kv-key">Диагноз</dt><dd class="kv-val"><span class="kv-text">{{ recipient.diagnosis || '—' }}</span></dd></div>
-              <div class="kv kv-full"><dt class="kv-key">Нозология (МКБ-10)</dt><dd class="kv-val"><span class="kv-text"><span v-if="recipient.nozologyRef?.class" class="code">{{ recipient.nozologyRef.class }}</span>{{ nozologyName }}</span></dd></div>
-              <div class="kv kv-full"><dt class="kv-key">Целевая реабилитационная группа (ЦРГ)</dt><dd class="kv-val"><span class="kv-text"><span v-if="recipient.crgMain?.code" class="code">{{ recipient.crgMain.code }}</span>{{ recipient.crgMain?.name || crgText }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">МСЭ выдана</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(doc?.mseIssueDate) }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">МСЭ действительна до</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(doc?.mseValidDate) }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">Тип документа</dt><dd class="kv-val"><span class="kv-text">{{ doc?.docType || '—' }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">Серия / номер</dt><dd class="kv-val"><span class="kv-text">{{ [doc?.docSeries, doc?.docNumber].filter(Boolean).join(' ') || '—' }}</span></dd></div>
-              <div class="kv kv-full"><dt class="kv-key">Кем выдан</dt><dd class="kv-val"><span class="kv-text">{{ doc?.docIssuer || '—' }}<template v-if="doc?.docIssuerDate"> · {{ formatDate(doc.docIssuerDate) }}</template></span></dd></div>
-              <div class="kv kv-full"><dt class="kv-key">Особые отметки</dt><dd class="kv-val"><span class="kv-text">{{ doc?.specialNote || '—' }}</span></dd></div>
-            </dl>
+            <div v-if="!doc && !recipient.diagnosis && !recipient.crgMain && !recipient.nozologyRef && !hiddenCategories.length" class="rd-inline-empty">Медкарта не заполнена</div>
+            <template v-else>
+              <!-- ЦРГ и тип документа остаются открытыми: по ним ведут
+                   расписание и комплектуют группы, а сведений о здоровье они
+                   сами по себе не раскрывают. -->
+              <dl class="kv-grid">
+                <div class="kv kv-full"><dt class="kv-key">Целевая реабилитационная группа (ЦРГ)</dt><dd class="kv-val"><span class="kv-text"><span v-if="recipient.crgMain?.code" class="code">{{ recipient.crgMain.code }}</span>{{ recipient.crgMain?.name || crgText }}</span></dd></div>
+                <div class="kv"><dt class="kv-key">Тип документа</dt><dd class="kv-val"><span class="kv-text">{{ doc?.docType || '—' }}</span></dd></div>
+              </dl>
+
+              <LockedBlock
+                class="rd-locked"
+                :locked="isLocked('medical')" category="medical" :recipient-id="recipientId"
+                title="Диагноз и медицинские сведения" short-title="медданные"
+                :fields="['Диагноз', 'Нозология (МКБ-10)', 'МСЭ выдана', 'МСЭ действительна до', 'Особые отметки']"
+                @unlocked="onUnlocked"
+              >
+                <dl class="kv-grid">
+                  <div class="kv kv-full"><dt class="kv-key">Диагноз</dt><dd class="kv-val"><span class="kv-text">{{ recipient.diagnosis || '—' }}</span></dd></div>
+                  <div class="kv kv-full"><dt class="kv-key">Нозология (МКБ-10)</dt><dd class="kv-val"><span class="kv-text"><span v-if="recipient.nozologyRef?.class" class="code">{{ recipient.nozologyRef.class }}</span>{{ nozologyName }}</span></dd></div>
+                  <div class="kv"><dt class="kv-key">МСЭ выдана</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(doc?.mseIssueDate) }}</span></dd></div>
+                  <div class="kv"><dt class="kv-key">МСЭ действительна до</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(doc?.mseValidDate) }}</span></dd></div>
+                  <div class="kv kv-full"><dt class="kv-key">Особые отметки</dt><dd class="kv-val"><span class="kv-text">{{ doc?.specialNote || '—' }}</span></dd></div>
+                </dl>
+              </LockedBlock>
+
+              <LockedBlock
+                class="rd-locked"
+                :locked="isLocked('passport')" category="passport" :recipient-id="recipientId"
+                title="Паспортные данные" short-title="паспорт"
+                :fields="['Серия / номер', 'Кем выдан']"
+                @unlocked="onUnlocked"
+              >
+                <dl class="kv-grid">
+                  <div class="kv"><dt class="kv-key">Серия / номер</dt><dd class="kv-val"><span class="kv-text">{{ [doc?.docSeries, doc?.docNumber].filter(Boolean).join(' ') || '—' }}</span></dd></div>
+                  <div class="kv kv-full"><dt class="kv-key">Кем выдан</dt><dd class="kv-val"><span class="kv-text">{{ doc?.docIssuer || '—' }}<template v-if="doc?.docIssuerDate"> · {{ formatDate(doc.docIssuerDate) }}</template></span></dd></div>
+                </dl>
+              </LockedBlock>
+            </template>
           </div>
           <button class="card-foot-link" type="button" @click="activeTab = 'documents'">
             Прикреплённые файлы
@@ -469,6 +527,12 @@
           </div>
           <div class="card-body">
             <div v-if="scansLoading" class="rd-loading" style="min-height:120px"><div class="spinner"></div></div>
+            <LockedBlock
+              v-else-if="scansLocked"
+              :locked="true" category="scans" :recipient-id="recipientId"
+              title="Сканы документов" short-title="сканы"
+              @unlocked="onUnlocked"
+            />
             <div v-else-if="!scans.length" class="rd-inline-empty">Нет прикреплённых файлов</div>
             <div v-else class="rd-scan-grid">
               <div v-for="s in scans" :key="s.id" class="rd-scan">
@@ -721,15 +785,39 @@
               В системе хранится один законный представитель. Расширенный состав семьи и дополнительные контакты пока не ведутся.
             </p>
             <div v-if="!recipient.representative" class="rd-inline-empty">Представитель не указан</div>
-            <dl v-else class="kv-grid">
-              <div class="kv kv-full"><dt class="kv-key">ФИО</dt><dd class="kv-val"><span class="kv-text">{{ fullName(recipient.representative) || '—' }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">Телефон</dt><dd class="kv-val"><span class="kv-text">{{ recipient.representative.telephone || '—' }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">E-mail</dt><dd class="kv-val"><span class="kv-text">{{ recipient.representative.email || '—' }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">Паспорт серия / номер</dt><dd class="kv-val"><span class="kv-text">{{ [recipient.representative.passportSeries, recipient.representative.passportNumber].filter(Boolean).join(' ') || '—' }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">Код подразделения</dt><dd class="kv-val"><span class="kv-text">{{ recipient.representative.passportDeptCode || '—' }}</span></dd></div>
-              <div class="kv kv-full"><dt class="kv-key">Кем выдан</dt><dd class="kv-val"><span class="kv-text">{{ recipient.representative.passportIssuer || '—' }}<template v-if="recipient.representative.passportIssuerDate"> · {{ formatDate(recipient.representative.passportIssuerDate) }}</template></span></dd></div>
-              <div class="kv kv-full"><dt class="kv-key">Адрес регистрации</dt><dd class="kv-val"><span class="kv-text">{{ recipient.representative.passportReg || '—' }}</span></dd></div>
-            </dl>
+            <template v-else>
+              <dl class="kv-grid">
+                <div class="kv kv-full"><dt class="kv-key">ФИО</dt><dd class="kv-val"><span class="kv-text">{{ fullName(recipient.representative) || '—' }}</span></dd></div>
+              </dl>
+
+              <LockedBlock
+                class="rd-locked"
+                :locked="isLocked('contacts')" category="contacts" :recipient-id="recipientId"
+                title="Контакты представителя" short-title="контакты"
+                :fields="['Телефон', 'E-mail', 'Адрес регистрации']"
+                @unlocked="onUnlocked"
+              >
+                <dl class="kv-grid">
+                  <div class="kv"><dt class="kv-key">Телефон</dt><dd class="kv-val"><span class="kv-text">{{ recipient.representative.telephone || '—' }}</span></dd></div>
+                  <div class="kv"><dt class="kv-key">E-mail</dt><dd class="kv-val"><span class="kv-text">{{ recipient.representative.email || '—' }}</span></dd></div>
+                  <div class="kv kv-full"><dt class="kv-key">Адрес регистрации</dt><dd class="kv-val"><span class="kv-text">{{ recipient.representative.passportReg || '—' }}</span></dd></div>
+                </dl>
+              </LockedBlock>
+
+              <LockedBlock
+                class="rd-locked"
+                :locked="isLocked('passport')" category="passport" :recipient-id="recipientId"
+                title="Паспорт представителя" short-title="паспорт"
+                :fields="['Паспорт серия / номер', 'Код подразделения', 'Кем выдан']"
+                @unlocked="onUnlocked"
+              >
+                <dl class="kv-grid">
+                  <div class="kv"><dt class="kv-key">Паспорт серия / номер</dt><dd class="kv-val"><span class="kv-text">{{ [recipient.representative.passportSeries, recipient.representative.passportNumber].filter(Boolean).join(' ') || '—' }}</span></dd></div>
+                  <div class="kv"><dt class="kv-key">Код подразделения</dt><dd class="kv-val"><span class="kv-text">{{ recipient.representative.passportDeptCode || '—' }}</span></dd></div>
+                  <div class="kv kv-full"><dt class="kv-key">Кем выдан</dt><dd class="kv-val"><span class="kv-text">{{ recipient.representative.passportIssuer || '—' }}<template v-if="recipient.representative.passportIssuerDate"> · {{ formatDate(recipient.representative.passportIssuerDate) }}</template></span></dd></div>
+                </dl>
+              </LockedBlock>
+            </template>
           </div>
         </section>
       </div>
@@ -926,7 +1014,9 @@ import { usePageStore } from '../stores/page';
 import { useAuthStore } from '../stores/auth';
 import api from '../api';
 import { fullName, initials, recipientAge, statusLabel } from '../utils/recipient';
+import { notifySaved } from '../utils/toast';
 import AssignDiagnosticModal from '../components/AssignDiagnosticModal.vue';
+import LockedBlock from '../components/LockedBlock.vue';
 
 const pageStore = usePageStore();
 const authStore = useAuthStore();
@@ -956,6 +1046,13 @@ const savingGroup = ref(false);
 const scanRows = ref([]);
 const scansLoading = ref(false);
 const scansLoaded = ref(false);
+
+// Какие категории данных сервер закрыл. Список приходит вместе с карточкой:
+// сами поля при этом не присылаются вовсе, здесь только признак «закрыто»,
+// чтобы интерфейс знал, где рисовать заглушку с кнопкой.
+const hiddenCategories = ref([]);
+const scansLocked = ref(false);
+const isLocked = (category) => hiddenCategories.value.includes(category);
 const lightbox = ref(null);
 
 const scans = computed(() => scanRows.value.filter((s) => s.isCurrent !== false));
@@ -1405,6 +1502,7 @@ const loadRecipient = async () => {
   try {
     const { data } = await api.get(`/recipients/${recipientId}`);
     recipient.value = data;
+    hiddenCategories.value = Array.isArray(data.hiddenCategories) ? data.hiddenCategories : [];
     selectedGroupId.value = data.groupId ?? null;
   } catch (err) {
     console.error('loadRecipient', err);
@@ -1413,13 +1511,24 @@ const loadRecipient = async () => {
   }
 };
 
+// После выдачи доступа данные надо забрать заново: сервер их в прошлый раз
+// не присылал, поэтому «показать спрятанное» на клиенте нечего.
+const onUnlocked = async (category) => {
+  await loadRecipient();
+  if (category === 'scans') await loadScans(true);
+};
+
 const loadScans = async (force = false) => {
   if (!recipientId || scansLoading.value) return;
   if (scansLoaded.value && !force) return;
   scansLoading.value = true;
   try {
     const { data } = await api.get(`/recipients/${recipientId}/scans`, { params: { all: 1 } });
-    scanRows.value = Array.isArray(data) ? data : [];
+    // Ответ теперь всегда объект: { locked, scans }. Массив тоже принимаем —
+    // на случай, если фронт окажется новее запущенного бэкенда.
+    const list = Array.isArray(data) ? data : (data?.scans || []);
+    scansLocked.value = data?.locked === true;
+    scanRows.value = list;
     scansLoaded.value = true;
   } catch (err) {
     console.error('loadScans', err);
@@ -1579,6 +1688,7 @@ const saveGroup = async () => {
     groupMembers.value = [];
     await loadGroupMembers();
     loadReadiness();
+    notifySaved('Группа сохранена');
   } catch (err) {
     console.error('saveGroup', err);
     alert('Не удалось сохранить группу');
@@ -1663,6 +1773,7 @@ const saveAttendance = async () => {
       recipient.value.attendanceStatus = attStatus.value;
       recipient.value.attendanceDate = todayStr;
     }
+    notifySaved('Отметка посещения сохранена');
   } catch (err) {
     console.error('saveAttendance', err);
     alert('Не удалось сохранить отметку посещения');
@@ -1823,9 +1934,12 @@ onMounted(async () => {
   border: 0.0625rem solid var(--line); background: var(--paper); box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
+/* Один и тот же зелёный задник на всех карточках. Раньше в градиенте была
+   тёплая нота (--amber-50) и он читался скорее бежевым; теперь только оттенки
+   sage, поэтому фон однозначно зелёный. Менять цвет — здесь, одна строка. */
 .hero-banner {
   height: 8rem;
-  background: linear-gradient(120deg, var(--sage-100), var(--sage-50) 55%, var(--amber-50));
+  background: linear-gradient(135deg, var(--sage-400), var(--sage-100) 60%, var(--sage-50));
   border-bottom: 0.0625rem solid var(--line-soft);
 }
 .hero-body {
@@ -2065,6 +2179,11 @@ onMounted(async () => {
 
 .rd-inline-empty { text-align: center; padding: 1.5rem; color: var(--ink-muted); font-size: 0.9375rem; }
 
+/* Отступ между открытой частью карточки и закрытыми блоками. Задан здесь,
+   а не внутри LockedBlock: сам компонент не должен знать, в какой вёрстке
+   его разместили. */
+.rd-locked { display: block; margin-top: 0.875rem; }
+
 .rd-scan-badge {
   display: inline-flex; align-items: center; justify-content: center;
   min-width: 1.5rem; height: 1.5rem; padding: 0 0.45rem;
@@ -2237,25 +2356,35 @@ onMounted(async () => {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
 }
 
-.hero-banner-photo {
-  position: relative; display: block; width: 100%; padding: 0; border: none;
-  cursor: zoom-in; overflow: hidden;
+/* Фото ребёнка живёт только в кружке. Кружок сделан кнопкой, чтобы фото
+   по-прежнему открывалось на весь экран — и мышкой, и с клавиатуры: раньше
+   для этого кликали по баннеру, а баннера с фото больше нет.
+   Размеры не задаём — кнопка обжимает фото, поэтому кружок остался ровно
+   таким же, каким был, при любом box-sizing. */
+.hero-avatar-btn {
+  position: relative; display: inline-flex;
+  padding: 0; border: none; background: none; border-radius: 50%;
+  cursor: zoom-in;
+  /* Подъём кружка на баннер переехал сюда с .hero-avatar-img: иначе значок
+     лупы остался бы внизу, оторванным от самого фото. */
+  transform: translateY(-3rem); margin-bottom: -2rem;
 }
-.hero-banner-photo img {
-  width: 100%; height: 100%; object-fit: cover; display: block;
-  filter: saturate(1.02);
+.hero-avatar-btn .hero-avatar-img {
+  transform: none; margin-bottom: 0;
   transition: transform 0.35s ease;
 }
-.hero-banner-photo:hover img { transform: scale(1.03); }
-.hero-banner-zoom {
-  position: absolute; right: 0.875rem; bottom: 0.875rem;
-  width: 2.25rem; height: 2.25rem; border-radius: 0.5rem;
-  background: rgba(15, 20, 15, 0.45); color: #fff;
-  display: grid; place-items: center; backdrop-filter: blur(2px);
+.hero-avatar-btn:hover .hero-avatar-img { transform: scale(1.03); }
+.hero-avatar-zoom {
+  position: absolute; right: 0.25rem; bottom: 0.25rem;
+  width: 2rem; height: 2rem; border-radius: 50%;
+  background: rgba(15, 20, 15, 0.55); color: #fff;
+  border: 0.125rem solid var(--paper);
+  display: grid; place-items: center;
   opacity: 0; transition: opacity 0.2s ease;
 }
-.hero-banner-photo:hover .hero-banner-zoom { opacity: 1; }
-.hero-banner-zoom svg { width: 1.1rem; height: 1.1rem; }
+.hero-avatar-btn:hover .hero-avatar-zoom,
+.hero-avatar-btn:focus-visible .hero-avatar-zoom { opacity: 1; }
+.hero-avatar-zoom svg { width: 1rem; height: 1rem; }
 
 .lesson-list { display: flex; flex-direction: column; gap: 0.6rem; }
 .lesson-card {
@@ -2475,7 +2604,7 @@ onMounted(async () => {
 }
 @media (max-width: 48rem) {
   .hero-body { grid-template-columns: 1fr; padding: 0 1.125rem 1.125rem; }
-  .hero-avatar, .hero-avatar-img { justify-self: start; }
+  .hero-avatar, .hero-avatar-img, .hero-avatar-btn { justify-self: start; }
   .hero-name { font-size: 2rem; }
   .stage-track, .mini-stats { padding-left: 1.125rem; padding-right: 1.125rem; }
   .stage-steps { grid-template-columns: repeat(3, 1fr); gap: 0.75rem 0.5rem; }
