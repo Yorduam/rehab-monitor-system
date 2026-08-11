@@ -55,10 +55,6 @@ const guestLimiter = rateLimit({
 });
 app.use('/api', guestLimiter);
 
-// customProps вычисляется в момент записи лога, то есть уже после того, как
-// отработал authMiddleware. Поэтому req.user здесь есть, хотя сам pino-http
-// подключён раньше маршрутов. Без этого в логах были IP и user-agent, но не
-// было главного для аудита — кто именно это сделал.
 app.use(pinoHttp({
   logger,
   genReqId: (req) => req.headers['x-request-id'] || uuidv4(),

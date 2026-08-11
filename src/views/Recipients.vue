@@ -7,11 +7,15 @@
         <div class="t-page-header">
           <div>
             <h1 class="t-page-title">Реабилитанты</h1>
-            <p class="t-page-sub">
+            <p class="t-page-sub" v-if="activeTab !== 'drafts'">
               Всего <strong>{{ totalCount || recipients.length }}</strong>
               <template v-if="todayList.length"> · сегодня занимаются <strong>{{ todayList.length }}</strong></template>
               <template v-if="tomorrowList.length">, завтра — <strong>{{ tomorrowList.length }}</strong></template>
               <template v-if="attentionList.length"> · требуют внимания — <strong>{{ attentionList.length }}</strong></template>
+            </p>
+            <p class="t-page-sub" v-else>
+              Начатые, но не доведённые до конца карточки: <strong>{{ drafts.length }}</strong>.
+              В базе реабилитантов их ещё нет.
             </p>
           </div>
           <div class="t-page-actions">
@@ -22,6 +26,26 @@
           </div>
         </div>
 
+        <div v-if="canSeeDrafts" class="t-tabs" role="tablist" aria-label="Раздел">
+          <button
+            class="t-tab" :class="{ active: activeTab === 'active' }"
+            role="tab" :aria-selected="activeTab === 'active'"
+            @click.stop="setTab('active')"
+          >
+            Активные
+            <span class="t-tab-count">{{ totalCount || recipients.length }}</span>
+          </button>
+          <button
+            class="t-tab" :class="{ active: activeTab === 'drafts' }"
+            role="tab" :aria-selected="activeTab === 'drafts'"
+            @click.stop="setTab('drafts')"
+          >
+            Черновики
+            <span v-if="drafts.length" class="t-tab-count">{{ drafts.length }}</span>
+          </button>
+        </div>
+
+        <template v-if="activeTab !== 'drafts'">
         <div class="t-controls">
           <div class="t-search-wrap">
             <label for="t-search" class="sr-only">Поиск реабилитанта</label>
@@ -547,6 +571,106 @@
           @update:page="changePage"
           @update:limit="changeLimit"
         />
+        </template>
+
+        <section v-else class="t-drafts" aria-label="Черновики карточек реабилитантов">
+          <div class="t-drafts-bar">
+            <div class="t-search-wrap">
+              <label for="t-draft-search" class="sr-only">Поиск по черновикам</label>
+              <div class="t-search-input">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                <input
+                  ref="searchInputRef"
+                  id="t-draft-search"
+                  type="search"
+                  v-model="draftSearch"
+                  placeholder="Поиск по имени или представителю…"
+                  autocomplete="off"
+                  @input="onDraftSearchInput"
+                  @keydown.escape="clearDraftSearch"
+                />
+                <kbd aria-hidden="true">/</kbd>
+              </div>
+            </div>
+            <p class="t-drafts-note">
+              Черновик заводится сам, как только в мастере заполнено первое поле,
+              и виден всем сотрудникам — продолжить можно с любого компьютера.
+            </p>
+          </div>
+
+          <div v-if="draftsLoading" class="t-loading-state">
+            <div class="t-spinner"></div>
+            <p>Загрузка…</p>
+          </div>
+          <div v-else-if="draftsError" class="t-error-state">
+            <p>{{ draftsError }}</p>
+            <button class="t-btn t-btn-primary" @click="loadDrafts">Повторить</button>
+          </div>
+          <div v-else-if="!drafts.length" class="t-empty-state">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+            </svg>
+            <p>{{ draftSearch ? 'По этому запросу черновиков нет.' : 'Незаконченных карточек нет — все начатые регистрации доведены до конца.' }}</p>
+            <button v-if="draftSearch" class="t-btn t-btn-secondary" @click="clearDraftSearch">Сбросить поиск</button>
+          </div>
+
+          <div v-else class="t-draft-list" role="list">
+            <article v-for="d in drafts" :key="d.id" class="t-draft" role="listitem">
+
+              <div class="t-draft-top">
+                <div class="t-draft-id">
+                  <div class="t-draft-name">{{ draftTitle(d) }}</div>
+                  <div class="t-draft-meta">
+                    <template v-if="d.birthDate">{{ humanDate(d.birthDate) }} г. р.</template>
+                    <template v-if="d.birthDate && d.repName"> · </template>
+                    <template v-if="d.repName">представитель — {{ d.repName }}</template>
+                    <template v-if="!d.birthDate && !d.repName">Ни имени, ни представителя пока не введено</template>
+                  </div>
+                </div>
+                <div class="t-draft-pct" :class="draftPctClass(d)">
+                  <strong>{{ d.summary ? d.summary.pct : 0 }}%</strong>
+                  <span>{{ d.summary ? d.summary.done : 0 }} из {{ d.summary ? d.summary.total : 0 }} полей</span>
+                </div>
+              </div>
+
+              <div class="t-draft-bar" role="img" :aria-label="`Заполнено ${d.summary ? d.summary.pct : 0} процентов`">
+                <span :class="draftPctClass(d)" :style="{ width: (d.summary ? d.summary.pct : 0) + '%' }"></span>
+              </div>
+
+              <div v-if="d.summary && d.summary.steps.length" class="t-draft-missing">
+                <div v-for="s in d.summary.steps" :key="s.step" class="t-draft-step">
+                  <span class="t-draft-step-name">{{ s.label }}</span>
+                  <span class="t-draft-step-fields">{{ missingNames(s) }}</span>
+                </div>
+              </div>
+              <div v-else-if="d.summary && d.summary.complete" class="t-draft-done">
+                Все поля заполнены — осталось приложить документы и отправить карточку в базу.
+              </div>
+
+              <div class="t-draft-foot">
+                <div class="t-draft-facts">
+                  <span class="t-draft-fact">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    {{ d.fileCount }} {{ plural(d.fileCount, 'скан', 'скана', 'сканов') }}
+                  </span>
+                  <span v-if="d.createdByName" class="t-draft-fact">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                    начал(а) {{ d.createdByName }}
+                  </span>
+                  <span class="t-draft-fact">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    {{ touchedAgo(d) }}
+                  </span>
+                </div>
+                <div class="t-draft-actions">
+                  <button class="t-btn t-btn-secondary" @click.stop="removeDraft(d)">Удалить</button>
+                  <button class="t-btn t-btn-primary" @click.stop="continueDraft(d)">Продолжить</button>
+                </div>
+              </div>
+
+            </article>
+          </div>
+        </section>
 
         <Modal v-if="showModal && editId" :title="modalTitle" @close="closeModal">
           <form @submit.prevent="saveRecipient" class="recipient-form">
@@ -717,7 +841,8 @@
     <AddRecipientWizard
       v-if="showWizard"
       :groups-list="groupsList"
-      @close="showWizard = false"
+      :draft-id="openDraftId"
+      @close="closeWizard"
       @saved="onRecipientSaved"
     />
 
@@ -769,6 +894,8 @@ const pageStore = usePageStore();
 const canManageRecipients = computed(() => authStore.isAdmin || authStore.isTeacher);
 
 const canAssignDiagnostic = computed(() => authStore.isAdmin || authStore.isEmployee);
+
+const canSeeDrafts = computed(() => authStore.isAdmin || authStore.isEmployee);
 
 const assignTarget = ref(null);
 const openAssignDiagnostic = (r) => {
@@ -1041,8 +1168,6 @@ const setAttendance = async (r, status) => {
   attendanceSaving.value = { ...attendanceSaving.value, [r.id]: true };
   try {
     await api.put(`/recipients/${r.id}/attendance`, { status });
-    // Ключ один на все отметки: по журналу кликают подряд по многим детям,
-    // и без него плашки выстроились бы столбом на весь экран.
     notifySaved(`Посещение отмечено: ${fullName(r)}`, { key: 'attendance' });
   } catch (err) {
     console.error('setAttendance', err);
@@ -1114,13 +1239,125 @@ const openDetails = (id) => {
 
 const onRecipientSaved = (createdRecipient) => {
   showWizard.value = false;
+  openDraftId.value = null;
   loadRecipients();
+  if (canSeeDrafts.value) loadDrafts();
   const id = createdRecipient?.id ?? null;
   if (id) {
     addedRecipientId.value = id;
     addedRecipientName.value = fullName(createdRecipient);
     showAddedPopup.value = true;
   }
+};
+
+const activeTab     = ref('active');
+const drafts        = ref([]);
+const draftsLoading = ref(false);
+const draftsError   = ref('');
+const draftSearch   = ref('');
+const openDraftId   = ref(null);
+let draftSearchTimeout = null;
+
+const setTab = (t) => {
+  if (activeTab.value === t) return;
+  activeTab.value = t;
+  closeDropdown();
+  if (t === 'drafts') loadDrafts();
+};
+
+const loadDrafts = async () => {
+  draftsLoading.value = true;
+  draftsError.value = '';
+  try {
+    const { data } = await api.get('/recipients/drafts', {
+      params: { search: draftSearch.value || undefined }
+    });
+    drafts.value = data.data || [];
+  } catch (err) {
+    console.error(err);
+    draftsError.value = 'Не удалось загрузить черновики.';
+  } finally {
+    draftsLoading.value = false;
+  }
+};
+
+const onDraftSearchInput = () => {
+  clearTimeout(draftSearchTimeout);
+  draftSearchTimeout = setTimeout(loadDrafts, 300);
+};
+const clearDraftSearch = () => { draftSearch.value = ''; loadDrafts(); };
+
+const draftTitle = (d) => {
+  const name = [d.lastName, d.firstName, d.middleName].filter(Boolean).join(' ').trim();
+  if (name) return name;
+  if (d.repName) return `Ребёнок ${d.repName}`;
+  return 'Имя пока не введено';
+};
+
+const plural = (n, one, few, many) => {
+  const a = Math.abs(n) % 100;
+  const b = a % 10;
+  if (a > 10 && a < 20) return many;
+  if (b > 1 && b < 5) return few;
+  if (b === 1) return one;
+  return many;
+};
+
+const humanDate = (iso) => {
+  if (!iso) return '';
+  const [y, m, dd] = String(iso).slice(0, 10).split('-');
+  return y && m && dd ? `${dd}.${m}.${y}` : '';
+};
+
+const touchedAgo = (d) => {
+  const t = Date.parse(d.updatedAt || d.createdAt || '');
+  if (!Number.isFinite(t)) return 'время правки неизвестно';
+  const mins = Math.floor((Date.now() - t) / 60000);
+  if (mins < 1)  return 'правили только что';
+  if (mins < 60) return `правили ${mins} ${plural(mins, 'минуту', 'минуты', 'минут')} назад`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `правили ${hours} ${plural(hours, 'час', 'часа', 'часов')} назад`;
+  const days = Math.floor(hours / 24);
+  return `правили ${days} ${plural(days, 'день', 'дня', 'дней')} назад`;
+};
+
+const draftPctClass = (d) => {
+  const pct = d.summary ? d.summary.pct : 0;
+  if (pct >= 80) return 'is-high';
+  if (pct >= 40) return 'is-mid';
+  return 'is-low';
+};
+
+const missingNames = (s) => {
+  const names = s.missing.map((x) => x.l);
+  if (names.length <= 5) return names.join(', ');
+  return `${names.slice(0, 5).join(', ')} и ещё ${names.length - 5}`;
+};
+
+const continueDraft = (d) => {
+  openDraftId.value = d.id;
+  showWizard.value = true;
+};
+
+const removeDraft = async (d) => {
+  if (!confirm(
+    `Удалить черновик «${draftTitle(d)}»?\n\n` +
+    'Введённые данные и приложенные к нему сканы пропадут безвозвратно.'
+  )) return;
+  try {
+    await api.delete(`/recipients/drafts/${d.id}`);
+    drafts.value = drafts.value.filter((x) => x.id !== d.id);
+    notifySaved('Черновик удалён');
+  } catch (err) {
+    console.error(err);
+    alert('Не удалось удалить черновик. Попробуйте ещё раз.');
+  }
+};
+
+const closeWizard = () => {
+  showWizard.value = false;
+  openDraftId.value = null;
+  if (activeTab.value === 'drafts') loadDrafts();
 };
 
 const goToAddedDetails = () => {
@@ -1195,8 +1432,6 @@ const editRecipient = (r) => {
 const saveRecipient = async () => {
   try {
     const editing = !!editId.value;
-    // ФИО берём до закрытия модалки: если closeModal когда-нибудь начнёт
-    // сбрасывать форму, сообщение не превратится в безымянное.
     const fio = [form.value.lastName, form.value.firstName].filter(Boolean).join(' ').trim();
     if (editing) await api.put(`/recipients/${editId.value}`, form.value);
     else         await api.post('/recipients', form.value);
@@ -1249,10 +1484,19 @@ const handleEscape = (event) => {
   activeDropdown.value = null;
 };
 
+const applyTabParam = () => {
+  if (!canSeeDrafts.value) return;
+  const want = pageStore.params?.tab === 'drafts' ? 'drafts' : 'active';
+  if (want !== activeTab.value) setTab(want);
+};
+watch(() => pageStore.params?.tab, applyTabParam);
+
 onMounted(() => {
   document.documentElement.style.setProperty('--bg-app', '#F7F4ED');
   loadRecipients();
   loadGroups();
+  applyTabParam();
+  if (canSeeDrafts.value && activeTab.value !== 'drafts') loadDrafts();
   window.addEventListener('click', handleClickOutside);
   window.addEventListener('keydown', handleEscape);
 });
@@ -1346,6 +1590,133 @@ onUnmounted(() => {
 }
 .t-page-sub strong { color: var(--t-ink-strong); font-weight: 500; }
 .t-page-actions { display: flex; gap: 0.5rem; }
+
+.t-tabs {
+  display: flex; gap: 0.25rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid var(--t-line);
+}
+.t-tab {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  min-height: 2.5rem; padding: 0.5rem 1rem;
+  margin-bottom: -1px;
+  background: none; border: none;
+  border-bottom: 2px solid transparent;
+  font-family: var(--t-font-sans);
+  font-size: 0.9375rem; font-weight: 500;
+  color: var(--t-ink-subtle);
+  cursor: pointer;
+  transition: color 150ms, border-color 150ms;
+}
+.t-tab:hover { color: var(--t-ink-strong); }
+.t-tab.active { color: var(--t-ink-strong); border-bottom-color: var(--t-sage-900); }
+.t-tab-count {
+  padding: 0 0.4375rem; border-radius: 999px;
+  font-size: 0.6875rem; font-weight: 500;
+  min-width: 1.125rem; text-align: center;
+  background: var(--t-paper-soft); color: var(--t-ink-muted);
+  border: 1px solid var(--t-line-soft);
+}
+.t-tab.active .t-tab-count {
+  background: var(--t-sage-900); color: #F3F6EA; border-color: var(--t-sage-900);
+}
+
+.t-drafts-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
+  gap: 1rem; align-items: center;
+  margin-bottom: 1.25rem;
+}
+.t-drafts-note {
+  font-size: 0.8125rem; line-height: 1.5;
+  color: var(--t-ink-subtle);
+}
+@media (max-width: 768px) {
+  .t-drafts-bar { grid-template-columns: 1fr; }
+}
+.t-draft-list { display: flex; flex-direction: column; gap: 0.875rem; }
+.t-draft {
+  display: flex; flex-direction: column; gap: 0.75rem;
+  padding: 1.125rem 1.25rem;
+  background: var(--t-paper);
+  border: 1px solid var(--t-line);
+  border-radius: var(--t-r-lg);
+  box-shadow: var(--t-shadow-sm);
+  transition: border-color 150ms, box-shadow 150ms;
+}
+.t-draft:hover { border-color: var(--t-line-strong); box-shadow: var(--t-shadow-md); }
+.t-draft-top {
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+}
+.t-draft-id { min-width: 0; }
+.t-draft-name {
+  font-family: var(--t-font-serif);
+  font-size: 1.25rem; font-weight: 500; line-height: 1.2;
+  letter-spacing: -0.01em; color: var(--t-ink-strong);
+}
+.t-draft-meta {
+  margin-top: 0.25rem;
+  font-size: 0.8125rem; color: var(--t-ink-muted);
+}
+.t-draft-pct {
+  display: flex; flex-direction: column; align-items: flex-end;
+  gap: 0.0625rem; flex: 0 0 auto;
+}
+.t-draft-pct strong { font-size: 1.25rem; font-weight: 600; line-height: 1; }
+.t-draft-pct span { font-size: 0.75rem; color: var(--t-ink-subtle); }
+.t-draft-pct.is-high strong { color: var(--t-sage-700); }
+.t-draft-pct.is-mid  strong { color: var(--t-amber-700); }
+.t-draft-pct.is-low  strong { color: var(--t-rose-700); }
+.t-draft-bar {
+  height: 0.375rem; border-radius: 999px;
+  background: var(--t-paper-sunken); overflow: hidden;
+}
+.t-draft-bar span {
+  display: block; height: 100%; border-radius: 999px;
+  transition: width 250ms ease;
+}
+.t-draft-bar span.is-high { background: var(--t-sage-500); }
+.t-draft-bar span.is-mid  { background: var(--t-amber-500); }
+.t-draft-bar span.is-low  { background: var(--t-rose-500); }
+.t-draft-missing {
+  display: flex; flex-direction: column; gap: 0.375rem;
+  padding: 0.75rem 0.875rem;
+  background: var(--t-canvas);
+  border: 1px solid var(--t-line-soft);
+  border-radius: var(--t-r-md);
+}
+.t-draft-step {
+  display: grid; grid-template-columns: minmax(9rem, auto) minmax(0, 1fr);
+  gap: 0.75rem; align-items: baseline;
+  font-size: 0.8125rem;
+}
+.t-draft-step-name { color: var(--t-ink-strong); font-weight: 500; }
+.t-draft-step-fields { color: var(--t-ink-muted); line-height: 1.45; }
+@media (max-width: 640px) {
+  .t-draft-step { grid-template-columns: 1fr; gap: 0.125rem; }
+}
+.t-draft-done {
+  padding: 0.625rem 0.875rem;
+  background: var(--t-sage-50);
+  border: 1px solid var(--t-sage-100);
+  border-radius: var(--t-r-md);
+  font-size: 0.8125rem; color: var(--t-sage-700);
+}
+.t-draft-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 1rem; flex-wrap: wrap;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--t-line-soft);
+}
+.t-draft-facts {
+  display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+  font-size: 0.75rem; color: var(--t-ink-subtle);
+}
+.t-draft-fact { display: inline-flex; align-items: center; gap: 0.375rem; }
+.t-draft-fact svg { width: 0.875rem; height: 0.875rem; flex: 0 0 0.875rem; opacity: .75; }
+.t-draft-actions { display: flex; gap: 0.5rem; }
+
 .t-btn {
   display: inline-flex; align-items: center; gap: 0.5rem;
   min-height: var(--t-tap);

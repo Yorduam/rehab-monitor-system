@@ -8,9 +8,11 @@ import {
   Recipient, ReGroup, LegalRepresentative,
   Nozology, CRG, CRGDesc, User,
   RecipientDoc, RecipientDocVersion, RecipientScanDoc, ReResult, CRGRecipientSec, DocType,
-  ScheduleEvent, Direction
+  ScheduleEvent, Direction, RecipientDraft, RecipientDraftScan,
+  FamilyStatus, LegalRepFamilyStatus
 } from '../models/index.js';
 import { getRecipientReadiness } from '../services/recipientReadiness.js';
+import { summarizeDraft } from '../src/utils/recipientDraft.js';
 import { buildScanFileName } from '../services/scanFileName.js';
 import {
   CATEGORIES, CATEGORY_LABELS, REASON_CODES, GRANT_MS,
@@ -28,7 +30,14 @@ const listInclude = [groupInclude];
 const detailInclude = [
   groupInclude,
   { model: User, as: 'user', attributes: ['id', 'email', 'role'] },
-  { model: LegalRepresentative, as: 'representative' },
+  {
+    model: LegalRepresentative, as: 'representative',
+    include: [{
+      model: FamilyStatus, as: 'familyStatuses',
+      attributes: ['id', 'code', 'name', 'hint', 'groupKey', 'sortOrder'],
+      through: { attributes: [] }
+    }]
+  },
   { model: Nozology, as: 'nozologyRef' },
   { model: CRG, as: 'crgMain' },
   { model: CRGDesc, as: 'secondaryCRG' },
@@ -167,9 +176,6 @@ router.get('/', authMiddleware, async (req, res, next) => {
   }
 });
 
-// Справочник для интерфейса: какие бывают категории и причины. Держим на
-// сервере, чтобы список причин был один и тот же в форме и в журнале.
-// Объявлен ДО '/:id' нарочно: иначе Express посчитал бы «access» за id.
 router.get('/access/options', authMiddleware, (req, res) => {
   res.json({
     categories: CATEGORIES.map((code) => ({ code, label: CATEGORY_LABELS[code] })),
@@ -178,18 +184,298 @@ router.get('/access/options', authMiddleware, (req, res) => {
   });
 });
 
+
+const DRAFT_EDIT_ROLES = ['admin', 'teacher', 'employee'];
+const DRAFT_LIST_ROLES = ['admin', 'employee'];
+
+const MAX_DRAFT_PAYLOAD = 100 * 1024;
+
+const personLabel = (u) =>
+  ([u?.lastName, u?.firstName].filter(Boolean).join(' ').trim() || u?.fullName || u?.email || '')
+    .slice(0, 150);
+
+const trimStr = (v) => (typeof v === 'string' ? v.trim() : '');
+
+function validateDraftPayload(payload) {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+    return 'Черновик пуст или имеет неверный формат';
+  }
+  let size;
+  try {
+    size = Buffer.byteLength(JSON.stringify(payload), 'utf8');
+  } catch (e) {
+    return 'Черновик не удалось разобрать';
+  }
+  if (size > MAX_DRAFT_PAYLOAD) return 'Черновик слишком велик';
+  return null;
+}
+
+function draftColumns(payload) {
+  const birth = trimStr(payload.rBirth);
+  return {
+    lastName: trimStr(payload.rLast).slice(0, 50) || null,
+    firstName: trimStr(payload.rFirst).slice(0, 50) || null,
+    middleName: trimStr(payload.rMid).slice(0, 50) || null,
+    birthDate: /^\d{4}-\d{2}-\d{2}$/.test(birth) ? birth : null,
+    repName: [trimStr(payload.lrLast), trimStr(payload.lrFirst), trimStr(payload.lrMid)]
+      .filter(Boolean).join(' ').slice(0, 150) || null
+  };
+}
+
+async function draftFileCounts(draftIds) {
+  const counts = new Map(draftIds.map((id) => [id, 0]));
+  if (!draftIds.length) return counts;
+  const rows = await RecipientDraftScan.findAll({
+    where: { draftId: { [Op.in]: draftIds } },
+    attributes: ['id', 'draftId']
+  });
+  for (const r of rows) counts.set(r.draftId, (counts.get(r.draftId) || 0) + 1);
+  return counts;
+}
+
+function draftBrief(d, fileCount) {
+  return {
+    id: d.id,
+    lastName: d.lastName,
+    firstName: d.firstName,
+    middleName: d.middleName,
+    birthDate: d.birthDate,
+    repName: d.repName,
+    fileCount,
+    createdBy: d.createdBy,
+    createdByName: d.createdByName,
+    updatedBy: d.updatedBy,
+    updatedByName: d.updatedByName,
+    createdAt: d.createdAt,
+    updatedAt: d.updatedAt,
+    summary: summarizeDraft(d.payload, fileCount)
+  };
+}
+
+const canTouchDraft = (user, draft) =>
+  DRAFT_LIST_ROLES.includes(user.role) || draft.createdBy === user.id;
+
+router.get('/drafts', authMiddleware, roleMiddleware(...DRAFT_LIST_ROLES), async (req, res, next) => {
+  try {
+    const search = trimStr(req.query.search);
+    const where = {};
+    if (search) {
+      where[Op.or] = [
+        { lastName: { [Op.like]: `%${search}%` } },
+        { firstName: { [Op.like]: `%${search}%` } },
+        { middleName: { [Op.like]: `%${search}%` } },
+        { repName: { [Op.like]: `%${search}%` } }
+      ];
+    }
+
+    const rows = await RecipientDraft.findAll({
+      where,
+      order: [['updatedAt', 'DESC']],
+      limit: 200
+    });
+    const counts = await draftFileCounts(rows.map((r) => r.id));
+
+    res.json({ data: rows.map((r) => draftBrief(r, counts.get(r.id) || 0)), total: rows.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/drafts/:draftId', authMiddleware, roleMiddleware(...DRAFT_EDIT_ROLES), async (req, res, next) => {
+  try {
+    const draft = await RecipientDraft.findByPk(req.params.draftId);
+    if (!draft) return res.status(404).json({ message: 'Черновик не найден' });
+    if (!canTouchDraft(req.user, draft)) {
+      return res.status(403).json({ message: 'Это чужой черновик' });
+    }
+
+    const scans = await RecipientDraftScan.findAll({
+      where: { draftId: draft.id },
+      attributes: { exclude: ['fileData'] },
+      order: [['id', 'ASC']]
+    });
+
+    if (draft.createdBy !== req.user.id) {
+      await logAccess(req, {
+        recipientId: null,
+        category: 'passport',
+        action: 'view',
+        reasonText: `Черновик #${draft.id} — продолжение заполнения`
+      });
+    }
+
+    res.json({
+      ...draftBrief(draft, scans.length),
+      payload: draft.payload,
+      scans: scans.map((s) => ({
+        id: s.id,
+        docKey: s.docKey,
+        originalName: s.originalName,
+        mimeType: s.mimeType,
+        sizeBytes: Number(s.sizeBytes) || 0
+      }))
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/drafts', authMiddleware, roleMiddleware(...DRAFT_EDIT_ROLES), async (req, res, next) => {
+  try {
+    const payload = req.body?.payload;
+    const problem = validateDraftPayload(payload);
+    if (problem) return res.status(400).json({ message: problem });
+
+    const now = new Date();
+    const who = personLabel(req.user);
+    const draft = await RecipientDraft.create({
+      ...draftColumns(payload),
+      payload,
+      createdBy: req.user.id,
+      createdByName: who,
+      updatedBy: req.user.id,
+      updatedByName: who,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    res.status(201).json(draftBrief(draft, 0));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.put('/drafts/:draftId', authMiddleware, roleMiddleware(...DRAFT_EDIT_ROLES), async (req, res, next) => {
+  try {
+    const draft = await RecipientDraft.findByPk(req.params.draftId);
+    if (!draft) return res.status(404).json({ message: 'Черновик не найден' });
+    if (!canTouchDraft(req.user, draft)) {
+      return res.status(403).json({ message: 'Это чужой черновик' });
+    }
+
+    const payload = req.body?.payload;
+    const problem = validateDraftPayload(payload);
+    if (problem) return res.status(400).json({ message: problem });
+
+    await draft.update({
+      ...draftColumns(payload),
+      payload,
+      updatedBy: req.user.id,
+      updatedByName: personLabel(req.user),
+      updatedAt: new Date()
+    });
+
+    const fileCount = await RecipientDraftScan.count({ where: { draftId: draft.id } });
+    res.json(draftBrief(draft, fileCount));
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/drafts/:draftId', authMiddleware, roleMiddleware(...DRAFT_EDIT_ROLES), async (req, res, next) => {
+  try {
+    const draft = await RecipientDraft.findByPk(req.params.draftId, { attributes: ['id', 'createdBy'] });
+    if (!draft) return res.status(404).json({ message: 'Черновик не найден' });
+    if (!canTouchDraft(req.user, draft)) {
+      return res.status(403).json({ message: 'Это чужой черновик' });
+    }
+
+    await draft.destroy();
+    res.json({ message: 'Черновик удалён' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/drafts/:draftId/scans', authMiddleware, roleMiddleware(...DRAFT_EDIT_ROLES), async (req, res, next) => {
+  try {
+    const draft = await RecipientDraft.findByPk(req.params.draftId, { attributes: ['id', 'createdBy'] });
+    if (!draft) return res.status(404).json({ message: 'Черновик не найден' });
+    if (!canTouchDraft(req.user, draft)) {
+      return res.status(403).json({ message: 'Это чужой черновик' });
+    }
+
+    const { docKey, originalName, mimeType, base64 } = req.body || {};
+    if (!trimStr(docKey) || !base64) {
+      return res.status(400).json({ message: 'Не передан файл или его тип' });
+    }
+
+    const buffer = Buffer.from(base64, 'base64');
+    if (!buffer.length) return res.status(400).json({ message: 'Файл пустой' });
+
+    await RecipientDraftScan.destroy({ where: { draftId: draft.id, docKey: trimStr(docKey) } });
+    const row = await RecipientDraftScan.create({
+      draftId: draft.id,
+      docKey: trimStr(docKey).slice(0, 50),
+      originalName: String(originalName || 'файл').slice(0, 255),
+      mimeType: String(mimeType || 'application/octet-stream').slice(0, 100),
+      sizeBytes: buffer.length,
+      fileData: buffer,
+      uploadedBy: req.user.id,
+      uploadedAt: new Date()
+    });
+
+    res.status(201).json({ id: row.id, docKey: row.docKey, sizeBytes: buffer.length });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/drafts/:draftId/scans/:docKey', authMiddleware, roleMiddleware(...DRAFT_EDIT_ROLES), async (req, res, next) => {
+  try {
+    const draft = await RecipientDraft.findByPk(req.params.draftId, { attributes: ['id', 'createdBy'] });
+    if (!draft) return res.status(404).json({ message: 'Черновик не найден' });
+    if (!canTouchDraft(req.user, draft)) {
+      return res.status(403).json({ message: 'Это чужой черновик' });
+    }
+
+    const removed = await RecipientDraftScan.destroy({
+      where: { draftId: draft.id, docKey: String(req.params.docKey).slice(0, 50) }
+    });
+    res.json({ removed });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/drafts/:draftId/scans/:scanId/file', authMiddleware, roleMiddleware(...DRAFT_EDIT_ROLES), async (req, res, next) => {
+  try {
+    const draft = await RecipientDraft.findByPk(req.params.draftId, { attributes: ['id', 'createdBy'] });
+    if (!draft) return res.status(404).json({ message: 'Черновик не найден' });
+    if (!canTouchDraft(req.user, draft)) {
+      return res.status(403).json({ message: 'Это чужой черновик' });
+    }
+
+    const scan = await RecipientDraftScan.findOne({
+      where: { id: req.params.scanId, draftId: draft.id }
+    });
+    if (!scan || !scan.fileData) return res.status(404).json({ message: 'Файл не найден' });
+
+    if (draft.createdBy !== req.user.id) {
+      await logAccess(req, {
+        recipientId: null,
+        category: 'scans',
+        action: 'download',
+        scanId: scan.id,
+        reasonText: `Черновик #${draft.id} — продолжение заполнения`
+      });
+    }
+
+    res.setHeader('Content-Type', scan.mimeType || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(scan.originalName)}"`);
+    res.send(scan.fileData);
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/:id', authMiddleware, async (req, res, next) => {
   try {
     const recipient = await Recipient.findByPk(req.params.id, { include: detailInclude });
     if (!recipient) return res.status(404).json({ message: 'Реабилитант не найден' });
 
-    // Закрытые поля не «прячутся на экране», а вырезаются из ответа: иначе их
-    // видно во вкладке «Сеть» браузера, и вся защита превращается в картинку.
     const payload = redactRecipient(recipient, req.user);
 
-    // Администратору данные открыты без запроса, но факт просмотра всё равно
-    // записываем — иначе в аудите дыра размером с самого привилегированного
-    // пользователя.
     if (isAdmin(req.user)) {
       await logAccess(req, { recipientId: recipient.id, category: 'passport', action: 'view' });
     }
@@ -230,8 +516,6 @@ const onlyDigits = (s) => (s || '').replace(/\D/g, '');
 
 class IntakeError extends Error {}
 
-// Поиск дублей ведётся ТОЛЬКО по данным реабилитанта. Представителя не
-// проверяем сознательно: у одного опекуна законно бывает несколько подопечных.
 const normName = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
 const normDoc  = (s) => String(s || '').trim().replace(/[\s-]/g, '').toUpperCase();
 
@@ -245,10 +529,6 @@ const briefRecipient = (r) => ({
   groupName: r.group?.groupName || null
 });
 
-// Ключ — фамилия + имя + дата рождения. Отчество в ключ не входит: оно
-// необязательное, поэтому «Иванов Иван» и «Иванов Иван Иванович» с одной датой
-// рождения обязаны попасть в подсказку. Но если отчество заполнено у обоих и
-// они разные — это заведомо разные люди, такую пару отбрасываем.
 async function findNameMatches({ firstName, lastName, middleName, birthDate }, excludeId) {
   if (!birthDate || !normName(firstName) || !normName(lastName)) return [];
 
@@ -265,9 +545,6 @@ async function findNameMatches({ firstName, lastName, middleName, birthDate }, e
   );
 }
 
-// Серию сверяем в нормализованном виде, чтобы «IV-АБ» и «IV АБ» не разошлись.
-// Номер селективный и хранится как есть (фронт пишет только цифры), поэтому по
-// нему сужаем выборку в SQL, а серию сравниваем уже в JS.
 async function findDocMatch({ docSeries, docNumber }, excludeId) {
   const num = normDoc(docNumber);
   const ser = normDoc(docSeries);
@@ -292,9 +569,6 @@ async function findDocMatch({ docSeries, docNumber }, excludeId) {
   };
 }
 
-// Живая проверка из мастера добавления. Ничего не меняет, только отвечает, что
-// нашлось: совпадение ФИО+даты рождения — предупреждение, совпадение серии и
-// номера документа — блокирующее (один документ не может быть у двух людей).
 router.post('/check-duplicate', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
   try {
     const { firstName, middleName, lastName, birthDate, docSeries, docNumber, excludeId } = req.body || {};
@@ -311,8 +585,66 @@ router.post('/check-duplicate', authMiddleware, roleMiddleware('admin', 'teacher
   }
 });
 
+router.post('/family-status-lookup', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
+  try {
+    const series = String(req.body?.passportSeries || '').trim();
+    const number = String(req.body?.passportNumber || '').trim();
+    if (series.length !== 4 || number.length !== 6) return res.json({ found: false, statuses: [] });
+
+    const rep = await LegalRepresentative.findOne({
+      where: { passportSeries: series, passportNumber: number },
+      include: [{
+        model: FamilyStatus, as: 'familyStatuses',
+        attributes: ['code'], through: { attributes: [] }
+      }]
+    });
+    if (!rep) return res.json({ found: false, statuses: [] });
+
+    res.json({
+      found: true,
+      repName: [rep.lastName, rep.firstName].filter(Boolean).join(' ').trim(),
+      statuses: (rep.familyStatuses || []).map((s) => s.code)
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+async function applyFamilyStatuses(repId, codes, userId, t) {
+  const wanted = [...new Set((Array.isArray(codes) ? codes : [])
+    .map((c) => String(c || '').trim())
+    .filter(Boolean))];
+  if (!wanted.length) return;
+
+  const rows = await FamilyStatus.findAll({
+    where: { code: { [Op.in]: wanted }, isActive: true },
+    transaction: t
+  });
+  if (!rows.length) return;
+
+  const seenGroups = new Set();
+  const keep = [];
+  for (const row of rows.sort((a, b) => a.sortOrder - b.sortOrder || a.id - b.id)) {
+    if (row.groupKey) {
+      if (seenGroups.has(row.groupKey)) continue;
+      seenGroups.add(row.groupKey);
+    }
+    keep.push(row.id);
+  }
+
+  await LegalRepFamilyStatus.destroy({ where: { representativeId: repId }, transaction: t });
+  const now = new Date();
+  await LegalRepFamilyStatus.bulkCreate(
+    keep.map((statusId) => ({ representativeId: repId, statusId, setBy: userId || null, setAt: now })),
+    { transaction: t }
+  );
+}
+
 router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
-  const { recipient = {}, representative = {}, doc = {}, nozologyClasses = [], crg = {}, groupId } = req.body;
+  const {
+    recipient = {}, representative = {}, doc = {},
+    nozologyClasses = [], crg = {}, groupId, familyStatuses = []
+  } = req.body;
 
   if (!recipient.firstName || !recipient.lastName) {
     return res.status(400).json({ message: 'Не заполнено ФИО реабилитанта' });
@@ -326,10 +658,6 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
       }
     }
 
-    // Серия+номер документа блокируют сохранение: один документ физически не
-    // может принадлежать двум людям. Совпадение ФИО+даты рождения здесь
-    // намеренно НЕ проверяется — полные тёзки-ровесники бывают, мастер
-    // предупреждает о них на своей стороне и даёт сохранить осознанно.
     const docDup = await findDocMatch({ docSeries: doc.docSeries, docNumber: doc.docNumber });
     if (docDup) {
       const fio = [docDup.lastName, docDup.firstName, docDup.middleName].filter(Boolean).join(' ');
@@ -374,11 +702,6 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
       const repSeries = String(representative.passportSeries || '').trim();
       const repNumber = String(representative.passportNumber || '').trim();
 
-      // У одного опекуна законно бывает несколько подопечных, поэтому на второго
-      // ребёнка второго представителя не заводим. Ключ — паспорт: по паре
-      // серия+номер в БД стоит UNIQUE (le_passport), то есть схема сама говорит,
-      // что это одна личность. Телефон ключом быть не может — им опекун делится
-      // с супругом, а вот паспортом нет.
       let rep = repSeries && repNumber
         ? await LegalRepresentative.findOne({
             where: { passportSeries: repSeries, passportNumber: repNumber },
@@ -387,9 +710,6 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
         : null;
 
       if (rep) {
-        // Данные могли поправить или обновить (сменился телефон, прописка).
-        // Переносим только заполненное: пустое поле второй анкеты не должно
-        // затирать то, что оператор ввёл в первой.
         const fresh = {};
         const carry = (field, value) => {
           const v = typeof value === 'string' ? value.trim() : value;
@@ -419,6 +739,8 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
           passportReg: representative.passportReg || ''
         }, { transaction: t });
       }
+
+      await applyFamilyStatuses(rep.id, familyStatuses, req.user?.id, t);
 
       const recEmail = `rcp-${onlyDigits(doc.snils) || 'na'}-${uniqSuffix}@intake.local`;
       const tempHash = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
@@ -639,9 +961,6 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
         represId: recipient.representativeId,
         docType: docTypeId,
         storageKey: `db://${checksum}`,
-        // Имя с компьютера оператора не сохраняем: оно ничего не говорит о
-        // документе (в базе лежали десятки файлов «Гусь.jfif»). Собираем своё —
-        // по нему сразу видно, чей это документ, какой и когда приложен.
         originalName: buildScanFileName({
           recipientId: recipient.id,
           lastName: recipient.lastName,
@@ -683,8 +1002,6 @@ router.get('/:id/scans', authMiddleware, async (req, res, next) => {
 
     if (!hasGrant(req.user, Number(req.params.id), 'scans')) {
       await logAccess(req, { recipientId: Number(req.params.id), category: 'scans', action: 'denied' });
-      // Пустой список, а не 403: интерфейс должен показать закрытый блок с
-      // кнопкой, а не ошибку — человек не сделал ничего плохого.
       return res.json({ locked: true, category: 'scans', scans: [] });
     }
 
@@ -700,8 +1017,6 @@ router.get('/:id/scans', authMiddleware, async (req, res, next) => {
     if (isAdmin(req.user)) {
       await logAccess(req, { recipientId: Number(req.params.id), category: 'scans', action: 'view' });
     }
-    // Форма ответа одна и та же в обоих случаях — и когда список закрыт, и
-    // когда открыт. Иначе фронтенду пришлось бы гадать, что ему пришло.
     res.json({ locked: false, category: 'scans', scans });
   } catch (err) {
     next(err);
@@ -710,9 +1025,6 @@ router.get('/:id/scans', authMiddleware, async (req, res, next) => {
 
 router.get('/:id/scans/:scanId/file', authMiddleware, async (req, res, next) => {
   try {
-    // Файл — самое ценное, что тут есть, и раньше на него стояла только
-    // проверка «залогинен»: любой педагог мог скачать скан паспорта любого
-    // ребёнка, зная лишь id. Теперь без разрешения файл не отдаётся.
     if (!hasGrant(req.user, Number(req.params.id), 'scans')) {
       await logAccess(req, {
         recipientId: Number(req.params.id), category: 'scans',
@@ -726,8 +1038,6 @@ router.get('/:id/scans/:scanId/file', authMiddleware, async (req, res, next) => 
     });
     if (!scan || !scan.fileData) return res.status(404).json({ message: 'Файл не найден' });
 
-    // Скачивание отмечаем отдельно от просмотра списка: это более весомое
-    // действие, и в журнале оно должно стоять своей строкой.
     await logAccess(req, {
       recipientId: Number(req.params.id), category: 'scans',
       action: 'download', scanId: scan.id
@@ -741,8 +1051,6 @@ router.get('/:id/scans/:scanId/file', authMiddleware, async (req, res, next) => 
   }
 });
 
-// Запрос доступа к закрытой категории данных: причина обязательна, доступ
-// выдаётся на ограниченное время и только на этого реабилитанта.
 router.post('/:id/access', authMiddleware, async (req, res, next) => {
   try {
     const recipientId = Number(req.params.id);
@@ -755,8 +1063,6 @@ router.post('/:id/access', authMiddleware, async (req, res, next) => {
     const recipient = await Recipient.findByPk(recipientId, { attributes: ['id'] });
     if (!recipient) return res.status(404).json({ message: 'Реабилитант не найден' });
 
-    // Администратору причину не задаём — доступ у него и так открыт. Но сам
-    // запрос отмечаем, чтобы в журнале осталась строка.
     if (isAdmin(req.user)) {
       await logAccess(req, { recipientId, category, action: 'view' });
       return res.json({ ok: true, category, expiresAt: null, admin: true });

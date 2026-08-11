@@ -1,9 +1,3 @@
-// Одноразовый скрипт создания таблиц модуля «Расписание и Диагностика».
-// Сервер использует sequelize.authenticate() (без sync), поэтому новые
-// таблицы создаём здесь вручную через Model.sync() — существующие таблицы
-// не затрагиваются (sync без force = CREATE TABLE IF NOT EXISTS).
-//
-// Запуск:  node scripts/createScheduleTables.js
 import { sequelize, ScheduleEvent, DiagnosticAssignment } from '../models/index.js';
 
 async function run() {

@@ -57,6 +57,144 @@
       </div>
     </div>
 
+    <div v-if="alertsError" class="err-bar" role="alert">
+      <span>{{ alertsError }}</span>
+      <button class="btn btn-secondary btn-sm" type="button" @click="loadAlerts">Повторить</button>
+    </div>
+
+    <section v-for="g in alertGroups" :key="g.key" class="alerts">
+      <div class="alerts-head">
+        <div class="section-eyebrow">{{ g.title }}</div>
+        <div v-if="g.subtitle" class="alerts-sub">{{ g.subtitle }}</div>
+      </div>
+
+      <div class="tiles" :class="'tiles-' + g.tiles.length">
+        <div
+          v-for="t in g.tiles"
+          :key="t.key"
+          class="tile"
+          :class="[t.count ? 'tone-' + t.tone : 'tone-calm', { open: openTile === t.key }]"
+        >
+          <button
+            class="tile-btn"
+            type="button"
+            :disabled="!t.count"
+            :aria-expanded="String(openTile === t.key)"
+            @click="toggleTile(t)"
+          >
+            <span class="tile-title">
+              {{ t.title }}
+              <svg v-if="t.count" class="tile-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+            <span class="tile-meta">{{ t.count ? t.meta : t.empty }}</span>
+            <span class="tile-num">
+              <b>{{ t.count }}</b>
+              <i>{{ t.unit }}</i>
+            </span>
+          </button>
+
+          <div v-if="openTile === t.key" class="tile-list">
+            <button
+              v-for="(it, idx) in t.items"
+              :key="t.key + '-' + idx"
+              class="tl-row"
+              type="button"
+              @click="openRecipient(it.recipientId)"
+            >
+              <span class="avatar" :class="avatarClass(it.recipientId)" aria-hidden="true">{{ initials(it.name) }}</span>
+              <span class="tl-main">
+                <span class="tl-name">{{ it.name }}</span>
+                <span class="tl-note">{{ it.note }}</span>
+              </span>
+              <span v-if="it.days !== null && it.days !== undefined" class="tl-days">
+                {{ it.days }} {{ plural(it.days, 'день', 'дня', 'дней') }}
+              </span>
+            </button>
+            <button
+              v-if="t.action"
+              class="tl-all"
+              type="button"
+              @click="goTo(t.action.page, t.action.title)"
+            >
+              Открыть раздел «{{ t.action.title }}»
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="draft">
+      <div class="alerts-head dr-head">
+        <div>
+          <div class="section-eyebrow">Незаконченная карточка</div>
+          <div class="alerts-sub">Та, которую начали на этом компьютере</div>
+        </div>
+        <button
+          v-if="draftsTotal"
+          class="btn btn-secondary btn-sm dr-all-btn"
+          type="button"
+          @click="openDraftsTab"
+        >Все черновики · {{ draftsTotal }}</button>
+      </div>
+
+      <div class="card">
+        <div v-if="draftLoading" class="card-body empty-note">Загрузка…</div>
+
+        <div v-else-if="!draft" class="card-body">
+          <div class="dr-empty-t">Незаконченных карточек нет</div>
+          <div class="dr-empty-s">
+            Если закрыть мастер регистрации на половине, начатая карточка появится здесь — и её можно будет дозаполнить, не вводя всё заново.
+            <template v-if="draftsTotal">
+              У коллег такие карточки есть: {{ draftsTotal }} {{ plural(draftsTotal, 'штука', 'штуки', 'штук') }} в разделе
+              <button class="p-link" type="button" @click="openDraftsTab">«Черновики»</button>.
+            </template>
+          </div>
+        </div>
+
+        <div v-else class="card-body dr-body">
+          <div class="dr-top">
+            <span class="avatar av-amber" aria-hidden="true">{{ initials(draftTitle) }}</span>
+            <div class="dr-id">
+              <div class="dr-name">{{ draftTitle }}</div>
+              <div class="dr-sub">{{ draftSub }}</div>
+            </div>
+            <button class="btn btn-primary" type="button" @click="openDraftWizard">Дозаполнить карточку</button>
+          </div>
+
+          <div class="dr-progress">
+            <div class="dr-bar"><span :style="{ width: draft.pct + '%' }"></span></div>
+            <div class="dr-figures">
+              Заполнено <b>{{ draft.done }}</b> из {{ draft.total }} {{ plural(draft.total, 'обязательного поля', 'обязательных полей', 'обязательных полей') }} на первых двух шагах
+            </div>
+          </div>
+
+          <div v-if="draft.steps.length" class="dr-steps">
+            <div v-for="s in draft.steps" :key="s.step" class="dr-step">
+              <div class="dr-step-head">
+                <span>Шаг {{ s.step }} · {{ s.label }}</span>
+                <span class="dr-step-num">{{ s.done }} из {{ s.total }}</span>
+              </div>
+              <div class="dr-chips">
+                <span v-for="(m, i) in s.missing" :key="s.step + '-' + i" class="dr-chip">{{ m.l }}</span>
+              </div>
+            </div>
+          </div>
+          <div v-else class="dr-step-done">
+            Личные данные заполнены полностью. Остался третий шаг мастера — сканы, пакет документов и подтверждение комплектности.
+          </div>
+
+          <p class="dr-note">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            <span>
+              Карточка сохранена и на сервере: её видно с любого компьютера и она переживёт очистку данных браузера.
+              Здесь показана только та, что начата на этом компьютере, — остальные лежат в разделе
+              <button class="p-link" type="button" @click="openDraftsTab">«Черновики»</button>.
+            </span>
+          </p>
+        </div>
+      </div>
+    </section>
+
     <div class="qa-wrap">
       <div class="qa-head">
         <div class="section-eyebrow">Быстрые действия</div>
@@ -231,6 +369,12 @@
       </aside>
     </div>
 
+    <AddRecipientWizard
+      v-if="draftWizardOpen"
+      @saved="onDraftSaved"
+      @close="closeDraftWizard"
+    />
+
   </div>
 </template>
 
@@ -239,6 +383,8 @@ import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from
 import { usePageStore } from '../stores/page';
 import { useAuthStore } from '../stores/auth';
 import api from '../api';
+import AddRecipientWizard from '../components/AddRecipientWizard.vue';
+import { readDraft, readDraftSavedAt, countDraftFiles, summarizeDraft } from '../utils/recipientDraft';
 
 const pageStore = usePageStore();
 const authStore = useAuthStore();
@@ -380,6 +526,103 @@ const loadToday = async () => {
   }
 };
 
+const alertGroups = ref([]);
+const alertsError = ref('');
+const openTile = ref('');
+
+const loadAlerts = async () => {
+  try {
+    const { data } = await api.get('/dashboard/employee-alerts');
+    alertGroups.value = Array.isArray(data?.groups) ? data.groups : [];
+    alertsError.value = '';
+  } catch (e) {
+    alertsError.value = e?.response?.data?.message || 'Не удалось загрузить сводку';
+    alertGroups.value = [];
+  }
+};
+
+const toggleTile = (t) => {
+  if (!t.count) return;
+  openTile.value = openTile.value === t.key ? '' : t.key;
+};
+
+const draft = ref(null);
+const draftSavedAt = ref(null);
+const draftLoading = ref(true);
+const draftWizardOpen = ref(false);
+
+const loadDraftCard = async () => {
+  draftLoading.value = true;
+  try {
+    const raw = readDraft();
+    const files = raw ? await countDraftFiles() : 0;
+    draft.value = summarizeDraft(raw, files);
+    draftSavedAt.value = draft.value ? readDraftSavedAt() : null;
+  } catch (e) {
+    console.error('draft:', e);
+    draft.value = null;
+    draftSavedAt.value = null;
+  } finally {
+    draftLoading.value = false;
+  }
+};
+
+const draftsTotal = ref(0);
+const loadDraftsTotal = async () => {
+  try {
+    const { data } = await api.get('/recipients/drafts');
+    draftsTotal.value = data.total ?? (data.data || []).length;
+  } catch (e) {
+    console.error('drafts:', e);
+  }
+};
+
+const openDraftsTab = () => {
+  pageStore.setPage('recipients', 'Реабилитанты', { tab: 'drafts' });
+};
+
+const openDraftWizard = () => { draftWizardOpen.value = true; };
+const closeDraftWizard = () => {
+  draftWizardOpen.value = false;
+  loadDraftCard();
+  loadDraftsTotal();
+};
+const onDraftSaved = () => {
+  loadAttn();
+  loadAlerts();
+  loadDraftsTotal();
+};
+
+const draftTitle = computed(() => {
+  if (!draft.value) return '';
+  if (draft.value.name) return draft.value.name;
+  if (draft.value.repName) return `Ребёнок ${draft.value.repName}`;
+  return 'Имя пока не введено';
+});
+
+const savedAgo = (d) => {
+  if (!d) return '';
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return 'сохранено только что';
+  if (mins < 60) return `сохранено ${mins} ${plural(mins, 'минуту', 'минуты', 'минут')} назад`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `сохранено ${hours} ${plural(hours, 'час', 'часа', 'часов')} назад`;
+  const days = Math.floor(hours / 24);
+  return `сохранено ${days} ${plural(days, 'день', 'дня', 'дней')} назад`;
+};
+
+const draftSub = computed(() => {
+  if (!draft.value) return '';
+  const parts = [];
+  if (draft.value.name && draft.value.repName) parts.push(`представитель — ${draft.value.repName}`);
+  if (draft.value.fileCount) {
+    parts.push(`${draft.value.fileCount} ${plural(draft.value.fileCount, 'скан приложен', 'скана приложено', 'сканов приложено')}`);
+  }
+  const ago = savedAgo(draftSavedAt.value);
+  if (ago) parts.push(ago);
+  return parts.join(' · ') || 'Регистрация начата, но не завершена';
+});
+
 const attnList = ref([]);
 const attnCount = ref(0);
 const loadAttn = async () => {
@@ -446,6 +689,9 @@ onMounted(() => {
   document.documentElement.style.setProperty('--bg-app', '#F7F4ED');
   loadToday();
   loadAttn();
+  loadAlerts();
+  loadDraftCard();
+  loadDraftsTotal();
 });
 onUnmounted(() => {
   clearTimeout(searchTimer);
@@ -656,12 +902,88 @@ onUnmounted(() => {
 .qa-ic svg { width: 1.1875rem; height: 1.1875rem; }
 .qa-txt .qa-t { font-size: var(--fs-15); font-weight: 600; color: var(--ink-strong); }
 
+.err-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; background: var(--rose-50); border: 0.0625rem solid var(--rose-100); color: var(--rose-700); border-radius: var(--r-md); padding: 0.75rem 1rem; font-size: var(--fs-14); margin-bottom: var(--space-5); }
+
+.alerts { margin-bottom: var(--space-5); }
+.alerts-head { margin-bottom: 0.625rem; }
+.alerts-sub { font-size: var(--fs-13); color: var(--ink-subtle); margin-top: 0.125rem; }
+
+.tiles { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+
+.tile { background: var(--paper); border: 0.0625rem solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); overflow: hidden; transition: border-color 0.15s, box-shadow 0.15s; }
+.tile.open { border-color: var(--line-strong); box-shadow: var(--shadow-md); }
+
+.tile-btn { display: flex; flex-direction: column; align-items: stretch; gap: 0.125rem; width: 100%; text-align: left; background: none; border: none; padding: 1rem 1.125rem 1.0625rem; transition: background 0.15s; }
+.tile-btn:not(:disabled):hover { background: var(--paper-soft); }
+.tile-btn:disabled { cursor: default; }
+
+.tile-title { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: var(--fs-15); font-weight: 600; color: var(--ink-strong); line-height: 1.25; }
+.tile-chevron { width: 0.8125rem; height: 0.8125rem; flex: 0 0 0.8125rem; color: var(--ink-subtle); transition: transform 0.2s ease; }
+.tile.open .tile-chevron { transform: rotate(180deg); }
+
+.tile-meta { font-size: var(--fs-13); color: var(--ink-subtle); line-height: 1.35; min-height: 1.15rem; }
+
+.tile-num { display: flex; align-items: baseline; gap: 0.4375rem; margin-top: 0.75rem; }
+.tile-num b { font-family: var(--font-serif); font-size: var(--fs-40); font-weight: 600; letter-spacing: -0.03em; line-height: 1; }
+.tile-num i { font-style: normal; font-size: var(--fs-14); font-weight: 500; }
+
+.tone-rose .tile-num b { color: var(--rose-500); }
+.tone-rose .tile-num i { color: var(--rose-700); }
+.tone-amber .tile-num b { color: var(--amber-500); }
+.tone-amber .tile-num i { color: var(--amber-700); }
+.tone-calm .tile-num b { color: var(--sage-500); }
+.tone-calm .tile-num i { color: var(--ink-subtle); }
+.tone-calm .tile-meta { color: var(--sage-700); }
+
+.tile-list { border-top: 0.0625rem solid var(--line-soft); background: var(--paper-soft); }
+.tl-row { display: flex; align-items: center; gap: 0.625rem; width: 100%; text-align: left; background: none; border: none; border-bottom: 0.0625rem solid var(--line-soft); padding: 0.625rem 1.125rem; min-height: var(--tap-min); transition: background 0.15s; }
+.tl-row:hover { background: var(--paper); }
+.tl-main { display: grid; gap: 0.0625rem; min-width: 0; flex: 1; }
+.tl-name { font-size: var(--fs-14); font-weight: 600; color: var(--ink-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-note { font-size: var(--fs-12); color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tl-days { font-size: var(--fs-12); font-weight: 600; color: var(--ink-subtle); white-space: nowrap; }
+.tl-all { display: block; width: 100%; text-align: left; background: none; border: none; padding: 0.625rem 1.125rem; font-size: var(--fs-13); font-weight: 500; color: var(--sage-700); min-height: var(--tap-min); transition: background 0.15s; }
+.tl-all:hover { background: var(--paper); }
+
+.draft { margin-bottom: var(--space-5); }
+
+.dr-empty-t { font-size: var(--fs-15); font-weight: 600; color: var(--ink-strong); }
+.dr-empty-s { font-size: var(--fs-13); color: var(--ink-subtle); line-height: 1.45; margin-top: 0.1875rem; max-width: 44rem; }
+
+.dr-body { display: grid; gap: 1rem; }
+.dr-top { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.dr-id { flex: 1; min-width: 11rem; }
+.dr-name { font-size: var(--fs-16); font-weight: 600; color: var(--ink-strong); }
+.dr-sub { font-size: var(--fs-13); color: var(--ink-subtle); margin-top: 0.0625rem; }
+
+.dr-progress { display: grid; gap: 0.375rem; }
+.dr-bar { height: 0.4375rem; border-radius: 62.5rem; background: var(--paper-sunken); overflow: hidden; }
+.dr-bar span { display: block; height: 100%; border-radius: 62.5rem; background: var(--amber-500); transition: width 0.25s ease; }
+.dr-figures { font-size: var(--fs-13); color: var(--ink-muted); }
+.dr-figures b { font-weight: 700; color: var(--ink-strong); }
+
+.dr-steps { display: grid; gap: 0.75rem; }
+.dr-step-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; font-size: var(--fs-13); font-weight: 600; color: var(--ink-strong); margin-bottom: 0.375rem; }
+.dr-step-num { font-weight: 500; color: var(--ink-subtle); white-space: nowrap; }
+.dr-chips { display: flex; flex-wrap: wrap; gap: 0.3125rem; }
+.dr-chip { font-size: var(--fs-12); padding: 0.1875rem 0.5rem; border-radius: var(--r-sm); background: var(--amber-50); color: var(--amber-700); border: 0.0625rem solid var(--amber-100); }
+.dr-step-done { font-size: var(--fs-13); color: var(--sage-700); background: var(--sage-50); border: 0.0625rem solid var(--sage-100); border-radius: var(--r-md); padding: 0.625rem 0.75rem; line-height: 1.45; }
+
+.dr-note { display: flex; align-items: flex-start; gap: 0.5rem; margin: 0; font-size: var(--fs-12); color: var(--ink-subtle); line-height: 1.45; }
+.dr-note svg { width: 0.875rem; height: 0.875rem; flex: 0 0 0.875rem; margin-top: 0.125rem; }
+
+.dr-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.875rem; flex-wrap: wrap; }
+.dr-all-btn { flex: 0 0 auto; }
+
 @media (max-width: 75rem) {
   .grid-main-aside { grid-template-columns: 1fr; }
   .qa { grid-template-columns: 1fr 1fr; }
+  .tiles { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 36rem) {
   .greet h1 { font-size: var(--fs-32); }
   .qa { grid-template-columns: 1fr; }
+  .tiles { grid-template-columns: 1fr; }
+  .dr-top .btn { width: 100%; }
 }
 </style>

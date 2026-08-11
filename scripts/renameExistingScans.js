@@ -1,23 +1,3 @@
-// Одноразовая миграция: переименовывает уже загруженные сканы под тот же формат,
-// который теперь применяется при загрузке новых (services/scanFileName.js):
-//
-//     ID_ФИО реабилитанта_Название документа_Дата_Время.расширение
-//
-// До этого в originalName писалось имя файла как есть с компьютера оператора,
-// поэтому в базе лежали десятки сканов «Гусь.jfif» и «channels4_profile.jpg» —
-// по имени было не понять ни чей документ, ни какой.
-//
-// Меняются ТОЛЬКО имена. Сами файлы (fileData), контрольные суммы, привязки и
-// история версий не трогаются вовсе.
-//
-// Скрипт идемпотентен: имя собирается из данных, которые уже лежат в строке
-// (recipId, docType, uploadedAt), поэтому повторный запуск даёт тот же результат
-// и ничего не меняет. Расширение берётся из текущего имени, а оно после первого
-// прогона остаётся прежним — пересчёт устойчив.
-//
-// Запуск:
-//   node scripts/renameExistingScans.js          — показать, что изменится
-//   node scripts/renameExistingScans.js --apply  — записать изменения
 import { sequelize, RecipientScanDoc, Recipient, DocType } from '../models/index.js';
 import { buildScanFileName } from '../services/scanFileName.js';
 
@@ -36,8 +16,6 @@ async function run() {
     });
     const recipById = new Map(recipients.map((r) => [r.id, r]));
 
-    // fileData исключаем нарочно: там лежат сами файлы, и без этого выборка
-    // затянула бы в память всё содержимое сканов разом.
     const scans = await RecipientScanDoc.findAll({
       attributes: { exclude: ['fileData'] },
       order: [['id', 'ASC']]
@@ -53,8 +31,6 @@ async function run() {
         skipped.push(`id=${scan.id}: реабилитант ${scan.recipId} не найден`);
         continue;
       }
-      // Без даты загрузки имя пришлось бы штамповать сегодняшним числом — это
-      // была бы неправда, да и повторный запуск давал бы каждый раз новое имя.
       if (!scan.uploadedAt) {
         skipped.push(`id=${scan.id}: не заполнена дата загрузки`);
         continue;

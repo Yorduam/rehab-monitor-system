@@ -330,7 +330,6 @@ const loadUsers = async () => {
   const { data } = await api.get('/users');
   users.value = data;
 };
-// У пользователя нет поля name — только фамилия, имя и почта.
 const userLabel = (u) =>
   [u?.lastName, u?.firstName].filter(Boolean).join(' ').trim() || u?.email || 'пользователь';
 

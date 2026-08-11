@@ -49,10 +49,6 @@
       </div>
 
       <section class="hero" aria-label="Сводка по реабилитанту">
-        <!-- Задник шапки одинаковый у всех реабилитантов. Раньше сюда растягивалось
-             само фото, и фоном карточки оказывалось то, что было позади ребёнка:
-             у каждого своё — стена, окно, улица. Само фото не потерялось: оно в
-             кружке ниже и по клику открывается на весь экран, как и раньше. -->
         <div class="hero-banner" aria-hidden="true"></div>
         <div class="hero-body">
           <button
@@ -382,9 +378,6 @@
             </div>
           </div>
           <div class="card-body">
-            <!-- Открытая часть: ФИО, дата рождения, группа инвалидности и место
-                 обучения персональными данными в смысле этой задачи не считаются
-                 и нужны в работе постоянно. -->
             <dl class="kv-grid">
               <div class="kv kv-full"><dt class="kv-key">ФИО</dt><dd class="kv-val"><span class="kv-text">{{ fullName(recipient) || '—' }}</span></dd></div>
               <div class="kv"><dt class="kv-key">Дата рождения</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(recipient.birthDate) }}<template v-if="age != null"> · {{ age }} {{ yearsWord(age) }}</template></span></dd></div>
@@ -424,6 +417,35 @@
         <section class="card" style="margin-top: 1.25rem;">
           <div class="card-head">
             <div>
+              <h2 class="card-title">Статус семьи</h2>
+              <div class="card-sub">Категории, дающие право на льготы и особый порядок работы</div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div v-if="!recipient.representative" class="rd-inline-empty">
+              Представитель не указан, статус семьи определить не по чему
+            </div>
+            <div v-else-if="!familyStatuses.length" class="rd-inline-empty">
+              Статус семьи не отмечен
+            </div>
+            <template v-else>
+              <ul class="rd-fs-list">
+                <li v-for="s in familyStatuses" :key="s.id" class="rd-fs-item">
+                  <span class="rd-fs-name">{{ s.name }}</span>
+                  <span v-if="s.hint" class="rd-fs-hint">{{ s.hint }}</span>
+                </li>
+              </ul>
+              <p class="rd-fs-note">
+                Статус относится к семье целиком и хранится у законного представителя,
+                поэтому он одинаков во всех карточках его подопечных.
+              </p>
+            </template>
+          </div>
+        </section>
+
+        <section class="card" style="margin-top: 1.25rem;">
+          <div class="card-head">
+            <div>
               <h2 class="card-title">Медкарта и документ</h2>
               <div class="card-sub">Диагноз, нозология, МСЭ и удостоверяющий документ</div>
             </div>
@@ -435,9 +457,6 @@
           <div class="card-body">
             <div v-if="!doc && !recipient.diagnosis && !recipient.crgMain && !recipient.nozologyRef && !hiddenCategories.length" class="rd-inline-empty">Медкарта не заполнена</div>
             <template v-else>
-              <!-- ЦРГ и тип документа остаются открытыми: по ним ведут
-                   расписание и комплектуют группы, а сведений о здоровье они
-                   сами по себе не раскрывают. -->
               <dl class="kv-grid">
                 <div class="kv kv-full"><dt class="kv-key">Целевая реабилитационная группа (ЦРГ)</dt><dd class="kv-val"><span class="kv-text"><span v-if="recipient.crgMain?.code" class="code">{{ recipient.crgMain.code }}</span>{{ recipient.crgMain?.name || crgText }}</span></dd></div>
                 <div class="kv"><dt class="kv-key">Тип документа</dt><dd class="kv-val"><span class="kv-text">{{ doc?.docType || '—' }}</span></dd></div>
@@ -835,7 +854,36 @@
               Назначение на диагностику выполняется на вкладке «Диагностика» → «Назначение на диагностику».
             </p>
 
-            <h3 class="rd-subtitle">Назначенные диагностики</h3>
+            <h3 class="rd-subtitle">Заявки на диагностику</h3>
+            <div v-if="assignmentsLoading" class="rd-loading" style="min-height:80px"><div class="spinner"></div></div>
+            <div v-else-if="!activeSessions.length" class="rd-inline-empty">Активных заявок нет</div>
+            <table v-else class="rd-table">
+              <thead>
+                <tr>
+                  <th>Дата диагностики</th>
+                  <th>Специалисты</th>
+                  <th>Статус</th>
+                  <th v-if="canCancelSession" class="rd-col-act">Действие</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="s in activeSessions" :key="'sess-' + s.id">
+                  <td>{{ formatDate(s.date) }}</td>
+                  <td>{{ s.total ? (s.blocks || []).map((b) => b.specialistName || b.direction?.name).filter(Boolean).join(', ') || '—' : 'Заявку пока никто не взял' }}</td>
+                  <td>
+                    <span class="doc-status" :class="sessionStatus(s).tone">{{ sessionStatus(s).label }}</span>
+                  </td>
+                  <td v-if="canCancelSession" class="rd-col-act">
+                    <button type="button" class="rd-cancel-btn" @click="askCancel(s)">Отменить</button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p v-if="activeSessions.length && canCancelSession" class="rd-cancel-hint">
+              Если диагностика назначена на неверную дату — отмените заявку и создайте новую.
+            </p>
+
+            <h3 class="rd-subtitle" style="margin-top: 1.75rem;">Назначенные диагностики</h3>
             <div v-if="assignmentsLoading" class="rd-loading" style="min-height:80px"><div class="spinner"></div></div>
             <div v-else-if="!assignments.length" class="rd-inline-empty">Пока нет назначений</div>
             <table v-else class="rd-table">
@@ -997,6 +1045,42 @@
         </div>
       </div>
 
+      <div v-if="cancelTarget" class="du-overlay" @click.self="closeCancel">
+        <div class="du-modal du-modal-sm" role="dialog" aria-modal="true" aria-labelledby="rc-title">
+          <header class="du-head">
+            <div>
+              <h3 class="du-title" id="rc-title">Отменить заявку на диагностику?</h3>
+              <p class="du-sub">{{ formatDate(cancelTarget.date) }} · {{ fullName(recipient) }}</p>
+            </div>
+            <button type="button" class="du-close" aria-label="Закрыть" @click="closeCancel">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </header>
+
+          <div class="du-body">
+            <p class="rd-cancel-note">
+              Заявка перейдёт в статус «Отменена». Незаполненные этапы и связанные
+              записи в расписании специалистов будут удалены. Реабилитант при этом
+              остаётся в системе — назначить диагностику заново можно сразу же.
+            </p>
+            <p v-if="cancelBlocked" class="du-error">
+              По заявке уже заполнено этапов: {{ cancelTarget.completed }}. Такую заявку
+              отменяет только администратор.
+            </p>
+            <p v-if="cancelError" class="du-error">{{ cancelError }}</p>
+          </div>
+
+          <footer class="du-foot">
+            <button type="button" class="du-btn du-btn-ghost" :disabled="cancelBusy" @click="closeCancel">
+              Не отменять
+            </button>
+            <button type="button" class="du-btn du-btn-danger" :disabled="cancelBusy || cancelBlocked" @click="confirmCancel">
+              {{ cancelBusy ? 'Отмена…' : 'Отменить заявку' }}
+            </button>
+          </footer>
+        </div>
+      </div>
+
       <AssignDiagnosticModal
         v-if="assignOpen"
         :recipient-id="recipientId"
@@ -1047,9 +1131,6 @@ const scanRows = ref([]);
 const scansLoading = ref(false);
 const scansLoaded = ref(false);
 
-// Какие категории данных сервер закрыл. Список приходит вместе с карточкой:
-// сами поля при этом не присылаются вовсе, здесь только признак «закрыто»,
-// чтобы интерфейс знал, где рисовать заглушку с кнопкой.
 const hiddenCategories = ref([]);
 const scansLocked = ref(false);
 const isLocked = (category) => hiddenCategories.value.includes(category);
@@ -1066,7 +1147,56 @@ const assignments = ref([]);
 const assignmentsLoading = ref(false);
 const todayStr = new Date().toISOString().slice(0, 10);
 const publishedAssignments = computed(() => assignments.value.filter(a => a.published));
-const diagCount = computed(() => assignments.value.length);
+
+const sessions = ref([]);
+const activeSessions = computed(
+  () => sessions.value.filter((s) => s.status === 'open' || s.status === 'in_progress')
+);
+const diagCount = computed(
+  () => assignments.value.length + activeSessions.value.filter((s) => !s.total).length
+);
+
+const sessionStatus = (s) => {
+  if (!s.total) return { label: 'Никто ещё не взял', tone: 'amber' };
+  if (s.fullyCompleted) return { label: 'Все этапы заполнены', tone: 'sage' };
+  return { label: `Заполнено ${s.completed} из ${s.total}`, tone: 'amber' };
+};
+
+const canCancelSession = computed(() => authStore.isAdmin || authStore.isEmployee);
+const cancelTarget = ref(null);
+const cancelBusy = ref(false);
+const cancelError = ref('');
+const cancelBlocked = computed(
+  () => !!cancelTarget.value && !authStore.isAdmin && cancelTarget.value.completed > 0
+);
+
+const askCancel = (s) => {
+  cancelError.value = '';
+  cancelTarget.value = s;
+};
+const closeCancel = () => {
+  if (cancelBusy.value) return;
+  cancelTarget.value = null;
+  cancelError.value = '';
+};
+const confirmCancel = async () => {
+  if (!cancelTarget.value || cancelBusy.value) return;
+  cancelBusy.value = true;
+  cancelError.value = '';
+  try {
+    await api.post(`/schedule/sessions/${cancelTarget.value.id}/cancel`);
+    cancelTarget.value = null;
+    await loadAssignments();
+    agendaLoaded.value = false;
+    loadAgenda();
+    loadReadiness();
+    notifySaved('Заявка на диагностику отменена');
+  } catch (err) {
+    cancelError.value = err?.response?.data?.message || 'Не удалось отменить заявку';
+  } finally {
+    cancelBusy.value = false;
+  }
+};
 
 const groupChanged = computed(
   () => (selectedGroupId.value ?? null) !== (recipient.value?.groupId ?? null)
@@ -1137,6 +1267,7 @@ const onAssigned = () => {
   agendaLoaded.value = false;
   loadAgenda();
   loadReadiness();
+  loadAssignments();
 };
 
 const doc = computed(() => recipient.value?.docs?.[0] || null);
@@ -1155,6 +1286,12 @@ const crgShort = computed(() => recipient.value?.crgMain?.code || '');
 const repPhoneHref = computed(() => {
   const p = recipient.value?.representative?.telephone;
   return p ? 'tel:' + String(p).replace(/[^\d+]/g, '') : '';
+});
+
+const familyStatuses = computed(() => {
+  const list = recipient.value?.representative?.familyStatuses;
+  if (!Array.isArray(list) || !list.length) return [];
+  return [...list].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.id - b.id);
 });
 const programDays = computed(() => {
   const c = recipient.value?.createdAt;
@@ -1511,8 +1648,6 @@ const loadRecipient = async () => {
   }
 };
 
-// После выдачи доступа данные надо забрать заново: сервер их в прошлый раз
-// не присылал, поэтому «показать спрятанное» на клиенте нечего.
 const onUnlocked = async (category) => {
   await loadRecipient();
   if (category === 'scans') await loadScans(true);
@@ -1524,8 +1659,6 @@ const loadScans = async (force = false) => {
   scansLoading.value = true;
   try {
     const { data } = await api.get(`/recipients/${recipientId}/scans`, { params: { all: 1 } });
-    // Ответ теперь всегда объект: { locked, scans }. Массив тоже принимаем —
-    // на случай, если фронт окажется новее запущенного бэкенда.
     const list = Array.isArray(data) ? data : (data?.scans || []);
     scansLocked.value = data?.locked === true;
     scanRows.value = list;
@@ -1716,9 +1849,9 @@ const loadAssignments = async () => {
   assignmentsLoading.value = true;
   try {
     const { data } = await api.get('/schedule/sessions', { params: { recipientId } });
-    const sessions = Array.isArray(data) ? data : [];
-    assignments.value = sessions
-      .filter((s) => s.status !== 'cancelled')
+    const list = (Array.isArray(data) ? data : []).filter((s) => s.status !== 'cancelled');
+    sessions.value = list;
+    assignments.value = list
       .flatMap((s) => (s.blocks || []).map((b) => ({
         id: b.id,
         direction: b.direction || null,
@@ -1729,6 +1862,7 @@ const loadAssignments = async () => {
       })));
   } catch (err) {
     console.error('loadAssignments', err);
+    sessions.value = [];
     assignments.value = [];
   } finally {
     assignmentsLoading.value = false;
@@ -1934,9 +2068,6 @@ onMounted(async () => {
   border: 0.0625rem solid var(--line); background: var(--paper); box-shadow: var(--shadow-sm);
   overflow: hidden;
 }
-/* Один и тот же зелёный задник на всех карточках. Раньше в градиенте была
-   тёплая нота (--amber-50) и он читался скорее бежевым; теперь только оттенки
-   sage, поэтому фон однозначно зелёный. Менять цвет — здесь, одна строка. */
 .hero-banner {
   height: 8rem;
   background: linear-gradient(135deg, var(--sage-400), var(--sage-100) 60%, var(--sage-50));
@@ -2179,9 +2310,30 @@ onMounted(async () => {
 
 .rd-inline-empty { text-align: center; padding: 1.5rem; color: var(--ink-muted); font-size: 0.9375rem; }
 
-/* Отступ между открытой частью карточки и закрытыми блоками. Задан здесь,
-   а не внутри LockedBlock: сам компонент не должен знать, в какой вёрстке
-   его разместили. */
+.rd-fs-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.625rem; }
+.rd-fs-item {
+  padding: 0.6875rem 0.875rem;
+  background: var(--sage-50);
+  border: 0.0625rem solid var(--sage-100);
+  border-radius: 0.625rem;
+}
+.rd-fs-name {
+  display: block;
+  font-size: 0.9375rem; font-weight: 600; color: var(--sage-700);
+}
+.rd-fs-hint {
+  display: block; margin-top: 0.1875rem;
+  font-size: 0.8125rem; line-height: 1.45; color: var(--ink-muted);
+}
+.rd-fs-note {
+  margin: 0.875rem 0 0;
+  font-size: 0.8125rem; line-height: 1.5; color: var(--ink-subtle, var(--ink-muted));
+}
+
+@media (min-width: 45rem) {
+  .rd-fs-list { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
 .rd-locked { display: block; margin-top: 0.875rem; }
 
 .rd-scan-badge {
@@ -2339,6 +2491,9 @@ onMounted(async () => {
 .rd-cancel-btn { background: transparent; border: 0.0625rem solid var(--line-strong); color: var(--ink-muted); padding: 0.3rem 0.7rem; border-radius: var(--radius-md); cursor: pointer; font-size: 0.82rem; }
 .rd-cancel-btn:hover:not(:disabled) { border-color: var(--rose-500); color: var(--rose-500); }
 .rd-cancel-btn:disabled { opacity: 0.5; cursor: default; }
+.rd-col-act { width: 1%; white-space: nowrap; text-align: right; }
+.rd-cancel-hint { margin: 0.6rem 0 0; font-size: 0.8125rem; color: var(--ink-muted); line-height: 1.45; }
+.rd-cancel-note { margin: 0; font-size: 0.9375rem; color: var(--ink); line-height: 1.5; }
 
 .rd-result { border: 0.0625rem solid var(--line-soft); border-radius: var(--radius-md); padding: 0.9rem 1rem; margin-bottom: 0.85rem; background: #FAF7F0; }
 .rd-result-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem 0.75rem; margin-bottom: 0.65rem; }
@@ -2356,17 +2511,10 @@ onMounted(async () => {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
 }
 
-/* Фото ребёнка живёт только в кружке. Кружок сделан кнопкой, чтобы фото
-   по-прежнему открывалось на весь экран — и мышкой, и с клавиатуры: раньше
-   для этого кликали по баннеру, а баннера с фото больше нет.
-   Размеры не задаём — кнопка обжимает фото, поэтому кружок остался ровно
-   таким же, каким был, при любом box-sizing. */
 .hero-avatar-btn {
   position: relative; display: inline-flex;
   padding: 0; border: none; background: none; border-radius: 50%;
   cursor: zoom-in;
-  /* Подъём кружка на баннер переехал сюда с .hero-avatar-img: иначе значок
-     лупы остался бы внизу, оторванным от самого фото. */
   transform: translateY(-3rem); margin-bottom: -2rem;
 }
 .hero-avatar-btn .hero-avatar-img {
@@ -2597,6 +2745,8 @@ onMounted(async () => {
 .du-btn-ghost:hover:not(:disabled) { background: var(--paper-sunken); border-color: var(--ink-muted); }
 .du-btn-primary { background: var(--sage-900); color: #F4F8EC; border-color: var(--sage-900); }
 .du-btn-primary:hover:not(:disabled) { background: var(--sage-800); border-color: var(--sage-800); }
+.du-btn-danger { background: var(--rose-700); color: #FDF3EF; border-color: var(--rose-700); }
+.du-btn-danger:hover:not(:disabled) { background: var(--rose-500); border-color: var(--rose-500); }
 
 @media (max-width: 75rem) {
   .grid { grid-template-columns: 1fr; }

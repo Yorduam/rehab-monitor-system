@@ -1,10 +1,3 @@
-// Одноразовая миграция: добавляет столбцы отметки посещения в таблицу Recipients.
-//   attendanceStatus ENUM('present','absent','left') NULL
-//   attendanceDate   DATE NULL
-// Сервер работает без sequelize.sync(), поэтому колонки добавляем вручную.
-// Скрипт идемпотентен: проверяет наличие столбца перед ALTER.
-//
-// Запуск:  node scripts/addAttendanceColumns.js
 import { sequelize } from '../models/index.js';
 
 async function columnExists(table, column) {

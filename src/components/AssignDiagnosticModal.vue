@@ -76,6 +76,17 @@
               </label>
             </div>
 
+            <div v-if="conflict" class="ad-conflict">
+              <p class="ad-conflict-text">
+                На этого реабилитанта уже есть активная заявка на диагностику
+                <b>{{ humanDate(conflict.date) }}</b>. Если дата назначена по ошибке —
+                отмените прежнюю заявку и сразу назначьте новую на нужный день.
+              </p>
+              <button type="button" class="ad-btn ad-btn-danger" :disabled="cancelling" @click="cancelConflict">
+                {{ cancelling ? 'Отменяем…' : 'Отменить заявку от ' + humanDate(conflict.date) }}
+              </button>
+            </div>
+
             <p v-if="error" class="ad-error">{{ error }}</p>
             <ul v-if="serverBlockers.length" class="ad-blockers ad-blockers-tight">
               <li v-for="(b, i) in serverBlockers" :key="'sb' + i" class="ad-blocker" :class="b.severity === 'error' ? 'error' : 'warn'">
@@ -110,6 +121,7 @@ import { ref, computed, onMounted } from 'vue';
 import api from '../api';
 import { usePageStore } from '../stores/page';
 import { useAuthStore } from '../stores/auth';
+import { notifySaved } from '../utils/toast';
 
 const props = defineProps({
   recipientId: { type: [Number, String], required: true },
@@ -127,8 +139,18 @@ const error = ref('');
 const success = ref('');
 const serverBlockers = ref([]);
 const forceConfirm = ref(false);
+const conflict = ref(null);
+const cancelling = ref(false);
 
-const todayStr = new Date().toISOString().slice(0, 10);
+const localDate = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+const humanDate = (v) => {
+  const [y, m, d] = String(v || '').split('-');
+  return y && m && d ? `${d}.${m}.${y}` : String(v || '');
+};
+
+const todayStr = localDate();
 const form = ref({
   date: todayStr,
   note: ''
@@ -170,6 +192,7 @@ const submit = async () => {
   saving.value = true;
   error.value = '';
   serverBlockers.value = [];
+  conflict.value = null;
   try {
     const { data } = await api.post('/schedule/sessions', {
       recipientId: Number(props.recipientId),
@@ -178,15 +201,38 @@ const submit = async () => {
       force: forceConfirm.value
     });
     success.value = 'Заявка на диагностику создана. Специалисты увидят её в списке свободных заявок и возьмут реабилитанта сами.';
+    notifySaved(`Диагностика назначена на дату — ${humanDate(data?.date || form.value.date)}`);
     emit('assigned', data);
   } catch (err) {
     console.error('assignDiagnostic', err);
     const res = err?.response;
-    error.value = res?.data?.message || 'Не удалось назначить диагностику';
+    if (res?.status === 409 && res?.data?.sessionId) {
+      conflict.value = { sessionId: res.data.sessionId, date: res.data.date || null };
+      error.value = '';
+    } else {
+      error.value = res?.data?.message || 'Не удалось назначить диагностику';
+    }
     if (Array.isArray(res?.data?.blockers)) serverBlockers.value = res.data.blockers;
     if (res?.data?.readiness) readiness.value = res.data.readiness;
   } finally {
     saving.value = false;
+  }
+};
+
+const cancelConflict = async () => {
+  if (!conflict.value || cancelling.value) return;
+  cancelling.value = true;
+  error.value = '';
+  try {
+    await api.post(`/schedule/sessions/${conflict.value.sessionId}/cancel`);
+    notifySaved(`Заявка на диагностику от ${humanDate(conflict.value.date)} отменена`);
+    conflict.value = null;
+    emit('assigned', null);
+  } catch (err) {
+    console.error('cancelConflict', err);
+    error.value = err?.response?.data?.message || 'Не удалось отменить прежнюю заявку';
+  } finally {
+    cancelling.value = false;
   }
 };
 
@@ -327,6 +373,16 @@ onMounted(() => {
 .ad-btn-ghost:hover:not(:disabled) { background: var(--bg-app); color: var(--text-primary); }
 .ad-btn-primary { background: var(--accent); color: #fff; }
 .ad-btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.ad-btn-danger { background: #a3341d; color: #fff; }
+.ad-btn-danger:hover:not(:disabled) { background: #832a17; }
+
+.ad-conflict {
+  margin-top: .7rem; padding: .7rem .75rem;
+  border: 1px solid #f0cfbe; border-radius: var(--radius-md);
+  background: #fdf0ea; color: #92401d;
+}
+.ad-conflict-text { font-size: .82rem; line-height: 1.45; }
+.ad-conflict .ad-btn { margin-top: .65rem; }
 
 @keyframes adFade { from { opacity: 0; } to { opacity: 1; } }
 @keyframes adUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }

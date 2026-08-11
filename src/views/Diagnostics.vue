@@ -1464,6 +1464,21 @@
             </div>
           </article>
 
+          <section class="peers" id="peers-panel" v-if="isTeacher" aria-labelledby="peers-title">
+            <header class="peers-head">
+              <div class="peers-head-main">
+                <span class="peers-kicker">Этапы диагностики</span>
+                <h2 class="peers-title" id="peers-title">Результаты других специалистов</h2>
+                <p class="peers-sub">Сначала — общая рекомендация коллеги по итогам его блока. Все параметры раскрываются отдельно, чтобы не мешать вашей работе.</p>
+              </div>
+              <div class="peers-head-side">
+                <span class="peers-live" title="Данные обновляются автоматически"><i class="peers-live-dot" aria-hidden="true"></i>в реальном времени</span>
+                <span class="peers-count" data-role="peers-count"></span>
+              </div>
+            </header>
+            <div class="peers-body" data-role="peers-body" aria-live="polite"></div>
+          </section>
+
         </div>
 
         <aside class="side-nav-wrap" aria-label="Обзор этапов диагностики">
@@ -1500,6 +1515,16 @@
                 <span class="sni-spec" data-role="conclusion-author"></span>
               </span>
               <span class="sni-status empty" aria-label="не начат"></span>
+            </a>
+            <a class="side-nav-item side-nav-item--peers" href="#peers-panel" v-if="isTeacher">
+              <span class="sni-num sni-num--icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+              </span>
+              <span class="sni-body">
+                <span class="sni-name">Коллеги</span>
+                <span class="sni-spec" data-role="peers-nav-note"></span>
+              </span>
+              <span class="sni-status" data-role="peers-nav-status" aria-hidden="true"></span>
             </a>
           </div>
         </aside>
@@ -1554,6 +1579,7 @@ import api from '../api'
 import { fullName } from '../utils/recipient'
 import { usePageStore } from '../stores/page'
 import { useAuthStore } from '../stores/auth'
+import { getBlock as getDiagBlock, SCALE as DIAG_SCALE } from '../utils/diagnosticBlocks'
 
 const pageStore = usePageStore()
 const authStore = useAuthStore()
@@ -1561,6 +1587,9 @@ const authStore = useAuthStore()
 const isTeacher = computed(() => authStore.isTeacher)
 const isEmployee = computed(() => authStore.isEmployee)
 let employeeReadonlyGuards = null
+let peersPoller = null
+let peersClickHandler = null
+let peersVisibilityHandler = null
 const teacherProfileKey = ref('')
 
 const recipientChosen = ref(false)
@@ -1812,6 +1841,7 @@ onMounted(() => {
       if (typeof window.__clearCompletionMarks === 'function') window.__clearCompletionMarks();
       diagnosticsRuntime.blocks = [];
       if (typeof window.__renderBlockAuthors === 'function') window.__renderBlockAuthors();
+      if (typeof window.__renderPeers === 'function') window.__renderPeers();
 
       const recipientId = diagnosticsRuntime.currentRecipient?.id;
       if (!recipientId) return;
@@ -1836,6 +1866,7 @@ onMounted(() => {
         if (typeof window.__applyCompletedBlocks === 'function') window.__applyCompletedBlocks(blocks);
         if (typeof window.__updateConclusionGate === 'function') window.__updateConclusionGate();
         if (typeof window.__renderBlockAuthors === 'function') window.__renderBlockAuthors();
+        if (typeof window.__renderPeers === 'function') window.__renderPeers();
       } catch (err) {
         console.warn('Не удалось загрузить сохранённые результаты диагностики', err);
       }
@@ -3408,6 +3439,8 @@ onMounted(() => {
         });
       }
       window.__applyFormState = applyFormState;
+      window.__blockRootForProfile = blockRootForProfile;
+      window.__formSelectors = { FORM_SEL, FORM_TXT };
 
       const DEFAULT_SIGNED_NOTE = 'Финальное заключение по диагностике';
 
@@ -4380,6 +4413,419 @@ onMounted(() => {
       window.__renderBlockAuthors = renderBlockAuthors;
       renderBlockAuthors();
     })();
+
+    (function () {
+      const PEERS_POLL_MS = 15000;
+
+      const PEER_PROFILE_TITLES = {
+        psy: 'Психолог', log: 'Логопед', afk: 'АФК', izo: 'ИЗО',
+        vocal: 'Вокал', instrument: 'Инструменты', theatre: 'Театр'
+      };
+      const PEER_STAGE_OF = {
+        psy: 'psy', log: 'psy', afk: 'afk',
+        izo: 'soc', theatre: 'soc', vocal: 'soc', instrument: 'soc'
+      };
+      const PEER_STAGE_TITLES = {
+        psy: '01 · Психолог + логопед',
+        afk: '02 · АФК',
+        soc: '03 · Социокультурная'
+      };
+      const PEER_STAGE_ORDER = { psy: 1, afk: 2, soc: 3 };
+      const PEER_ACCENTS = {
+        psy: 'blue', log: 'sage', afk: 'rose',
+        izo: 'plum', theatre: 'amber', vocal: 'teal', instrument: 'teal'
+      };
+
+      const openedPeers = new Set();
+
+      function pqa(selector, root) {
+        return Array.from((root || document).querySelectorAll(selector));
+      }
+
+      const peerProfileOf = (b) => b?.profileKey || b?.direction?.profileKey || '';
+      const peerNameOf = (b) => normalizeSpaces(b?.specialistName || b?.specialist?.fullName || '') || 'Специалист не назначен';
+
+      function peerInitials(name) {
+        const parts = normalizeSpaces(name).split(' ').filter(Boolean);
+        if (!parts.length) return '—';
+        return ((parts[0][0] || '') + (parts[1] ? parts[1][0] : '')).toUpperCase();
+      }
+
+      function cleanText(el, extra) {
+        if (!el) return '';
+        const node = el.cloneNode(true);
+        const sels = ['svg', 'input', '.sr-only', '.ss-icon'].concat(extra || []);
+        node.querySelectorAll(sels.join(', ')).forEach((n) => n.remove());
+        return normalizeSpaces(node.textContent || '');
+      }
+
+      function tidyMultiline(value) {
+        return String(value || '')
+          .split(/\r?\n/)
+          .map((line) => line.replace(/[ \t]+/g, ' ').trim())
+          .filter(Boolean)
+          .join('\n');
+      }
+
+      function valueLabel(el) {
+        if (!el) return '';
+        if (el.classList.contains('scale-tick')) {
+          const v = el.getAttribute('data-val');
+          return (v === null ? cleanText(el) : v) + ' из 10';
+        }
+        if (el.classList.contains('point-btn')) {
+          const pn = cleanText(el.querySelector('.pn'));
+          const body = cleanText(el, ['.pn']);
+          return pn ? body + ' (' + pn + ')' : body;
+        }
+        if (el.classList.contains('level-card')) {
+          return cleanText(el.querySelector('.ln'), ['.badge-num']) || cleanText(el, ['.ld']);
+        }
+        if (el.classList.contains('gmfcs-card')) {
+          const name = cleanText(el.querySelector('.lvname'));
+          return name || cleanText(el, ['.lv', '.lvdesc']);
+        }
+        if (el.classList.contains('theatre-option')) {
+          return cleanText(el.querySelector('.lvl')) || cleanText(el, ['.desc']);
+        }
+        if (el.classList.contains('verdict-option')) {
+          return cleanText(el.querySelector('.vt')) || cleanText(el, ['.vs']);
+        }
+        return cleanText(el, ['.chip-check']);
+      }
+
+      function questionLabel(el) {
+        const row = el.closest('.test-row, .izo-row, .theatre-row, .scale-row');
+        if (row) {
+          const t = row.querySelector('.tn, .it, .tq, .scale-name');
+          if (t) return cleanText(t);
+        }
+        const grp = el.closest('.qgroup');
+        if (grp) {
+          const lab = grp.querySelector('.qlabel-text');
+          if (lab) return cleanText(lab);
+          const legend = grp.querySelector('legend:not(.sr-only)');
+          if (legend) return cleanText(legend);
+        }
+        const control = el.closest('[aria-label]');
+        if (control) return normalizeSpaces(control.getAttribute('aria-label'));
+        return '';
+      }
+
+      function sectionNodeOf(el, root) {
+        const sub = el.closest('.sub-section');
+        if (sub && root.contains(sub)) return sub;
+        const panel = el.closest('.subpanel');
+        if (panel && root.contains(panel)) return panel;
+        return root;
+      }
+
+      function sectionTitleOf(node) {
+        if (!node || !node.querySelector) return '';
+        if (node.classList && node.classList.contains('sub-section')) {
+          return cleanText(node.querySelector('.sub-section-title'));
+        }
+        if (node.classList && node.classList.contains('subpanel')) {
+          return cleanText(node.querySelector('.subpanel-head .t'));
+        }
+        return cleanText(node.querySelector('.stage-info .title'));
+      }
+
+      function peerRootFor(scope) {
+        return typeof window.__blockRootForProfile === 'function'
+          ? window.__blockRootForProfile(scope)
+          : null;
+      }
+
+      function recsFromFormState(fs) {
+        const selectors = window.__formSelectors;
+        if (!selectors || !fs || !Array.isArray(fs.txt)) return '';
+        const root = peerRootFor(fs.scope);
+        if (!root) return '';
+        const els = pqa(selectors.FORM_TXT, root);
+        return tidyMultiline(
+          fs.txt
+            .map((val, i) => (els[i] && els[i].tagName === 'TEXTAREA' ? String(val || '') : ''))
+            .filter((v) => v.trim())
+            .join('\n')
+        );
+      }
+
+      function describeFormState(fs) {
+        const selectors = window.__formSelectors;
+        if (!selectors || !fs || !Array.isArray(fs.sel)) return [];
+        const root = peerRootFor(fs.scope);
+        if (!root) return [];
+        const els = pqa(selectors.FORM_SEL, root);
+        const sections = [];
+        const secMap = new Map();
+        const itemMap = new Map();
+
+        fs.sel.forEach((on, i) => {
+          if (!on) return;
+          const el = els[i];
+          if (!el) return;
+          const value = valueLabel(el);
+          if (!value) return;
+
+          const secNode = sectionNodeOf(el, root);
+          let section = secMap.get(secNode);
+          if (!section) {
+            section = { title: sectionTitleOf(secNode), items: [] };
+            secMap.set(secNode, section);
+            sections.push(section);
+          }
+
+          const qNode = el.closest('.test-row, .izo-row, .theatre-row, .scale-row, .qgroup') || el.parentElement;
+          let item = itemMap.get(qNode);
+          if (!item) {
+            item = { q: questionLabel(el) || 'Без названия', values: [] };
+            itemMap.set(qNode, item);
+            section.items.push(item);
+          }
+          if (!item.values.includes(value)) item.values.push(value);
+        });
+
+        return sections.filter((s) => s.items.length);
+      }
+
+      function describeCriteria(profileKey, criteria) {
+        const block = getDiagBlock(profileKey);
+        if (!block || !criteria) return [];
+        const items = [];
+        block.criteria.forEach((c) => {
+          const raw = criteria[c.id];
+          if (raw === null || raw === undefined || raw === '') return;
+          const point = DIAG_SCALE.find((s) => Number(s.value) === Number(raw));
+          items.push({ q: c.label, values: [(point ? point.label : String(raw)) + ' (' + raw + ')'] });
+        });
+        return items.length ? [{ title: block.label, items }] : [];
+      }
+
+      function peerParams(b) {
+        const res = b && b.results;
+        if (!res) return [];
+        const fromForm = describeFormState(res.formState);
+        if (fromForm.length) return fromForm;
+        return describeCriteria(peerProfileOf(b), res.criteria);
+      }
+
+      function peerRecommendation(b) {
+        const res = b && b.results;
+        const profile = peerProfileOf(b);
+        if (res && Array.isArray(res.blocks)) {
+          const found = res.blocks.find((x) => x && x.id === profile);
+          const recs = tidyMultiline(found && found.recs);
+          if (recs) return recs;
+        }
+        const fromForm = recsFromFormState(res && res.formState);
+        if (fromForm) return fromForm;
+        return tidyMultiline((res && res.comment) || (b && b.comment) || '');
+      }
+
+      function countParams(sections) {
+        return sections.reduce((sum, s) => sum + s.items.length, 0);
+      }
+
+      function peerWhen(b) {
+        if (b.blockStatus === 'completed' && b.completedAt) {
+          const d = new Date(b.completedAt);
+          if (!Number.isNaN(d.getTime())) {
+            return 'Завершено ' + d.toLocaleString('ru-RU', {
+              day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit'
+            });
+          }
+        }
+        if (b.startTime) return 'Приём в ' + String(b.startTime).slice(0, 5);
+        return '';
+      }
+
+      function peerSortKey(b) {
+        const profile = peerProfileOf(b);
+        const stage = PEER_STAGE_OF[profile] || 'soc';
+        return (PEER_STAGE_ORDER[stage] || 9) * 10 + (b.blockStatus === 'completed' ? 0 : 1);
+      }
+
+      function paramsHtml(sections) {
+        return sections.map((sec) => (
+          '<section class="peer-sec">' +
+          (sec.title ? '<h4 class="peer-sec-title">' + escapeHtml(sec.title) + '</h4>' : '') +
+          '<div class="peer-sec-list">' +
+          sec.items.map((it) => (
+            '<div class="peer-param">' +
+            '<span class="peer-param-q">' + escapeHtml(it.q) + '</span>' +
+            '<span class="peer-param-v">' +
+            it.values.map((v) => '<span class="peer-val">' + escapeHtml(v) + '</span>').join('') +
+            '</span>' +
+            '</div>'
+          )).join('') +
+          '</div></section>'
+        )).join('');
+      }
+
+      function peerCardHtml(b) {
+        const profile = peerProfileOf(b);
+        const stage = PEER_STAGE_OF[profile] || '';
+        const accent = PEER_ACCENTS[profile] || 'sage';
+        const done = b.blockStatus === 'completed';
+        const hidden = b.resultsHidden === true;
+        const name = peerNameOf(b);
+        const id = String(b.id);
+        const open = openedPeers.has(id);
+
+        const metaParts = [PEER_PROFILE_TITLES[profile] || 'Специалист'];
+        if (PEER_STAGE_TITLES[stage]) metaParts.push(PEER_STAGE_TITLES[stage]);
+        if (b.cabinet) metaParts.push('каб. ' + b.cabinet);
+
+        let main;
+        let foot;
+        if (hidden) {
+          main =
+            '<div class="peer-lock">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">' +
+            '<rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>' +
+            '<span>Результаты этого специалиста вам не видны. Право на просмотр результатов других педагогов выдаёт администратор.</span>' +
+            '</div>';
+          foot = '';
+        } else {
+          const rec = peerRecommendation(b);
+          const sections = peerParams(b);
+          const total = countParams(sections);
+
+          main =
+            '<div class="peer-main">' +
+            '<span class="peer-lead-label">Общая рекомендация</span>' +
+            (rec
+              ? '<div class="peer-lead">' + tidyMultiline(rec).split('\n').map((line) => '<p>' + escapeHtml(line) + '</p>').join('') + '</div>'
+              : '<p class="peer-lead is-empty">' + (done ? 'Специалист завершил блок, но текст рекомендации не заполнил.' : 'Рекомендация ещё не заполнена — блок в работе.') + '</p>') +
+            '</div>';
+
+          foot =
+            '<div class="peer-foot">' +
+            (total
+              ? '<button type="button" class="peer-toggle" data-peer-toggle="' + escapeHtml(id) + '" aria-expanded="' + (open ? 'true' : 'false') + '" aria-controls="peer-params-' + escapeHtml(id) + '">' +
+                '<svg class="peer-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>' +
+                '<span class="peer-toggle-label">' + (open ? 'Скрыть параметры' : 'Все параметры') + '</span>' +
+                '<span class="peer-toggle-count">' + total + '</span>' +
+                '</button>'
+              : '<span class="peer-noparams">Параметры пока не заполнены</span>') +
+            '<span class="peer-when">' + escapeHtml(peerWhen(b)) + '</span>' +
+            '</div>' +
+            (total
+              ? '<div class="peer-params" id="peer-params-' + escapeHtml(id) + '"' + (open ? '' : ' hidden') + '>' + paramsHtml(sections) + '</div>'
+              : '');
+        }
+
+        return (
+          '<article class="peer-card accent-' + accent + (done ? ' is-done' : '') + (hidden ? ' is-locked' : '') + '" data-peer-id="' + escapeHtml(id) + '">' +
+          '<header class="peer-head">' +
+          '<span class="peer-av" aria-hidden="true">' + escapeHtml(peerInitials(name)) + '</span>' +
+          '<span class="peer-id">' +
+          '<span class="peer-name">' + escapeHtml(name) + '</span>' +
+          '<span class="peer-meta">' + escapeHtml(metaParts.join(' · ')) + '</span>' +
+          '</span>' +
+          '<span class="peer-state' + (done ? ' is-done' : '') + '">' + (done ? 'Завершён' : 'В работе') + '</span>' +
+          '</header>' +
+          main + foot +
+          '</article>'
+        );
+      }
+
+      function renderPeers() {
+        const panel = document.getElementById('peers-panel');
+        if (!panel) return;
+        const body = panel.querySelector('[data-role="peers-body"]');
+        if (!body) return;
+
+        const list = (diagnosticsRuntime.blocks || [])
+          .filter((b) => b && b.isMine !== true)
+          .slice()
+          .sort((a, b) => peerSortKey(a) - peerSortKey(b));
+
+        const doneCount = list.filter((b) => b.blockStatus === 'completed').length;
+
+        const countEl = panel.querySelector('[data-role="peers-count"]');
+        if (countEl) {
+          countEl.textContent = list.length
+            ? 'заполнено ' + doneCount + ' из ' + list.length
+            : '';
+        }
+
+        const navNote = document.querySelector('[data-role="peers-nav-note"]');
+        if (navNote) {
+          navNote.textContent = list.length ? doneCount + ' из ' + list.length : 'нет коллег';
+        }
+        const navStatus = document.querySelector('[data-role="peers-nav-status"]');
+        if (navStatus) {
+          navStatus.className = 'sni-status ' + (!list.length ? 'empty' : (doneCount === list.length ? 'done' : 'progress'));
+        }
+
+        if (!list.length) {
+          body.innerHTML =
+            '<div class="peers-empty">' +
+            '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">' +
+            '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>' +
+            '<path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>' +
+            '<p>По этому реабилитанту других специалистов пока нет. Как только коллеги возьмут свои блоки, их результаты появятся здесь автоматически.</p>' +
+            '</div>';
+          return;
+        }
+
+        body.innerHTML = list.map(peerCardHtml).join('');
+      }
+
+      window.__renderPeers = renderPeers;
+
+      if (peersClickHandler) document.removeEventListener('click', peersClickHandler);
+      peersClickHandler = (e) => {
+        const btn = e.target.closest?.('[data-peer-toggle]');
+        if (!btn) return;
+        const id = btn.getAttribute('data-peer-toggle');
+        const box = document.getElementById('peer-params-' + id);
+        if (!box) return;
+        const willOpen = box.hasAttribute('hidden');
+        if (willOpen) {
+          box.removeAttribute('hidden');
+          openedPeers.add(id);
+        } else {
+          box.setAttribute('hidden', '');
+          openedPeers.delete(id);
+        }
+        btn.setAttribute('aria-expanded', willOpen ? 'true' : 'false');
+        const label = btn.querySelector('.peer-toggle-label');
+        if (label) label.textContent = willOpen ? 'Скрыть параметры' : 'Все параметры';
+        btn.closest('.peer-card')?.classList.toggle('is-open', willOpen);
+      };
+      document.addEventListener('click', peersClickHandler);
+
+      async function refreshPeers() {
+        if (!document.getElementById('peers-panel')) return;
+        if (document.hidden) return;
+        const recipientId = diagnosticsRuntime.currentRecipient?.id;
+        if (!recipientId) return;
+        try {
+          const { data } = await api.get('/schedule/sessions', { params: { recipientId } });
+          const live = (Array.isArray(data) ? data : []).filter((s) => s.status !== 'cancelled');
+          if (!live.length) return;
+          const target = live.reduce((a, b) => (Number(b.id) > Number(a.id) ? b : a));
+          if (diagnosticsRuntime.sessionId && Number(target.id) !== Number(diagnosticsRuntime.sessionId)) return;
+          diagnosticsRuntime.blocks = target.blocks || [];
+          renderPeers();
+          if (typeof window.__renderBlockAuthors === 'function') window.__renderBlockAuthors();
+        } catch (_) {
+        }
+      }
+
+      renderPeers();
+      if (isTeacher.value) {
+        peersPoller = window.setInterval(refreshPeers, PEERS_POLL_MS);
+        if (peersVisibilityHandler) document.removeEventListener('visibilitychange', peersVisibilityHandler);
+        peersVisibilityHandler = () => {
+          if (!document.hidden) refreshPeers();
+        };
+        document.addEventListener('visibilitychange', peersVisibilityHandler);
+      }
+    })();
     });
 
 onUnmounted(() => {
@@ -4387,6 +4833,19 @@ onUnmounted(() => {
   document.documentElement.style.removeProperty('--fab-offset');
   window.__forcedProfileKey = '';
   window.__openRecipientPicker = null;
+  window.__renderPeers = null;
+  if (peersPoller) {
+    clearInterval(peersPoller);
+    peersPoller = null;
+  }
+  if (peersClickHandler) {
+    document.removeEventListener('click', peersClickHandler);
+    peersClickHandler = null;
+  }
+  if (peersVisibilityHandler) {
+    document.removeEventListener('visibilitychange', peersVisibilityHandler);
+    peersVisibilityHandler = null;
+  }
   if (employeeReadonlyGuards) {
     employeeReadonlyGuards.forEach(([evt, fn]) => document.removeEventListener(evt, fn, true));
     employeeReadonlyGuards = null;
@@ -6942,5 +7401,297 @@ onUnmounted(() => {
       .diagnostics-page .content{ padding: 1rem; max-width: none; }
       .diagnostics-page .stage-card.collapsed .stage-body{ display: block !important; }
       .diagnostics-page .stage-card, .diagnostics-page .hero, .diagnostics-page .route{ box-shadow: none; break-inside: avoid; }
+    }
+
+    .diagnostics-page .peers{
+      margin-top: 1rem;
+      background: var(--paper);
+      border: 0.0625rem solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-xs);
+      overflow: hidden;
+      scroll-margin-top: var(--stick-offset, 7.5rem);
+    }
+    .diagnostics-page .peers-head{
+      display: flex;
+      align-items: flex-start;
+      gap: 1rem;
+      padding: 1.0625rem 1.25rem;
+      background: linear-gradient(180deg, var(--paper-soft) 0%, var(--paper) 100%);
+      border-bottom: 0.0625rem solid var(--line);
+    }
+    .diagnostics-page .peers-head-main{ flex: 1; min-width: 0; }
+    .diagnostics-page .peers-kicker{
+      display: block;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--ink-subtle);
+    }
+    .diagnostics-page .peers-title{
+      font-family: var(--font-serif);
+      font-size: 1.0625rem;
+      font-weight: 600;
+      line-height: 1.25;
+      color: var(--ink-strong);
+      margin-top: 0.1875rem;
+    }
+    .diagnostics-page .peers-sub{
+      margin-top: 0.375rem;
+      font-size: 0.8125rem;
+      line-height: 1.45;
+      color: var(--ink-muted);
+      max-width: 46rem;
+    }
+    .diagnostics-page .peers-head-side{
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 0.375rem;
+      flex: 0 0 auto;
+      padding-top: 0.125rem;
+    }
+    .diagnostics-page .peers-live{
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.25rem 0.5rem 0.25rem 0.4375rem;
+      border-radius: 999px;
+      background: var(--sage-50);
+      border: 0.0625rem solid var(--sage-100);
+      color: var(--sage-800);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .diagnostics-page .peers-live-dot{
+      width: 0.4375rem; height: 0.4375rem;
+      border-radius: 50%;
+      background: var(--sage-500);
+      animation: peersPulse 2s ease-in-out infinite;
+    }
+    @keyframes peersPulse{ 0%,100%{ opacity: 1; } 50%{ opacity: 0.25; } }
+    .diagnostics-page .peers-count{
+      font-size: 0.75rem;
+      color: var(--ink-subtle);
+      font-feature-settings: "tnum";
+      white-space: nowrap;
+    }
+
+    .diagnostics-page .peers-body{ padding: 0.875rem 1.25rem 1.125rem; }
+    .diagnostics-page .peers-empty{
+      display: flex;
+      align-items: center;
+      gap: 0.875rem;
+      padding: 1rem 1.125rem;
+      border: 0.0625rem dashed var(--line-strong);
+      border-radius: var(--radius-md);
+      background: var(--paper-soft);
+      color: var(--ink-muted);
+      font-size: 0.8125rem;
+      line-height: 1.5;
+    }
+    .diagnostics-page .peers-empty svg{ width: 1.5rem; height: 1.5rem; flex: 0 0 1.5rem; color: var(--ink-subtle); }
+
+    .diagnostics-page .peer-card{
+      border: 0.0625rem solid var(--line);
+      border-left: 0.1875rem solid var(--line-strong);
+      border-radius: var(--radius-md);
+      background: var(--paper);
+      padding: 0.875rem 1rem 0.75rem;
+      transition: box-shadow 0.15s ease, border-color 0.15s ease;
+    }
+    .diagnostics-page .peer-card + .peer-card{ margin-top: 0.625rem; }
+    .diagnostics-page .peer-card:hover{ box-shadow: var(--shadow-sm); }
+    .diagnostics-page .peer-card.accent-blue{ border-left-color: var(--blue-500); }
+    .diagnostics-page .peer-card.accent-sage{ border-left-color: var(--sage-500); }
+    .diagnostics-page .peer-card.accent-rose{ border-left-color: var(--rose-500); }
+    .diagnostics-page .peer-card.accent-plum{ border-left-color: var(--plum-500); }
+    .diagnostics-page .peer-card.accent-amber{ border-left-color: var(--amber-500); }
+    .diagnostics-page .peer-card.accent-teal{ border-left-color: var(--teal-500); }
+    .diagnostics-page .peer-card.is-locked{ border-left-color: var(--line-strong); background: var(--paper-soft); }
+
+    .diagnostics-page .peer-head{ display: flex; align-items: center; gap: 0.625rem; }
+    .diagnostics-page .peer-av{
+      width: 1.875rem; height: 1.875rem;
+      flex: 0 0 1.875rem;
+      border-radius: 50%;
+      background: var(--paper-sunken);
+      color: var(--ink-muted);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+    .diagnostics-page .peer-card.is-done .peer-av{ background: var(--sage-500); color: #FFFFFF; }
+    .diagnostics-page .peer-id{ flex: 1; min-width: 0; display: block; }
+    .diagnostics-page .peer-name{
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: var(--ink-strong);
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .diagnostics-page .peer-meta{
+      display: block;
+      font-size: 0.75rem;
+      color: var(--ink-subtle);
+      line-height: 1.3;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .diagnostics-page .peer-state{
+      flex: 0 0 auto;
+      padding: 0.1875rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.6875rem;
+      font-weight: 600;
+      background: var(--amber-50);
+      border: 0.0625rem solid var(--amber-100);
+      color: var(--amber-700);
+      white-space: nowrap;
+    }
+    .diagnostics-page .peer-state.is-done{
+      background: var(--sage-50);
+      border-color: var(--sage-100);
+      color: var(--sage-800);
+    }
+
+    .diagnostics-page .peer-main{ margin-top: 0.75rem; }
+    .diagnostics-page .peer-lead-label{
+      display: block;
+      font-size: 0.6875rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--ink-subtle);
+      margin-bottom: 0.3125rem;
+    }
+    .diagnostics-page .peer-lead{
+      border-left: 0.125rem solid var(--line);
+      padding-left: 0.75rem;
+      font-size: 0.875rem;
+      line-height: 1.55;
+      color: var(--ink);
+    }
+    .diagnostics-page .peer-lead p + p{ margin-top: 0.375rem; }
+    .diagnostics-page .peer-lead.is-empty{
+      border-left-style: dashed;
+      color: var(--ink-subtle);
+      font-style: italic;
+      font-size: 0.8125rem;
+    }
+
+    .diagnostics-page .peer-lock{
+      margin-top: 0.75rem;
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      padding: 0.625rem 0.75rem;
+      border-radius: var(--radius-sm);
+      background: var(--paper-sunken);
+      border: 0.0625rem solid var(--line);
+      color: var(--ink-muted);
+      font-size: 0.8125rem;
+      line-height: 1.45;
+    }
+    .diagnostics-page .peer-lock svg{ width: 1rem; height: 1rem; flex: 0 0 1rem; margin-top: 0.125rem; color: var(--ink-subtle); }
+
+    .diagnostics-page .peer-foot{
+      margin-top: 0.75rem;
+      padding-top: 0.625rem;
+      border-top: 0.0625rem dashed var(--line);
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .diagnostics-page .peer-toggle{
+      display: inline-flex;
+      align-items: center;
+      gap: 0.375rem;
+      padding: 0.3125rem 0.625rem 0.3125rem 0.4375rem;
+      border-radius: 0.4375rem;
+      border: 0.0625rem solid var(--line);
+      background: var(--paper-soft);
+      color: var(--ink-muted);
+      font-size: 0.8125rem;
+      font-weight: 500;
+      transition: background 0.14s, color 0.14s, border-color 0.14s;
+    }
+    .diagnostics-page .peer-toggle:hover{ background: var(--paper-sunken); color: var(--ink-strong); border-color: var(--line-strong); }
+    .diagnostics-page .peer-toggle:focus-visible{ box-shadow: var(--focus-ring); }
+    .diagnostics-page .peer-chev{ width: 0.875rem; height: 0.875rem; transition: transform 0.18s ease; }
+    .diagnostics-page .peer-card.is-open .peer-chev{ transform: rotate(180deg); }
+    .diagnostics-page .peer-toggle-count{
+      min-width: 1.125rem;
+      padding: 0 0.25rem;
+      border-radius: 999px;
+      background: var(--paper-sunken);
+      color: var(--ink-subtle);
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-align: center;
+      font-feature-settings: "tnum";
+    }
+    .diagnostics-page .peer-noparams{ font-size: 0.8125rem; color: var(--ink-subtle); font-style: italic; }
+    .diagnostics-page .peer-when{ margin-left: auto; font-size: 0.75rem; color: var(--ink-subtle); white-space: nowrap; }
+
+    .diagnostics-page .peer-params{
+      margin-top: 0.75rem;
+      padding: 0.75rem 0.875rem;
+      border-radius: var(--radius-sm);
+      background: var(--paper-soft);
+      border: 0.0625rem solid var(--line-soft);
+    }
+    .diagnostics-page .peer-params[hidden]{ display: none; }
+    .diagnostics-page .peer-sec + .peer-sec{ margin-top: 0.875rem; padding-top: 0.75rem; border-top: 0.0625rem solid var(--line); }
+    .diagnostics-page .peer-sec-title{
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--ink-subtle);
+      margin-bottom: 0.5rem;
+    }
+    .diagnostics-page .peer-param{
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr);
+      gap: 0.5rem 0.875rem;
+      align-items: baseline;
+      padding: 0.3125rem 0;
+    }
+    .diagnostics-page .peer-param + .peer-param{ border-top: 0.0625rem dotted var(--line); }
+    .diagnostics-page .peer-param-q{ font-size: 0.8125rem; color: var(--ink-muted); line-height: 1.4; }
+    .diagnostics-page .peer-param-v{ display: flex; flex-wrap: wrap; gap: 0.3125rem; }
+    .diagnostics-page .peer-val{
+      display: inline-block;
+      padding: 0.125rem 0.4375rem;
+      border-radius: 0.3125rem;
+      background: var(--paper);
+      border: 0.0625rem solid var(--line);
+      color: var(--ink-strong);
+      font-size: 0.8125rem;
+      font-weight: 500;
+      line-height: 1.35;
+    }
+
+    .diagnostics-page .side-nav-item--peers{ margin-top: 0.25rem; border-top: 0.0625rem solid var(--line-soft); padding-top: 0.625rem; }
+    .diagnostics-page .side-nav-item--peers .sni-num--icon{ display: inline-flex; align-items: center; justify-content: center; color: var(--ink-subtle); }
+    .diagnostics-page .side-nav-item--peers .sni-num--icon svg{ width: 0.9375rem; height: 0.9375rem; }
+    .diagnostics-page .side-nav-item--peers .sni-name,
+    .diagnostics-page .side-nav-item--peers .sni-spec{ display: block; }
+
+    @media (max-width: 56rem){
+      .diagnostics-page .peers-head{ flex-direction: column; gap: 0.625rem; }
+      .diagnostics-page .peers-head-side{ align-items: flex-start; }
+      .diagnostics-page .peer-param{ grid-template-columns: 1fr; gap: 0.25rem; }
+      .diagnostics-page .peer-when{ display: none; }
     }
 </style>

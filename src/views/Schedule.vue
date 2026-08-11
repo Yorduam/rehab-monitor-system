@@ -428,6 +428,10 @@ function pad(n) { return String(n).padStart(2, '0'); }
 function toYmd(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
 function fromYmd(s) { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); }
 function hhmm(t) { return t ? String(t).slice(0, 5) : ''; }
+function humanDate(v) {
+  const [y, m, d] = String(v || '').split('-');
+  return y && m && d ? `${d}.${m}.${y}` : String(v || '');
+}
 function toMin(t) { const [h, m] = String(t).split(':'); return parseInt(h, 10) * 60 + parseInt(m, 10); }
 
 const WEEK = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
@@ -696,15 +700,16 @@ async function submitCreate() {
       if (!form.recipientId) {
         createError.value = 'Выберите реабилитанта.'; submitting.value = false; return;
       }
-      await api.post('/schedule/sessions', {
+      const { data: session } = await api.post('/schedule/sessions', {
         recipientId: form.recipientId,
         date: form.date,
         note: form.comment || null
       });
+      const when = session?.date || form.date;
       createOpen.value = false;
       resetForm();
       await switchToPool();
-      notifySaved('Заявка на диагностику создана');
+      notifySaved(`Диагностика назначена на дату — ${humanDate(when)}`);
       return;
     }
 

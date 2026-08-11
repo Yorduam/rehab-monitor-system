@@ -1,14 +1,3 @@
-// Одноразовая миграция под модуль «Обновление документов с сохранением истории».
-//
-//   1) CREATE TABLE RecipientDocVersions — снимки прежних значений анкетных
-//      документов (RecipientDocs) + кто, когда и по какой причине обновил.
-//   2) ALTER TABLE RecipientScanDocs — колонки аудита загрузки файлов:
-//      uploadedBy, uploadedAt, updateReason, replacesScanId, isCurrent.
-//
-// Сервер работает без sequelize.sync(), поэтому схему меняем вручную.
-// Скрипт идемпотентен: проверяет наличие таблицы/столбца перед изменением.
-//
-// Запуск:  node scripts/addDocHistory.js
 import { sequelize } from '../models/index.js';
 
 async function tableExists(table) {
@@ -43,7 +32,6 @@ async function run() {
     await sequelize.authenticate();
     console.log('DB connected.');
 
-    // ---- 1) История анкетных документов ------------------------------------
     if (await tableExists('RecipientDocVersions')) {
       console.log('  = таблица RecipientDocVersions уже есть');
     } else {
@@ -65,7 +53,6 @@ async function run() {
       console.log('  ✓ таблица RecipientDocVersions создана');
     }
 
-    // ---- 2) Аудит загрузки сканов ------------------------------------------
     await addColumn('RecipientScanDocs', 'uploadedBy', '`uploadedBy` INT NULL DEFAULT NULL');
     await addColumn('RecipientScanDocs', 'uploadedAt', '`uploadedAt` DATETIME NULL DEFAULT NULL');
     await addColumn('RecipientScanDocs', 'updateReason', '`updateReason` VARCHAR(500) NULL DEFAULT NULL');

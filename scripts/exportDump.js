@@ -1,18 +1,3 @@
-// Снимает дамп текущей БД и АВТОМАТИЧЕСКИ приводит регистр имён таблиц к тому,
-// что задан в моделях (models/*.js -> tableName). Нужно потому, что на Windows
-// MySQL хранит имена таблиц в нижнем регистре (lower_case_table_names=1) и в
-// дамп они попадают строчными; на регистрозависимом сервере (Linux) такой дамп
-// ломается — код обращается к `CRG`/`Recipients`, а таблица создана как `crg`.
-//
-// Скрипт:
-//   1) читает models/*.js и собирает карту  lower(tableName) -> tableName;
-//   2) вызывает mysqldump (данные, блобы, процедуры, события; без GTID);
-//   3) переписывает имена таблиц в дампе под регистр из моделей;
-//   4) сохраняет готовый к переносу .sql.
-//
-// Запуск:   node scripts/exportDump.js [путь_к_выходному_файлу.sql]
-// Пароль берётся из .env (DB_PASSWORD) и передаётся через MYSQL_PWD, не в argv.
-// Путь к mysqldump можно задать переменной окружения MYSQLDUMP_PATH.
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -23,7 +8,6 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const root = path.resolve(__dirname, '..');
 
-// 1) Карта имён таблиц из моделей:  lower(tableName) -> точный tableName.
 function collectTableNameMap() {
   const modelsDir = path.join(root, 'models');
   const files = fs.readdirSync(modelsDir).filter((f) => f.endsWith('.js') && f !== 'index.js');
@@ -37,7 +21,6 @@ function collectTableNameMap() {
   return map;
 }
 
-// 2) Ищем mysqldump: переменная окружения -> типовые пути установки MySQL -> PATH.
 function resolveMysqldump() {
   if (process.env.MYSQLDUMP_PATH && fs.existsSync(process.env.MYSQLDUMP_PATH)) {
     return process.env.MYSQLDUMP_PATH;
@@ -48,19 +31,14 @@ function resolveMysqldump() {
       const p = path.join(base, d, 'bin', 'mysqldump.exe');
       if (fs.existsSync(p)) return p;
     }
-  } catch { /* каталога может не быть — не Windows/другая установка */ }
-  return 'mysqldump'; // расчёт на то, что он в PATH
+  } catch { }
+  return 'mysqldump';
 }
 
-// 3) Самопроверка готового дампа. Раньше скрипт молча отдавал файл, каким бы он
-// ни получился: если в БД заводили таблицу без модели (например, миграцией),
-// её регистр выправить было нечем — она уезжала строчной, и заказчик ловил
-// «обращается к CRG, а таблица crg». Теперь такой дамп не сохраняется вовсе.
 function verify(sql, map) {
   const found = [...sql.matchAll(/^CREATE TABLE `([^`]+)`/gm)].map((m) => m[1]);
   const problems = [];
 
-  // (а) Таблица есть в дампе, но модели для неё нет — правильный регистр неизвестен.
   const unknown = found.filter((t) => !map.has(t.toLowerCase()));
   if (unknown.length) {
     problems.push(
@@ -69,15 +47,12 @@ function verify(sql, map) {
     );
   }
 
-  // (б) Имя осталось не в том регистре, что задан в модели.
   const wrong = found.filter((t) => {
     const proper = map.get(t.toLowerCase());
     return proper && proper !== t;
   });
   if (wrong.length) problems.push(`неверный регистр в CREATE TABLE: ${wrong.join(', ')}`);
 
-  // (в) Любое другое упоминание таблицы строчными — REFERENCES, LOCK TABLES,
-  //     INSERT INTO, ALTER TABLE и т. п.
   for (const [lower, proper] of map) {
     if (lower === proper) continue;
     if (sql.includes('`' + lower + '`')) {
@@ -95,7 +70,7 @@ function run() {
   const map = collectTableNameMap();
   if (!map.size) throw new Error('Не удалось собрать имена таблиц из models/*.js');
 
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  const today = new Date().toISOString().slice(0, 10);
   const outArg = process.argv[2];
   const out = path.resolve(root, outArg || path.join('Database', `erpdb_dump_${today}.sql`));
   fs.mkdirSync(path.dirname(out), { recursive: true });
@@ -114,12 +89,9 @@ function run() {
   let sql = execFileSync(bin, args, {
     env: { ...process.env, MYSQL_PWD: process.env.DB_PASSWORD || '' },
     encoding: 'utf8',
-    maxBuffer: 1024 * 1024 * 512, // до 512 МБ на всякий случай
+    maxBuffer: 1024 * 1024 * 512,
   });
 
-  // 3) Переписываем имена таблиц под регистр из моделей. Заменяем ТОЛЬКО целые
-  // токены в обратных кавычках `имя`, поэтому пересечений с колонками/данными нет.
-  // Сортируем по длине по убыванию — доп. страховка от совпадения префиксов.
   const entries = [...map.entries()].sort((a, b) => b[0].length - a[0].length);
   const changed = [];
   for (const [lower, proper] of entries) {
@@ -131,8 +103,6 @@ function run() {
     }
   }
 
-  // 4) Проверяем результат ДО записи файла: битый дамп не должен попасть на диск,
-  // иначе его легко отправить заказчику, не заметив подвоха.
   const { found, problems } = verify(sql, map);
   if (problems.length) {
     console.error('\nДамп НЕ сохранён — проблемы с регистром имён таблиц:');
@@ -150,8 +120,6 @@ function run() {
   console.log('Проверка регистра пройдена: все имена совпадают с models/*.js.');
 }
 
-// Запускаем только при прямом вызове (node scripts/exportDump.js), чтобы
-// проверку регистра можно было импортировать и протестировать отдельно.
 if (process.argv[1] && path.resolve(process.argv[1]) === path.resolve(__filename)) {
   run();
 }

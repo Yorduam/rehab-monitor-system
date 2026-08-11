@@ -1,10 +1,3 @@
-// Переименовывает ВСЕ имена колонок во ВСЕХ таблицах текущей БД в ВЕРХНИЙ
-// регистр. Данные и значения (ENUM, DEFAULT) не трогаются — только имена.
-// Таблицы не затрагиваются (MySQL при lower_case_table_names=1 хранит их
-// в нижнем регистре — переименовать по регистру невозможно).
-//
-// Перед выполнением сохраняет ОБРАТНЫЙ скрипт rollback_uppercase_columns.sql.
-// Запуск:  node scripts/uppercaseColumns.js
 import 'dotenv/config';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,7 +12,6 @@ async function run() {
     port: Number(process.env.DB_PORT) || 3306, multipleStatements: true
   });
 
-  // Собираем все колонки, чьё имя не полностью в верхнем регистре (сравнение с учётом регистра).
   const [rows] = await conn.query(
     `SELECT TABLE_NAME AS t, COLUMN_NAME AS c
        FROM information_schema.COLUMNS
@@ -42,7 +34,6 @@ async function run() {
     backward.push(`ALTER TABLE ${q(t)} RENAME COLUMN ${q(up)} TO ${q(c)};`);
   }
 
-  // Пишем откат (в обратном порядке на всякий случай).
   const rollbackPath = path.resolve(process.cwd(), 'rollback_uppercase_columns.sql');
   const rollbackSql =
     '-- Откат: возвращает исходный регистр имён колонок.\n' +
@@ -54,7 +45,6 @@ async function run() {
   console.log(`Откат сохранён: ${rollbackPath}`);
   console.log(`Всего колонок к переименованию: ${forward.length}\n`);
 
-  // Выполняем.
   await conn.query('SET FOREIGN_KEY_CHECKS=0');
   let ok = 0;
   const failures = [];
@@ -74,7 +64,6 @@ async function run() {
     for (const f of failures) console.log('  FAIL:', f.sql, '->', f.err);
   }
 
-  // Короткая проверка результата.
   const [left] = await conn.query(
     `SELECT COUNT(*) AS n FROM information_schema.COLUMNS
       WHERE TABLE_SCHEMA = DATABASE()

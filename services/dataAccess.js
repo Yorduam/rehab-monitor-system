@@ -1,11 +1,3 @@
-// Закрытие персональных данных и выдача временного доступа к ним.
-//
-// Правило: всем, кроме администратора, сервер НЕ отдаёт закрытые поля вообще,
-// пока человек не запросит их с указанием причины. Именно не отдаёт, а не
-// «отдаёт и прячет на экране»: размытие в интерфейсе — только подсказка, данные
-// при таком подходе видны во вкладке «Сеть» браузера за три клика.
-//
-// Разрешение действует 30 минут, на одного реабилитанта и одну категорию.
 import { AccessLog } from '../models/index.js';
 
 export const CATEGORIES = ['passport', 'scans', 'contacts', 'medical'];
@@ -17,8 +9,6 @@ export const CATEGORY_LABELS = {
   medical: 'Диагноз и медицинские сведения'
 };
 
-// Готовые причины: по ним журнал можно фильтровать и считать, а не только
-// читать глазами. Свободное пояснение идёт отдельным полем.
 export const REASON_CODES = [
   { code: 'contract', label: 'Оформление или продление договора' },
   { code: 'verify', label: 'Сверка данных в документах' },
@@ -33,14 +23,10 @@ const REASON_SET = new Set(REASON_CODES.map((r) => r.code));
 
 export const GRANT_MS = 30 * 60 * 1000;
 
-// Разрешения держим в памяти процесса, а не в БД, нарочно: перезапуск сервера
-// обязан их сбрасывать. Журнал при этом лежит в БД и переживает всё — важна
-// именно запись о доступе, а не само разрешение.
-const grants = new Map();   // `${userId}:${recipientId}:${category}` -> срок
+const grants = new Map();
 
 const keyOf = (userId, recipientId, category) => `${userId}:${recipientId}:${category}`;
 
-// Подчищаем протухшее, чтобы карта не росла бесконечно на долго живущем сервере.
 const sweep = (now) => {
   for (const [key, expiresAt] of grants) if (expiresAt <= now) grants.delete(key);
 };
@@ -48,8 +34,6 @@ const sweep = (now) => {
 export const isAdmin = (user) => user?.role === 'admin';
 
 export const hasGrant = (user, recipientId, category) => {
-  // Администратор видит всё сразу — причину у него не спрашиваем. Но его
-  // просмотры всё равно попадают в журнал (см. logAccess в маршрутах).
   if (isAdmin(user)) return true;
   const expiresAt = grants.get(keyOf(user?.id, recipientId, category));
   return typeof expiresAt === 'number' && expiresAt > Date.now();
@@ -66,8 +50,6 @@ export const grantAccess = (user, recipientId, category) => {
 export const validateReason = (reasonCode, reasonText) => {
   if (!REASON_SET.has(reasonCode)) return 'Выберите причину из списка';
   const text = String(reasonText ?? '').trim();
-  // На «Иное» пояснение обязательно: без него в журнале осталось бы слово
-  // «иное», по которому потом ничего не восстановить.
   if (reasonCode === 'other' && text.length < 10) {
     return 'Опишите причину подробнее — не менее 10 символов';
   }
@@ -75,8 +57,6 @@ export const validateReason = (reasonCode, reasonText) => {
   return null;
 };
 
-// Запись в журнал никогда не должна ронять сам запрос: если журнал недоступен,
-// это повод для ошибки в логе, а не для отказа человеку в работе.
 export const logAccess = async (req, entry) => {
   try {
     await AccessLog.create({
@@ -97,8 +77,6 @@ export const logAccess = async (req, entry) => {
   }
 };
 
-// Какие поля к какой категории относятся. Держим одним списком, чтобы
-// закрытие и подсказка интерфейсу не разъезжались.
 const RECIPIENT_FIELDS = {
   contacts: ['telephone', 'email'],
   medical: ['diagnosis', 'nozology']
@@ -120,8 +98,6 @@ const blankOut = (target, fields) => {
   for (const f of fields) if (f in target) target[f] = null;
 };
 
-// Возвращает карточку, из которой вырезано всё, к чему нет доступа, плюс
-// признак hidden — по нему интерфейс понимает, какие блоки закрывать.
 export const redactRecipient = (recipient, user) => {
   const plain = typeof recipient.toJSON === 'function' ? recipient.toJSON() : { ...recipient };
   const hidden = [];

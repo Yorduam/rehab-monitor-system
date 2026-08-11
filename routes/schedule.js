@@ -227,6 +227,32 @@ router.post('/events', authMiddleware, roleMiddleware('admin', 'employee', 'teac
   }
 });
 
+router.patch('/events/:id', authMiddleware, roleMiddleware('admin', 'employee', 'teacher'), async (req, res) => {
+  try {
+    const event = await ScheduleEvent.findByPk(req.params.id);
+    if (!event) return res.status(404).json({ message: 'Событие не найдено' });
+    if (req.user.role === 'teacher' && event.specialistUserId !== req.user.id) {
+      return res.status(403).json({ message: 'Можно отмечать только свои занятия' });
+    }
+
+    const allowed = ['scheduled', 'completed'];
+    const status = String(req.body?.status ?? '');
+    if (!allowed.includes(status)) {
+      return res.status(400).json({ message: 'Недопустимый статус занятия' });
+    }
+    if (event.status === 'cancelled') {
+      return res.status(409).json({ message: 'Событие отменено, отметить его нельзя' });
+    }
+
+    await event.update({ status });
+    const full = await ScheduleEvent.findByPk(event.id, { include: eventIncludes });
+    res.json(full);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
 router.delete('/events/:id', authMiddleware, roleMiddleware('admin', 'employee', 'teacher'), async (req, res) => {
   try {
     const event = await ScheduleEvent.findByPk(req.params.id);
@@ -336,7 +362,8 @@ router.post('/sessions', authMiddleware, roleMiddleware('admin', 'employee'), as
     if (active) {
       return res.status(409).json({
         message: `У реабилитанта уже есть активная заявка на диагностику от ${String(active.date).slice(0, 10)}`,
-        sessionId: active.id
+        sessionId: active.id,
+        date: String(active.date).slice(0, 10)
       });
     }
 

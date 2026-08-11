@@ -1,17 +1,8 @@
 <template>
-  <!-- Открыто — показываем содержимое как есть. -->
   <template v-if="!locked">
     <slot />
   </template>
 
-  <!-- Закрыто. Слот не рендерим вовсе, и не для красоты: сервер закрытые поля
-       не присылает, размывать тут физически нечего. Настоящая защита — на
-       бэкенде, это только её видимая часть.
-
-       Показываем названия полей и вместо значений — точки. Так сразу понятно,
-       что именно скрыто и стоит ли вообще запрашивать доступ. Прошлый вариант
-       рисовал размытые полоски: они читались как сбой отрисовки, а какие
-       данные под ними — было не угадать. -->
   <div v-else class="lb">
     <dl v-if="fields.length" class="lb-rows">
       <div v-for="f in fields" :key="f" class="lb-row">
@@ -32,7 +23,6 @@
     </div>
   </div>
 
-  <!-- Запрос причины -->
   <teleport to="body">
     <div v-if="asking" class="lb-modal" @click.self="close">
       <div class="lb-box" role="dialog" aria-modal="true" aria-labelledby="lb-h">
@@ -82,8 +72,6 @@ const props = defineProps({
   recipientId: { type: [Number, String], required: true },
   title: { type: String, default: 'Персональные данные' },
   shortTitle: { type: String, default: 'данные' },
-  // Названия скрытых полей — чтобы человек видел, что именно закрыто.
-  // Пусто (например, у сканов) — тогда рисуем только строку с кнопкой.
   fields: { type: Array, default: () => [] }
 });
 
@@ -95,8 +83,6 @@ const error = ref('');
 const reasonCode = ref('');
 const reasonText = ref('');
 
-// Список причин задаётся на сервере и кэшируется на всё приложение: он один и
-// тот же для всех блоков, тянуть его на каждое открытие окна незачем.
 const reasons = ref([]);
 const grantMinutes = ref(30);
 let optionsPromise = null;
@@ -138,8 +124,6 @@ const submit = async () => {
     });
     asking.value = false;
     notifySaved(`Доступ открыт на ${grantMinutes.value} минут. Причина записана в журнал.`);
-    // Данные подтянет родитель: сервер их не присылал, поэтому карточку надо
-    // перезапросить, а не «показать спрятанное».
     emit('unlocked', props.category);
   } catch (err) {
     console.error('requestAccess', err);
@@ -151,8 +135,6 @@ const submit = async () => {
 </script>
 
 <style scoped>
-/* Панель с явной границей: без неё два закрытых блока подряд сливались в одно
-   серое пятно, и было не понять, где кончается один и начинается другой. */
 .lb {
   border: 0.0625rem solid var(--border-light, #dce5ec);
   border-radius: var(--radius-md, 10px);
@@ -178,17 +160,12 @@ const submit = async () => {
   user-select: none;
 }
 
-/* Строка с кнопкой — одной полосой, а не столбиком по центру: столбик занимал
-   пол-экрана, а на карточке таких блоков четыре. */
 .lb-cta {
   display: flex; align-items: center; gap: 0.75rem;
   padding: 0.75rem 0.875rem;
   background: var(--sage-50, #EEF4E2);
   border-top: 0.0625rem solid var(--border-light, #dce5ec);
 }
-/* У сканов список полей пуст, блока .lb-rows нет вовсе, и полоса с кнопкой
-   становится первой. Без этого её верхняя граница легла бы вплотную к рамке
-   самой панели и получилась бы двойная линия. */
 .lb-cta:first-child { border-top: none; }
 .lb-icon {
   flex: 0 0 1.75rem; width: 1.75rem; height: 1.75rem; border-radius: 50%;

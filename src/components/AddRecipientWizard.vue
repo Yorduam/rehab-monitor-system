@@ -2,6 +2,11 @@
   <div class="rw-overlay">
    <div class="rw-modal" role="dialog" aria-modal="true" aria-label="Добавление реабилитанта">
 
+    <div v-if="openingServerDraft" class="rw-loading" role="status" aria-live="polite">
+      <span class="rw-loading-spin" aria-hidden="true"></span>
+      <span>Открываем черновик…</span>
+    </div>
+
     <div class="rw-topbar">
       <div class="rw-topbar-inner">
         <nav class="rw-breadcrumb" aria-label="Навигация">
@@ -171,6 +176,46 @@
                 <div class="rw-f rw-c12">
                   <label class="rw-label" for="lr-addr">Адрес регистрации представителя <span class="rw-req">*</span></label>
                   <input id="lr-addr" class="rw-input" type="text" placeholder="Регион, город, улица, дом, квартира" :value="f.lrAddress" @input="onMask('lrAddress', $event, v => maskText(v, 500))" maxlength="500" />
+                </div>
+              </div>
+
+              <div v-if="familyStatusOptions.length" class="rw-divider"><span class="rw-dv-label">Статус семьи</span><span class="rw-dv-line"></span></div>
+              <div v-if="familyStatusOptions.length" class="rw-fg">
+                <div class="rw-f rw-c12">
+
+                  <div v-if="famLookup" class="rw-dup rw-dup-warn rw-fs-note">
+                    <span class="rw-dup-ico" aria-hidden="true">i</span>
+                    <div class="rw-dup-text">
+                      <div class="rw-dup-title">
+                        {{ famLookup.applied ? 'Статус подставлен из карточки семьи' : 'У этой семьи уже отмечен статус' }}
+                      </div>
+                      <div class="rw-dup-sub">
+                        <template v-if="famLookup.repName">{{ famLookup.repName }} — уже в центре. </template>
+                        <template v-if="famLookup.applied">Статус семьи один на всех детей, поэтому правка здесь изменит его и в других карточках.</template>
+                        <template v-else>Отмечено: {{ famLookup.codes.map(familyStatusName).filter(Boolean).join(', ') }}.
+                          <button type="button" class="rw-fs-apply" @click="applyFamilyLookup">Подставить</button>
+                        </template>
+                      </div>
+                    </div>
+                  </div>
+
+                  <fieldset v-for="grp in familyStatusGroups" :key="grp.key" class="rw-fs-group">
+                    <legend class="rw-label rw-fs-legend">
+                      {{ grp.label }} <span class="rw-opt">{{ grp.note }}</span>
+                    </legend>
+                    <div class="rw-seg">
+                      <button v-for="opt in grp.items" :key="opt.code"
+                        type="button" class="rw-seg-btn"
+                        :class="{ active: isFamilyStatusOn(opt.code) }"
+                        :title="opt.hint || ''"
+                        @click="toggleFamilyStatus(opt)">{{ opt.name }}</button>
+                    </div>
+                  </fieldset>
+
+                  <p class="rw-fs-hint">
+                    Необязательно. Статус описывает семью, а не ребёнка, поэтому хранится у
+                    представителя и виден во всех карточках его подопечных.
+                  </p>
                 </div>
               </div>
 
@@ -745,9 +790,15 @@
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import api from '../api';
 import { notifySaved } from '../utils/toast';
+import {
+  DRAFT_KEY, DRAFT_FILES_DB, DRAFT_FILES_STORE,
+  draftPersonFields, summarizeDraft, touchDraftSavedAt, forgetDraftSavedAt,
+  readDraftServerId, rememberDraftServerId, forgetDraftServerId
+} from '../utils/recipientDraft';
 
 const props = defineProps({
-  groupsList: { type: Array, default: () => [] }
+  groupsList: { type: Array, default: () => [] },
+  draftId: { type: Number, default: null }
 });
 const emit = defineEmits(['close', 'saved']);
 
@@ -872,6 +923,7 @@ const makeEmptyForm = () => ({
   lrRelation: '', lrPhone: '',
   lrPassSeries: '', lrPassNum: '', lrPassDate: '', lrPassCode: '', lrPassIssuer: '',
   lrAddress: '',
+  lrFamilyStatus: [],
 
   rLast: '', rFirst: '', rMid: '',
   rBirth: '',
@@ -902,8 +954,99 @@ const makeEmptyForm = () => ({
   groupId: null,
 });
 
-const DRAFT_KEY = 'addRecipientDraft';
 const f = ref(makeEmptyForm());
+
+const familyStatusOptions = ref([]);
+
+const loadFamilyStatuses = async () => {
+  try {
+    const { data } = await api.get('/lists/family-statuses');
+    familyStatusOptions.value = Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error('справочник статусов семьи не загрузился:', err);
+    familyStatusOptions.value = [];
+  }
+};
+
+const familyStatusGroups = computed(() => {
+  const buckets = new Map();
+  for (const opt of familyStatusOptions.value) {
+    const key = opt.groupKey || '__free__';
+    if (!buckets.has(key)) buckets.set(key, []);
+    buckets.get(key).push(opt);
+  }
+  const titles = {
+    composition: { label: 'Состав семьи', note: 'одно из' },
+    __free__:    { label: 'Дополнительно', note: 'сколько угодно' }
+  };
+  return [...buckets.entries()].map(([key, items]) => ({
+    key,
+    label: titles[key]?.label || 'Прочее',
+    note: titles[key]?.note || (key === '__free__' ? 'сколько угодно' : 'одно из'),
+    items
+  }));
+});
+
+const isFamilyStatusOn = (code) => (f.value.lrFamilyStatus || []).includes(code);
+
+const familyStatusName = (code) =>
+  familyStatusOptions.value.find((o) => o.code === code)?.name || '';
+
+const toggleFamilyStatus = (opt) => {
+  if (!Array.isArray(f.value.lrFamilyStatus)) f.value.lrFamilyStatus = [];
+  const list = f.value.lrFamilyStatus;
+  const i = list.indexOf(opt.code);
+  if (i >= 0) { list.splice(i, 1); return; }
+  if (opt.groupKey) {
+    const rivals = new Set(
+      familyStatusOptions.value.filter((o) => o.groupKey === opt.groupKey).map((o) => o.code)
+    );
+    for (let j = list.length - 1; j >= 0; j--) if (rivals.has(list[j])) list.splice(j, 1);
+  }
+  list.push(opt.code);
+};
+
+const famLookup = ref(null);
+let famTimer = null;
+let famSeq = 0;
+
+const runFamilyLookup = async () => {
+  const series = String(f.value.lrPassSeries || '').trim();
+  const number = String(f.value.lrPassNum || '').trim();
+  if (series.length !== 4 || number.length !== 6) { famLookup.value = null; return; }
+
+  const seq = ++famSeq;
+  try {
+    const { data } = await api.post('/recipients/family-status-lookup', {
+      passportSeries: series, passportNumber: number
+    });
+    if (seq !== famSeq) return;
+    if (!data?.found || !data.statuses?.length) { famLookup.value = null; return; }
+
+    famLookup.value = { repName: data.repName || '', codes: data.statuses };
+    if (!(f.value.lrFamilyStatus || []).length) {
+      f.value.lrFamilyStatus = [...data.statuses];
+      famLookup.value.applied = true;
+    }
+  } catch (err) {
+    console.error('не удалось свериться со статусом семьи:', err);
+    if (seq === famSeq) famLookup.value = null;
+  }
+};
+
+watch(
+  () => [f.value.lrPassSeries, f.value.lrPassNum].join('|'),
+  () => {
+    if (famTimer) clearTimeout(famTimer);
+    famTimer = setTimeout(runFamilyLookup, 500);
+  }
+);
+
+const applyFamilyLookup = () => {
+  if (!famLookup.value?.codes?.length) return;
+  f.value.lrFamilyStatus = [...famLookup.value.codes];
+  famLookup.value.applied = true;
+};
 
 const crgAge = computed(() => {
   if (!f.value.rBirth) return null;
@@ -1008,41 +1151,10 @@ const displayName = computed(() =>
   [f.value.rLast, f.value.rFirst, f.value.rMid].filter(Boolean).join(' ')
 );
 
-const isFilled = (v) => (typeof v === 'string' ? v.trim().length > 0 : !!v);
-
 const requiredFields = computed(() => {
   const v = f.value;
 
-  const step1 = [
-    { g: 'ФИО',               l: 'Фамилия',                        ok: isFilled(v.lrLast),          a: '#lr-last'  },
-    { g: 'ФИО',               l: 'Имя',                            ok: isFilled(v.lrFirst),         a: '#lr-first' },
-    { g: 'ФИО',               l: 'Кем приходится реабилитанту',    ok: isFilled(v.lrRelation),      a: '#lr-rel'   },
-    { g: 'ФИО',               l: 'Телефон',                        ok: v.lrPhone.length === 18,     a: '#lr-phone' },
-    { g: 'Паспорт',           l: 'Серия',                          ok: v.lrPassSeries.length === 4, a: '#lp-ser'   },
-    { g: 'Паспорт',           l: 'Номер',                          ok: v.lrPassNum.length === 6,    a: '#lp-num'   },
-    { g: 'Паспорт',           l: 'Дата выдачи',                    ok: isFilled(v.lrPassDate),      a: '#lp-dt'    },
-    { g: 'Паспорт',           l: 'Код подразделения',              ok: v.lrPassCode.length === 7,   a: '#lp-code'  },
-    { g: 'Паспорт',           l: 'Кем выдан',                      ok: isFilled(v.lrPassIssuer),    a: '#lp-iss'   },
-    { g: 'Адрес регистрации', l: 'Адрес регистрации представителя', ok: isFilled(v.lrAddress),      a: '#lr-addr'  },
-  ];
-
-  const step2 = [
-    { g: 'ФИО и дата рождения', l: 'Фамилия',       ok: isFilled(v.rLast),  a: '#r-last'  },
-    { g: 'ФИО и дата рождения', l: 'Имя',           ok: isFilled(v.rFirst), a: '#r-first' },
-    { g: 'ФИО и дата рождения', l: 'Дата рождения', ok: isFilled(v.rBirth), a: '#r-birth' },
-    { g: 'Медицинские сведения', l: 'Группа инвалидности',                    ok: isFilled(v.rInvalidity), a: '#r-invalidity'      },
-    { g: 'Медицинские сведения', l: 'СНИЛС',                                  ok: v.rSnils.length === 14,  a: '#r-snils'           },
-    { g: 'Медицинские сведения', l: 'Целевая реабилитационная группа (ЦРГ)',  ok: isFilled(v.rCrg),        a: '#r-crg-trigger'     },
-    { g: 'Медицинские сведения', l: 'Нозология',                              ok: v.rNosology.length > 0,  a: '#r-nosology-trigger' },
-    { g: 'Документ, удостоверяющий личность', l: 'Серия',       ok: v.rDocType === 'birth' ? isFilled(v.rDocSeries) : v.rDocSeries.length === 4, a: '#rd-ser' },
-    { g: 'Документ, удостоверяющий личность', l: 'Номер',       ok: v.rDocNum.length === 6,   a: '#rd-num' },
-    { g: 'Документ, удостоверяющий личность', l: 'Дата выдачи', ok: isFilled(v.rDocDate),     a: '#rd-dt'  },
-    { g: 'Документ, удостоверяющий личность', l: 'Кем выдан',   ok: isFilled(v.rDocIssuer),   a: '#rd-iss' },
-    { g: 'Адрес регистрации', l: 'Адрес регистрации', ok: isFilled(v.rAddrReg), a: '#r-reg' },
-  ];
-  if (!v.rAddrSame) {
-    step2.push({ g: 'Фактическое проживание', l: 'Адрес фактического места проживания', ok: isFilled(v.rAddrFact), a: '#r-fact' });
-  }
+  const [step1, step2] = draftPersonFields(v);
 
   const step3 = [
     ...tiles.filter(t => t.req).map(t => (
@@ -1137,13 +1249,6 @@ const gotoFirstMissing = () => {
   if (missingFields.value.length) gotoField(missingFields.value[0]);
 };
 
-// Черновик разложен на две части: поля лежат в localStorage, файлы — в
-// IndexedDB. В localStorage файлы класть нельзя: там около 5 МБ на домен, а
-// base64 раздувает вложение ещё на треть — пара сканов выбьет квоту целиком.
-// IndexedDB хранит File как есть, вместе с именем и MIME-типом, поэтому
-// восстановленный файл уходит на сервер тем же путём, что и только что выбранный.
-const DRAFT_FILES_DB = 'addRecipientDraftFiles';
-const DRAFT_FILES_STORE = 'files';
 const draftFileKey = (kind, k) => `${kind}:${k}`;
 
 const openDraftFilesDb = () => new Promise((resolve, reject) => {
@@ -1192,16 +1297,10 @@ const dropDraftFiles = async () => {
   try { await withDraftFiles('readwrite', (s) => s.clear()); } catch (e) { console.error(e); }
 };
 
-// Молча потерять скан нельзя: человек решит, что он в черновике, закроет мастер
-// и останется без файла. Предупреждаем один раз за сеанс, чтобы не спамить.
 let draftFileWarned = false;
 const rememberDraftFile = async (kind, key, file) => {
   try {
     await withDraftFiles('readwrite', (s) => s.put(file, draftFileKey(kind, key)));
-    // Запись скана в черновик — единственная долгая операция в мастере, и
-    // внешне она ничем себя не проявляла: непонятно, лёг файл в черновик или
-    // нет. Ключ один на все сканы, чтобы при быстрой загрузке нескольких файлов
-    // плашки не выросли столбом на весь экран.
     notifySaved(`Скан «${file.name}» сохранён в черновик`, { key: 'draft-scan' });
   } catch (e) {
     console.error(e);
@@ -1231,7 +1330,6 @@ const restoreDraftFiles = async () => {
       if (kind === 'signed') signed[k] = file;
       else if (kind === 'main') main[k] = file;
     });
-    // Свежий выбор пользователя приоритетнее восстановленного черновика.
     uploads.value = { ...main, ...uploads.value };
     signedUploads.value = { ...signed, ...signedUploads.value };
   } catch (e) {
@@ -1246,20 +1344,12 @@ const loadDraft = () => {
     const saved = JSON.parse(raw);
     if (saved && typeof saved === 'object') {
       f.value = { ...makeEmptyForm(), ...saved };
-      // Черновик действительно есть — надпись в шапке честна с первой секунды.
       draftState.value = 'saved';
     }
   } catch (e) {  }
 };
-// Состояние черновика для надписи в шапке. Раньше там висело статическое
-// «Черновик сохранён» — оно было нарисовано всегда, ещё до того, как человек
-// что-либо ввёл, то есть попросту обманывало. Теперь надпись появляется только
-// после реальной записи и отмечает сам момент сохранения.
-const draftState = ref('');   // '' — черновика нет | 'saving' | 'saved'
+const draftState = ref('');
 let draftStateTimer = null;
-// Очистка черновика сбрасывает f, а на f висит deep-watcher — он бы тут же
-// записал пустой черновик обратно, и надпись сказала бы «сохранён» сразу после
-// «очищено». Поэтому ровно одну запись после очистки пропускаем.
 let skipNextDraftSave = false;
 
 const saveDraft = () => {
@@ -1271,11 +1361,11 @@ const saveDraft = () => {
   } catch (e) {
     console.error(e);
   }
-  if (!ok) return;                       // не сохранилось — врать не будем
+  if (!ok) return;
+  touchDraftSavedAt();
+  scheduleServerSync();
   draftState.value = 'saving';
   if (draftStateTimer) clearTimeout(draftStateTimer);
-  // Задержка нужна, иначе «Сохранение…» сменяется быстрее, чем читается,
-  // и человек видит только неподвижное «Черновик сохранён».
   draftStateTimer = setTimeout(() => { draftState.value = 'saved'; }, 400);
 };
 const clearDraft = () => {
@@ -1287,37 +1377,169 @@ const clearDraft = () => {
   docsGenerated.value = false;
   step.value = 1;
   try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+  forgetDraftSavedAt();
   dropDraftFiles();
+  dropServerDraft();
   if (draftStateTimer) clearTimeout(draftStateTimer);
   draftState.value = '';
   notifySaved('Черновик очищен');
 };
 
-// После удачной отправки в базу черновика уже нет. Мастер при этом тоже
-// закрывается, но сообщать о черновике на выходе нельзя: поверх «Реабилитант
-// сохранён» легло бы «Черновик сохранён», и вышло бы, будто данные разом и
-// ушли в базу, и остались лежать черновиком.
+const SERVER_SYNC_DELAY = 1500;
+
+const serverDraftId = ref(readDraftServerId());
+let serverSyncTimer = null;
+let serverSyncBusy = false;
+let serverSyncAgain = false;
+
+const attachedFileCount = () =>
+  Object.keys(uploads.value).length + Object.keys(signedUploads.value).length;
+
+const worthSyncing = () => !!summarizeDraft(f.value, attachedFileCount());
+
+const pushDraftToServer = async () => {
+  if (serverSyncBusy) { serverSyncAgain = true; return; }
+  serverSyncBusy = true;
+  try {
+    const payload = JSON.parse(JSON.stringify(f.value));
+    if (serverDraftId.value) {
+      await api.put(`/recipients/drafts/${serverDraftId.value}`, { payload });
+    } else {
+      const { data } = await api.post('/recipients/drafts', { payload });
+      if (data?.id) { serverDraftId.value = data.id; rememberDraftServerId(data.id); }
+    }
+  } catch (err) {
+    console.error('черновик не ушёл на сервер:', err);
+  } finally {
+    serverSyncBusy = false;
+    if (serverSyncAgain) { serverSyncAgain = false; pushDraftToServer(); }
+  }
+};
+
+const scheduleServerSync = () => {
+  if (!worthSyncing()) return;
+  if (serverSyncTimer) clearTimeout(serverSyncTimer);
+  serverSyncTimer = setTimeout(pushDraftToServer, SERVER_SYNC_DELAY);
+};
+
+const ensureServerDraft = async () => {
+  if (serverDraftId.value) return serverDraftId.value;
+  if (serverSyncTimer) { clearTimeout(serverSyncTimer); serverSyncTimer = null; }
+  await pushDraftToServer();
+  return serverDraftId.value;
+};
+
+const dropServerDraft = async () => {
+  const id = serverDraftId.value;
+  serverDraftId.value = null;
+  forgetDraftServerId();
+  if (serverSyncTimer) { clearTimeout(serverSyncTimer); serverSyncTimer = null; }
+  if (!id) return;
+  try { await api.delete(`/recipients/drafts/${id}`); }
+  catch (err) { console.error('черновик не удалён с сервера:', err); }
+};
+
+const SIGNED_KEYS = new Set(signedTiles.map((t) => t.k));
+
+const uploadDraftScan = async (docKey, file) => {
+  try {
+    const id = await ensureServerDraft();
+    if (!id) return;
+    await api.post(`/recipients/drafts/${id}/scans`, {
+      docKey,
+      originalName: file.name,
+      mimeType: file.type || 'application/octet-stream',
+      base64: await fileToBase64(file)
+    });
+  } catch (err) {
+    console.error('скан не ушёл в черновик на сервере:', err);
+  }
+};
+
+const syncLocalScans = async () => {
+  const local = [...Object.entries(uploads.value), ...Object.entries(signedUploads.value)]
+    .filter(([, file]) => file instanceof Blob);
+  if (!local.length) return;
+  const id = await ensureServerDraft();
+  if (!id) return;
+  let known = new Set();
+  try {
+    const { data } = await api.get(`/recipients/drafts/${id}`);
+    known = new Set((data?.scans || []).map((s) => s.docKey));
+  } catch (err) {
+    console.error('не удалось свериться со сканами черновика:', err);
+    return;
+  }
+  for (const [docKey, file] of local) {
+    if (known.has(docKey)) continue;
+    await uploadDraftScan(docKey, file);
+  }
+};
+
+const draftScanToFile = async (id, scan) => {
+  try {
+    const res = await api.get(`/recipients/drafts/${id}/scans/${scan.id}/file`, { responseType: 'blob' });
+    return new File([res.data], scan.originalName || 'скан',
+      { type: scan.mimeType || res.data.type || 'application/octet-stream' });
+  } catch (err) {
+    console.error('скан черновика не скачался:', err);
+    return null;
+  }
+};
+
+const openingServerDraft = ref(false);
+
+const openServerDraft = async (id) => {
+  openingServerDraft.value = true;
+  try {
+    const { data } = await api.get(`/recipients/drafts/${id}`);
+    serverDraftId.value = id;
+    rememberDraftServerId(id);
+    await dropDraftFiles();
+    uploads.value = {};
+    signedUploads.value = {};
+    f.value = { ...makeEmptyForm(), ...(data.payload || {}) };
+    draftState.value = 'saved';
+    const main = {};
+    const signed = {};
+    for (const s of data.scans || []) {
+      const file = await draftScanToFile(id, s);
+      if (!file) continue;
+      const kind = SIGNED_KEYS.has(s.docKey) ? 'signed' : 'main';
+      (kind === 'signed' ? signed : main)[s.docKey] = file;
+      try { await withDraftFiles('readwrite', (store) => store.put(file, draftFileKey(kind, s.docKey))); }
+      catch (e) { console.error(e); }
+    }
+    uploads.value = main;
+    signedUploads.value = signed;
+  } catch (err) {
+    console.error(err);
+    alert('Не удалось открыть черновик: ' + (err?.response?.data?.message || err?.message || 'неизвестная ошибка'));
+    emit('close');
+  } finally {
+    openingServerDraft.value = false;
+  }
+};
+
 let savedToDb = false;
 
-// Надпись о черновике живёт в шапке мастера и уезжает вместе с ним, поэтому
-// человек, закрывший недозаполненную карточку, не понимает, сохранилось ли
-// хоть что-нибудь. Подтверждаем черновик в момент закрытия.
-//
-// Смотрим именно на размонтирование, а не на клик по крестику: из мастера
-// уходят ещё и через «Реабилитанты» в шапке, кнопку «Отменить», Esc, боковое
-// меню и кнопку «назад» в браузере. Во всех этих случаях компонент
-// размонтируется, а обработчик крестика не сработает.
 const draftKept = () => {
   if (savedToDb) return;
   const hasFiles =
     Object.keys(uploads.value).length > 0 || Object.keys(signedUploads.value).length > 0;
-  // Молчим, если сохранять было нечего: на пустом мастере уведомление ни о чём.
   if (!draftState.value && !hasFiles) return;
   notifySaved('Черновик сохранён — при следующем открытии всё будет на месте');
 };
 
-loadDraft();
-restoreDraftFiles();
+if (props.draftId) {
+  openServerDraft(props.draftId);
+} else {
+  loadDraft();
+  restoreDraftFiles().then(() => {
+    scheduleServerSync();
+    syncLocalScans();
+  });
+}
 watch(f, saveDraft, { deep: true });
 
 const onlyDigits = (s, max) => s.replace(/\D/g, '').slice(0, max);
@@ -1383,16 +1605,16 @@ const onFile = (key, e) => {
   if (!file) return;
   uploads.value = { ...uploads.value, [key]: file };
   rememberDraftFile('main', key, file);
+  uploadDraftScan(key, file);
 };
 const onSignedFile = (key, e) => {
   const file = e.target.files[0];
   if (!file) return;
   signedUploads.value = { ...signedUploads.value, [key]: file };
   rememberDraftFile('signed', key, file);
+  uploadDraftScan(key, file);
 };
 
-// Просмотр приложенного скана. По имени файла не видно, тот ли документ
-// приложили, поэтому показываем его содержимое прямо в мастере.
 const preview = ref(null);
 
 const fileSize = (bytes) => {
@@ -1405,8 +1627,6 @@ const fileKind = (file) => {
   const type = file.type || '';
   if (type.startsWith('image/')) return 'image';
   if (type === 'application/pdf') return 'pdf';
-  // Восстановленный из черновика файл тип сохраняет, но у скана с редкого
-  // сканера его может не быть — тогда смотрим на расширение.
   const ext = String(file.name || '').split('.').pop().toLowerCase();
   if (['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp'].includes(ext)) return 'image';
   if (ext === 'pdf') return 'pdf';
@@ -1482,10 +1702,6 @@ const fileToBase64 = (file) => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
-// Проверка на дубликаты. Ключей два, и ведут они себя по-разному:
-// ФИО+дата рождения только предупреждают (полные тёзки-ровесники бывают),
-// серия+номер документа блокируют сохранение. Данные представителя не
-// проверяются — у одного опекуна законно бывает несколько подопечных.
 const dupNames = ref([]);
 const dupDoc = ref(null);
 const dupChecking = ref(false);
@@ -1517,13 +1733,11 @@ const runDupCheck = async () => {
   dupChecking.value = true;
   try {
     const { data } = await api.post('/recipients/check-duplicate', payload);
-    if (seq !== dupSeq) return null; // пришёл более свежий запрос, этот ответ уже неактуален
+    if (seq !== dupSeq) return null;
     dupNames.value = data?.nameMatches || [];
     dupDoc.value = data?.docMatch || null;
     return { nameMatches: dupNames.value, docMatch: dupDoc.value };
   } catch (e) {
-    // Недоступная проверка не должна мешать заполнять карточку: гасим баннеры
-    // и пропускаем дальше. Жёсткая защита по документу всё равно есть в /intake.
     console.error(e);
     if (seq === dupSeq) { dupNames.value = []; dupDoc.value = null; }
     return null;
@@ -1563,8 +1777,6 @@ const save = async () => {
     return;
   }
 
-  // Перепроверяем дубли прямо перед отправкой: пока карточку заполняли, такого
-  // реабилитанта мог завести кто-то другой.
   if (dupTimer) { clearTimeout(dupTimer); dupTimer = null; }
   const dup = await runDupCheck();
 
@@ -1617,6 +1829,7 @@ const save = async () => {
         passportReg:        f.value.lrAddress,
       },
       groupId:         f.value.groupId,
+      familyStatuses:  f.value.lrFamilyStatus,
       nozologyClasses: f.value.rNosology,
       crg:             { code: crgNum, child: crgChild },
       doc: {
@@ -1664,12 +1877,11 @@ const save = async () => {
     }
 
     try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
+    forgetDraftSavedAt();
     await dropDraftFiles();
+    await dropServerDraft();
     savedToDb = true;
     draftState.value = '';
-    // Уведомление шлём отсюда, а не из родителя: мастер открывают и со
-    // страницы «Реабилитанты», и с Дашборда, а на Дашборде событие 'saved'
-    // никто не слушал — сохранение там проходило вообще без единого слова.
     const fio = [f.value.rLast, f.value.rFirst].filter(Boolean).join(' ').trim();
     notifySaved(fio ? `Реабилитант ${fio} сохранён` : 'Реабилитант сохранён');
     emit('saved', createdRecipient);
@@ -1703,12 +1915,14 @@ onMounted(() => {
   document.addEventListener('keydown', onKey);
   document.addEventListener('click', closeDropdowns);
   document.body.style.overflow = 'hidden';
+  loadFamilyStatuses();
 });
 onUnmounted(() => {
   document.removeEventListener('keydown', onKey);
   document.removeEventListener('click', closeDropdowns);
   document.body.style.overflow = '';
   if (dupTimer) clearTimeout(dupTimer);
+  if (famTimer) clearTimeout(famTimer);
   if (draftStateTimer) clearTimeout(draftStateTimer);
   closePreview();
   draftKept();
@@ -1793,12 +2007,35 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  position: relative;
   animation: rwModalIn 0.32s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 @keyframes rwModalIn {
   from { opacity: 0; transform: translateY(1rem) scale(.985); }
   to { opacity: 1; transform: translateY(0) scale(1); }
 }
+.rw-loading {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: .875rem;
+  background: var(--rw-canvas);
+  font-size: .9375rem;
+  color: var(--rw-ink-muted);
+}
+.rw-loading-spin {
+  width: 1.75rem;
+  height: 1.75rem;
+  border: 2px solid var(--rw-line-strong);
+  border-top-color: var(--rw-sage-500);
+  border-radius: 50%;
+  animation: rwLoadingSpin .7s linear infinite;
+}
+@keyframes rwLoadingSpin { to { transform: rotate(360deg); } }
 .rw-topbar {
   flex: 0 0 auto;
   background: var(--rw-paper);
@@ -1854,8 +2091,6 @@ onUnmounted(() => {
   background: var(--rw-sage-500);
   flex: 0 0 0.4375rem;
 }
-/* Пока идёт запись — точка бледнее, чтобы момент сохранения был заметен
-   боковым зрением и без чтения самой надписи. */
 .rw-save-state.is-saving .rw-save-dot { background: var(--rw-ink-muted); }
 .rw-close-btn {
   width: 2.25rem; height: 2.25rem;
@@ -2605,7 +2840,6 @@ onUnmounted(() => {
   .rw-save-state { display: none; }
 }
 
-/* ── Незаполненные поля: уведомление в нижней панели + переход к полю ───── */
 .rw-sb-missing { position: relative; }
 .rw-mf-btn {
   background: var(--rw-amber-50);
@@ -2731,7 +2965,6 @@ onUnmounted(() => {
 }
 .rw-mf-foot .rw-btn { width: 100%; }
 
-/* Подсветка поля, к которому выполнен переход */
 .rw-flash { animation: rwFlash 1.8s ease-out; }
 @keyframes rwFlash {
   0%   { box-shadow: 0 0 0 0     rgba(176, 114, 35, .60); }
@@ -2749,7 +2982,6 @@ onUnmounted(() => {
   .rw-mf-btn { padding: 0.625rem 0.75rem; font-size: 0.875rem; }
 }
 
-/* Баннеры проверки на дубликаты */
 .rw-dup {
   display: flex; gap: 0.625rem; align-items: flex-start;
   margin: 0.25rem 0 1rem;
@@ -2784,10 +3016,25 @@ onUnmounted(() => {
 
 .rw-dup-list { margin: 0.5rem 0 0; padding-left: 1.125rem; }
 .rw-dup-list li { font-size: 0.8125rem; line-height: 1.5; color: var(--rw-ink-strong); }
+
+.rw-fs-note { margin-top: 0; }
+.rw-fs-apply {
+  padding: 0; border: none; background: none;
+  font: inherit; color: var(--rw-amber-700);
+  font-weight: 600; text-decoration: underline; cursor: pointer;
+}
+.rw-fs-apply:hover { color: var(--rw-ink-strong); }
+
+.rw-fs-group { border: none; padding: 0; margin: 0 0 0.875rem; }
+.rw-fs-group:last-of-type { margin-bottom: 0.625rem; }
+.rw-fs-legend { margin-bottom: 0.5rem; padding: 0; }
+
+.rw-fs-hint {
+  margin: 0; font-size: 0.8125rem; line-height: 1.45;
+  color: var(--rw-ink-subtle);
+}
 .rw-dup-meta { color: var(--rw-ink-subtle); }
 
-/* Кнопка «Посмотреть» лежит поверх прозрачного input[type=file], который
-   растянут на всю плитку, — без z-index клик уходил бы в выбор файла. */
 .rw-ut-view {
   position: relative; z-index: 2;
   margin-top: 0.4375rem;

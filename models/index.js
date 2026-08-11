@@ -8,12 +8,16 @@ import CRG from './CRG.js';
 import CRGDesc from './CRGDesc.js';
 import CRGRecipientSec from './CRGRecipientSec.js';
 import LegalRepresentative from './LegalRepresentative.js';
+import FamilyStatus from './FamilyStatus.js';
+import LegalRepFamilyStatus from './LegalRepFamilyStatus.js';
 import Direction from './Direction.js';
 import DocType from './DocType.js';
 import Recipient from './Recipient.js';
 import RecipientDoc from './RecipientDoc.js';
 import RecipientDocVersion from './RecipientDocVersion.js';
 import RecipientScanDoc from './RecipientScanDoc.js';
+import RecipientDraft from './RecipientDraft.js';
+import RecipientDraftScan from './RecipientDraftScan.js';
 import ReResult from './ReResult.js';
 import ScheduleEvent from './ScheduleEvent.js';
 import DiagnosticAssignment from './DiagnosticAssignment.js';
@@ -31,6 +35,15 @@ ReGroup.hasMany(Recipient, { as: 'recipients', foreignKey: 'groupId' });
 
 Recipient.belongsTo(LegalRepresentative, { as: 'representative', foreignKey: 'representativeId' });
 LegalRepresentative.hasMany(Recipient, { as: 'recipients', foreignKey: 'representativeId' });
+
+LegalRepresentative.belongsToMany(FamilyStatus, {
+  through: LegalRepFamilyStatus, as: 'familyStatuses',
+  foreignKey: 'representativeId', otherKey: 'statusId'
+});
+FamilyStatus.belongsToMany(LegalRepresentative, {
+  through: LegalRepFamilyStatus, as: 'representatives',
+  foreignKey: 'statusId', otherKey: 'representativeId'
+});
 
 Recipient.belongsTo(Nozology, { as: 'nozologyRef', foreignKey: 'nozology' });
 Nozology.hasMany(Recipient, { as: 'recipients', foreignKey: 'nozology', inverse: { as: 'nozologyRef' } });
@@ -94,9 +107,10 @@ DiagnosticSession.hasOne(DiagnosticConclusion, { as: 'conclusion', foreignKey: '
 DiagnosticConclusion.belongsTo(Recipient, { as: 'recipient', foreignKey: 'recipientId' });
 DiagnosticConclusion.belongsTo(User, { as: 'author', foreignKey: 'authorId' });
 
-// Связи журнала объявлены без внешних ключей в БД: запись о доступе должна
-// пережить удаление и пользователя, и реабилитанта — иначе удаление карточки
-// стирало бы след того, кто её смотрел.
+RecipientDraftScan.belongsTo(RecipientDraft, { as: 'draft', foreignKey: 'draftId' });
+RecipientDraft.hasMany(RecipientDraftScan, { as: 'scans', foreignKey: 'draftId' });
+RecipientDraft.belongsTo(User, { as: 'author', foreignKey: 'createdBy', foreignKeyConstraints: false });
+
 AccessLog.belongsTo(User, { as: 'user', foreignKey: 'userId', foreignKeyConstraints: false });
 AccessLog.belongsTo(Recipient, { as: 'recipient', foreignKey: 'recipientId', foreignKeyConstraints: false });
 
@@ -109,12 +123,16 @@ export {
   CRGDesc,
   CRGRecipientSec,
   LegalRepresentative,
+  FamilyStatus,
+  LegalRepFamilyStatus,
   Direction,
   DocType,
   Recipient,
   RecipientDoc,
   RecipientDocVersion,
   RecipientScanDoc,
+  RecipientDraft,
+  RecipientDraftScan,
   ReResult,
   ScheduleEvent,
   DiagnosticAssignment,

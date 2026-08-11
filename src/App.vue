@@ -22,8 +22,6 @@
     </div>
   </div>
 
-  <!-- Вне v-if/v-else нарочно: уведомления живут поверх любой страницы и не
-       должны исчезать вместе с ней. -->
   <ToastHost />
 </template>
 
@@ -46,6 +44,7 @@ import Documents from './views/Documents.vue';
 import AdminUsers from './views/AdminUsers.vue';
 import AdminDashboard from './views/AdminDashboard.vue';
 import EmployeeDashboard from './views/EmployeeDashboard.vue';
+import TeacherDashboard from './views/TeacherDashboard.vue';
 import EmployeeDocuments from './views/EmployeeDocuments.vue';
 import RecipientDetails from './views/RecipientDetails.vue';
 import Schedule from './views/Schedule.vue';
@@ -71,6 +70,7 @@ const currentComponent = computed(() => {
   if (pageStore.current === 'dashboard' && authStore.isAdmin) return AdminDashboard;
 
   if (pageStore.current === 'dashboard' && authStore.isEmployee) return EmployeeDashboard;
+  if (pageStore.current === 'dashboard' && authStore.isTeacher) return TeacherDashboard;
   if (pageStore.current === 'documents' && authStore.isEmployee) return EmployeeDocuments;
   return componentMap[pageStore.current] || Dashboard;
 });

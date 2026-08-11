@@ -3,7 +3,7 @@ import express from 'express';
 import { authMiddleware } from '../middleware/auth.js';
 import {
   User, ReGroup, Nozology, CRG, CRGDesc,
-  Direction, DocType, LegalRepresentative
+  Direction, DocType, LegalRepresentative, FamilyStatus
 } from '../models/index.js';
 
 const router = express.Router();
@@ -86,6 +86,20 @@ router.get('/doc-types', authMiddleware, async (req, res) => {
   try {
     const items = await DocType.findAll({
       attributes: ['id', 'code', 'name', 'category', 'isRequired', 'appliesTo']
+    });
+    res.json(items);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error' });
+  }
+});
+
+router.get('/family-statuses', authMiddleware, async (req, res) => {
+  try {
+    const items = await FamilyStatus.findAll({
+      where: { isActive: true },
+      attributes: ['id', 'code', 'name', 'hint', 'groupKey', 'sortOrder'],
+      order: [['sortOrder', 'ASC'], ['id', 'ASC']]
     });
     res.json(items);
   } catch (err) {

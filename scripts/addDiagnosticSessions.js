@@ -1,15 +1,3 @@
-// Одноразовая миграция под модуль «Диагностика: назначение датой + разбор
-// заявок специалистами + заключение».
-//
-//   1) CREATE TABLE DiagnosticSessions   — заявка на диагностику (только дата).
-//   2) CREATE TABLE DiagnosticConclusions — итоговое заключение по заявке.
-//   3) ALTER TABLE Users                 — canConclude, canViewAllResults.
-//   4) ALTER TABLE DiagnosticAssignments — diagnosticSessionId (ссылка на заявку).
-//
-// Сервер работает без sequelize.sync(), поэтому схему меняем вручную.
-// Скрипт идемпотентен: проверяет наличие таблицы/столбца перед изменением.
-//
-// Запуск:  node scripts/addDiagnosticSessions.js
 import { sequelize } from '../models/index.js';
 
 async function tableExists(table) {
@@ -44,7 +32,6 @@ async function run() {
     await sequelize.authenticate();
     console.log('DB connected.');
 
-    // ---- 1) Заявки на диагностику -------------------------------------------
     if (await tableExists('DiagnosticSessions')) {
       console.log('  = таблица DiagnosticSessions уже есть');
     } else {
@@ -68,7 +55,6 @@ async function run() {
       console.log('  ✓ таблица DiagnosticSessions создана');
     }
 
-    // ---- 2) Заключения -------------------------------------------------------
     if (await tableExists('DiagnosticConclusions')) {
       console.log('  = таблица DiagnosticConclusions уже есть');
     } else {
@@ -91,11 +77,9 @@ async function run() {
       console.log('  ✓ таблица DiagnosticConclusions создана');
     }
 
-    // ---- 3) Права специалистов ----------------------------------------------
     await addColumn('Users', 'canConclude', '`canConclude` TINYINT(1) NOT NULL DEFAULT 0');
     await addColumn('Users', 'canViewAllResults', '`canViewAllResults` TINYINT(1) NOT NULL DEFAULT 0');
 
-    // ---- 4) Связь назначения с заявкой --------------------------------------
     await addColumn('DiagnosticAssignments', 'diagnosticSessionId', '`diagnosticSessionId` INT NULL DEFAULT NULL');
 
     console.log('Готово.');

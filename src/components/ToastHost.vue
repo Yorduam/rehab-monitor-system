@@ -1,6 +1,4 @@
 <template>
-  <!-- role="status" + aria-live="polite" — чтобы программа экранного доступа
-       прочитала сообщение, но не перебивала человека на полуслове. -->
   <div class="toast-host" role="status" aria-live="polite">
     <transition-group name="toast">
       <button
@@ -14,8 +12,6 @@
         <span class="toast-icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
         </span>
-        <!-- Только текстовая интерполяция, без v-html: сюда попадают имена и
-             названия файлов, введённые человеком. -->
         <span class="toast-text">{{ t.text }}</span>
       </button>
     </transition-group>
@@ -29,18 +25,14 @@ import { toasts, dismissToast } from '../utils/toast';
 <style scoped>
 .toast-host {
   position: fixed;
-  right: 1.25rem;
+  left: 0;
+  right: 0;
   bottom: 1.25rem;
-  /* Выше мастера добавления реабилитанта (.rw-overlay, z-index 500) и его
-     окна просмотра скана (100), иначе уведомление о сохранении спряталось бы
-     ровно под тем окном, из которого сохраняли. */
   z-index: 2000;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
+  align-items: center;
   gap: 0.5rem;
-  /* Сам контейнер кликов не ловит — иначе невидимая полоса перекрывала бы
-     кнопки в углу экрана. Плашки ловят, у них pointer-events возвращён. */
   pointer-events: none;
 }
 .toast {
@@ -87,10 +79,9 @@ import { toasts, dismissToast } from '../utils/toast';
   .toast-host {
     left: 1rem;
     right: 1rem;
-    /* Выше нижней навигации на телефоне, иначе плашка ляжет прямо на неё. */
     bottom: 5.5rem;
     align-items: stretch;
   }
-  .toast { max-width: none; }
+  .toast { max-width: none; text-align: center; justify-content: center; }
 }
 </style>
