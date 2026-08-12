@@ -1,319 +1,605 @@
 <template>
   <div class="db-page">
+    <div class="exec">
 
-    <div class="page-head">
-      <div class="page-head-text">
-        <div class="page-eyebrow">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M12 2a5 5 0 0 1 5 5v2a5 5 0 0 1-10 0V7a5 5 0 0 1 5-5z"/>
-            <path d="M20 21v-2a5 5 0 0 0-5-5H9a5 5 0 0 0-5 5v2"/>
-          </svg>
-          Администрирование
-        </div>
-        <h1 class="page-title">Панель администратора</h1>
-        <p class="page-sub">Сводка по записям в базе данных и статистике контингента учреждения.</p>
-      </div>
-      <button class="db-btn db-btn-primary" type="button" @click="goTo('admin-users')">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-        Добавить пользователя
-      </button>
-    </div>
-
-    <div class="db-card records-wrap">
-      <div class="card-head">
-        <div class="ch-icon blue">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-               stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <ellipse cx="12" cy="5" rx="9" ry="3"/>
-            <path d="M3 5v14a9 3 0 0 0 18 0V5"/>
-            <path d="M3 12a9 3 0 0 0 18 0"/>
-          </svg>
-        </div>
-        <div class="ch-body">
-          <div class="ch-title">Записи в базе данных</div>
-          <div class="ch-sub">Количество записей по основным сущностям системы</div>
-        </div>
-        <div class="ch-actions">
-          <span class="db-badge db-badge-active" role="status">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"
-                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <polyline points="20 6 9 17 4 12"/>
-            </svg>
-            {{ totalRecords }} записей всего
-          </span>
-        </div>
-      </div>
-
-      <div class="records-grid">
-        <div v-if="loading" class="records-empty">Загрузка…</div>
-        <div
-          v-for="rec in records" :key="rec.key"
-          class="rec-tile"
-          :class="recTone(rec.key)"
-        >
-          <div class="rec-ico" v-html="RECORD_ICONS[rec.key] || RECORD_ICONS.default" aria-hidden="true"></div>
-          <div class="rec-num">{{ rec.value }}</div>
-          <div class="rec-label">{{ rec.label }}</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="dash-top">
-
-      <div class="db-card">
-        <div class="card-head">
-          <div class="ch-icon">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
-              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-            </svg>
+      <div class="greet">
+        <div class="greet-row">
+          <div class="greet-main">
+            <div class="eyebrow">{{ ov.periodLabel || 'Сводка центра' }}</div>
+            <h1>Обзор центра</h1>
+            <p class="lede">
+              Ключевые показатели реабилитационного процесса и его измеримость по всем участникам.
+            </p>
           </div>
-          <div class="ch-body">
-            <div class="ch-title">Реабилитанты</div>
-            <div class="ch-sub">Распределение контингента по статусам</div>
-          </div>
-          <div class="ch-actions">
-            <button class="db-btn db-btn-sm db-btn-secondary" type="button" @click="goTo('recipients')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
+          <div class="greet-actions">
+            <button class="btn btn-secondary" type="button" :disabled="loading" @click="loadOverview">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M18 20V10"/><path d="M12 20V4"/><path d="M6 20v-6"/>
+                <polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
               </svg>
-              Аналитика
+              {{ loading ? 'Обновляем…' : 'Обновить' }}
+            </button>
+            <button class="btn btn-primary" type="button" :disabled="loading" @click="exportAll">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                <polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+              </svg>
+              Выгрузить сводку
             </button>
           </div>
         </div>
+        <div v-if="ov.updatedAt" class="greet-meta">Данные на {{ ov.updatedAt }}</div>
+      </div>
 
-        <div class="info-body">
-          <div class="info-main">
+      <div class="grid grid-4 kpi-grid">
+        <div v-for="k in kpi" :key="k.key" class="kpi">
+          <div class="k-label">
+            <span class="k-icon" :class="'ic-' + k.tone" aria-hidden="true" v-html="ICONS[k.icon]"></span>
+            {{ k.label }}
+          </div>
+          <div class="k-value">{{ k.value }}<small v-if="k.unit">{{ k.unit }}</small></div>
+          <div class="k-trend" :class="k.trendDir">
+            <svg v-if="k.trendDir === 'up'" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/>
+            </svg>
+            <svg v-else-if="k.trendDir === 'down'" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                 stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/>
+            </svg>
+            {{ k.trendText }}
+          </div>
+        </div>
+      </div>
 
-            <div class="info-ring" aria-hidden="true">
-              <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-                <circle cx="50" cy="50" r="38" fill="none" stroke="#EDE8DD" stroke-width="11"/>
-                <circle
-                  v-for="(seg, i) in donutSegments" :key="i"
-                  cx="50" cy="50" r="38" fill="none"
-                  :stroke="seg.color"
-                  stroke-width="11"
-                  :stroke-dasharray="seg.dasharray"
-                  :stroke-dashoffset="seg.dashoffset"
-                  stroke-linecap="round"
-                />
-              </svg>
-              <div class="ring-label">
-                <span class="ring-num">{{ recipientStats.total }}</span>
-                <span class="ring-cap">всего</span>
+      <section class="draft">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <div class="card-title-sans">Незаконченная карточка</div>
+              <div class="card-sub">Та, которую начали на этом компьютере</div>
+            </div>
+            <div class="head-end">
+              <button
+                v-if="draftsTotal"
+                class="btn btn-secondary btn-sm"
+                type="button"
+                @click="openDraftsTab"
+              >Все черновики · {{ draftsTotal }}</button>
+            </div>
+          </div>
+
+          <div v-if="draftLoading" class="card-body">
+            <div class="empty">Загрузка…</div>
+          </div>
+
+          <div v-else-if="!draft" class="card-body">
+            <div class="dr-empty-t">Незаконченных карточек нет</div>
+            <div class="dr-empty-s">
+              Если закрыть мастер регистрации на половине, начатая карточка появится здесь — и её можно будет дозаполнить, не вводя всё заново.
+              <template v-if="draftsTotal">
+                У коллег такие карточки есть: {{ draftsTotal }} {{ plural(draftsTotal, 'штука', 'штуки', 'штук') }} в разделе
+                <button class="p-link" type="button" @click="openDraftsTab">«Черновики»</button>.
+              </template>
+            </div>
+          </div>
+
+          <div v-else class="card-body dr-body">
+            <div class="dr-top">
+              <span class="avatar av-amber" aria-hidden="true">{{ initials(draftTitle) }}</span>
+              <div class="dr-id">
+                <div class="dr-name">{{ draftTitle }}</div>
+                <div class="dr-sub">{{ draftSub }}</div>
+              </div>
+              <button class="btn btn-primary" type="button" @click="openDraftWizard">Дозаполнить карточку</button>
+            </div>
+
+            <div class="dr-progress">
+              <div class="dr-bar"><span :style="{ width: draft.pct + '%' }"></span></div>
+              <div class="dr-figures">
+                Заполнено <b>{{ draft.done }}</b> из {{ draft.total }} {{ plural(draft.total, 'обязательного поля', 'обязательных полей', 'обязательных полей') }} на первых двух шагах
               </div>
             </div>
 
-            <div class="info-kpi">
-              <div class="info-kpi-title">По статусам</div>
-              <div class="info-kpi-sub">Актуально на сегодня</div>
-              <div v-for="row in kpiRows" :key="row.label" class="kpi-row">
-                <span class="kpi-dot" :style="{ background: row.color }" aria-hidden="true"></span>
-                <span class="kpi-label">{{ row.label }}</span>
-                <div class="kpi-track" aria-hidden="true">
-                  <div class="kpi-fill" :style="{ width: row.pct + '%', background: row.color }"></div>
+            <div v-if="draft.steps.length" class="dr-steps">
+              <div v-for="s in draft.steps" :key="s.step" class="dr-step">
+                <div class="dr-step-head">
+                  <span>Шаг {{ s.step }} · {{ s.label }}</span>
+                  <span class="dr-step-num">{{ s.done }} из {{ s.total }}</span>
                 </div>
-                <span class="kpi-val">{{ row.value }}</span>
+                <div class="dr-chips">
+                  <span v-for="(m, i) in s.missing" :key="s.step + '-' + i" class="dr-chip">{{ m.l }}</span>
+                </div>
+              </div>
+            </div>
+            <div v-else class="dr-step-done">
+              Личные данные заполнены полностью. Остался третий шаг мастера — сканы, пакет документов и подтверждение комплектности.
+            </div>
+
+            <p class="dr-note">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+              <span>
+                Карточка сохранена и на сервере: её видно с любого компьютера и она переживёт очистку данных браузера.
+                Здесь показана только та, что начата на этом компьютере, — остальные лежат в разделе
+                <button class="p-link" type="button" @click="openDraftsTab">«Черновики»</button>.
+              </span>
+            </p>
+          </div>
+        </div>
+      </section>
+
+      <div class="grid grid-main-aside">
+        <div class="stack">
+
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">Поступления и заключения</div>
+                <div class="card-sub">По месяцам · заявка на диагностику и выданное заключение</div>
+              </div>
+              <div class="head-end">
+                <div class="chart-legend">
+                  <span class="leg"><span class="sw sw-dark" aria-hidden="true"></span>Поступило</span>
+                  <span class="leg"><span class="sw sw-light" aria-hidden="true"></span>Заключений</span>
+                </div>
+                <button
+                  class="icon-mini" type="button" title="Выгрузить в CSV"
+                  aria-label="Выгрузить помесячную динамику в CSV"
+                  :disabled="!chartMonths.length" @click="exportChart"
+                >
+                  <span v-html="ICONS.download" aria-hidden="true"></span>
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div v-if="loading" class="empty">Загрузка…</div>
+              <div v-else-if="!chartTotal" class="empty">За последние полгода движения не было.</div>
+              <div v-else class="chart" role="img" :aria-label="chartAria">
+                <div v-for="m in chartMonths" :key="m.key" class="bar-col">
+                  <div class="bar-stack">
+                    <div
+                      v-if="m.done" class="bar light" :style="{ height: m.doneH }"
+                      :title="m.label + ': заключений ' + m.done"
+                    ></div>
+                    <div
+                      v-if="m.intake" class="bar" :style="{ height: m.intakeH }"
+                      :title="m.label + ': поступило ' + m.intake"
+                    ></div>
+                  </div>
+                  <span class="bar-x">{{ m.label }}</span>
+                </div>
               </div>
             </div>
           </div>
 
-          <div class="info-stats">
-            <div class="stat-tile green">
-              <div class="st-num">{{ recipientStats.activeCount }}</div>
-              <div class="st-label">Активные</div>
+          <div class="card">
+            <div class="card-head">
+              <div>
+                <div class="card-title">Измеримость диагностики</div>
+                <div class="card-sub">Доля закрытых блоков по каждому направлению обследования</div>
+              </div>
+              <div class="head-end">
+                <button
+                  class="icon-mini" type="button" title="Выгрузить в CSV"
+                  aria-label="Выгрузить диагностику по направлениям в CSV"
+                  :disabled="!directions.length" @click="exportDirections"
+                >
+                  <span v-html="ICONS.download" aria-hidden="true"></span>
+                </button>
+              </div>
             </div>
-            <div class="stat-tile amber">
-              <div class="st-num">{{ recipientStats.draftCount }}</div>
-              <div class="st-label">Черновики</div>
-            </div>
-            <div class="stat-tile blue">
-              <div class="st-num">{{ recipientStats.archivedCount }}</div>
-              <div class="st-label">В архиве</div>
+            <div class="card-body">
+              <div v-if="loading" class="empty">Загрузка…</div>
+              <div v-else-if="!directions.length" class="empty">Направления не заведены.</div>
+              <div v-else class="prog-list">
+                <div v-for="d in directions" :key="d.id" class="prog-row">
+                  <span class="prog-label">{{ d.name }}</span>
+                  <span class="prog-value">
+                    <span v-if="d.total" class="now">{{ d.pct }}%</span>
+                    <template v-if="d.total"> · {{ d.done }} из {{ d.total }}</template>
+                    <template v-else>назначений не было</template>
+                  </span>
+                  <div class="prog-bar">
+                    <span class="prog-fill" :class="d.tone" :style="{ width: d.pct + '%' }"></span>
+                  </div>
+                </div>
+              </div>
+              <div class="scores">
+                <div v-for="s in scores" :key="s.key" class="score">
+                  <div class="s-label">{{ s.label }}</div>
+                  <div class="s-val">{{ s.value }}<small>{{ s.unit }}</small></div>
+                  <div class="s-note">{{ s.note }}</div>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
 
-      <div class="db-card">
-        <div class="card-head">
-          <div class="ch-icon plum">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
-              <circle cx="9" cy="7" r="4"/>
-              <line x1="19" y1="8" x2="19" y2="14"/>
-              <line x1="22" y1="11" x2="16" y2="11"/>
-            </svg>
-          </div>
-          <div class="ch-body">
-            <div class="ch-title">Пользователи</div>
-            <div class="ch-sub">Распределение учётных записей по ролям</div>
-          </div>
-          <div class="ch-actions">
-            <button class="db-btn db-btn-sm db-btn-secondary" type="button" @click="goTo('admin-users')">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"
-                   stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <polyline points="9 18 15 12 9 6"/>
-              </svg>
-              Управление
-            </button>
-          </div>
-        </div>
+        <aside class="stack">
 
-        <ul class="docs-list" role="list" aria-label="Пользователи по ролям">
-          <li v-for="r in roleRows" :key="r.key" class="docs-row">
-            <div class="dr-avatar" :class="r.av" aria-hidden="true" v-html="r.icon"></div>
-            <div class="dr-info">
-              <div class="dr-name">{{ r.label }}</div>
-              <div class="dr-meta">{{ r.pct }}% от всех учётных записей</div>
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title-sans">Загрузка специалистов</div>
+              <div class="head-end">
+                <button
+                  class="icon-mini" type="button" title="Выгрузить в CSV"
+                  aria-label="Выгрузить загрузку специалистов в CSV"
+                  :disabled="!load.length" @click="exportLoad"
+                >
+                  <span v-html="ICONS.download" aria-hidden="true"></span>
+                </button>
+              </div>
             </div>
-            <span class="dr-badge dr-ok">{{ r.value }}</span>
-          </li>
-        </ul>
+            <div class="card-body">
+              <div v-if="loading" class="empty">Загрузка…</div>
+              <div v-else-if="!load.length" class="empty">Диагностику пока никто не вёл.</div>
+              <div v-else class="prog-list">
+                <div v-for="t in load" :key="t.id" class="prog-row">
+                  <span class="prog-label">{{ t.name }}</span>
+                  <span class="prog-value">
+                    {{ t.count }} {{ blockWord(t.count) }}
+                  </span>
+                  <div class="prog-bar">
+                    <span class="prog-fill" :class="t.tone" :style="{ width: t.pct + '%' }"></span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-        <div class="docs-foot">
-          <span class="docs-foot-note">Всего учётных записей: {{ recordValue('users') }}</span>
-          <button class="db-btn db-btn-sm db-btn-ghost" type="button" @click="goTo('admin-users')">
-            Все пользователи
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-                 stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <polyline points="9 18 15 12 9 6"/>
-            </svg>
-          </button>
-        </div>
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title-sans">Требует решения</div>
+              <div class="head-end">
+                <span class="tag" :class="issues.length ? 'tag-rose' : 'tag-sage'">
+                  {{ issues.length || 'Чисто' }}
+                </span>
+                <button
+                  class="icon-mini" type="button" title="Выгрузить в CSV"
+                  aria-label="Выгрузить список проблем в CSV"
+                  :disabled="!issues.length" @click="exportIssues"
+                >
+                  <span v-html="ICONS.download" aria-hidden="true"></span>
+                </button>
+              </div>
+            </div>
+            <div class="card-body">
+              <div v-if="loading" class="empty">Загрузка…</div>
+              <div v-else-if="!issues.length" class="empty">Всё в порядке — открытых проблем нет.</div>
+              <div v-else class="tasks">
+                <div v-for="i in issues" :key="i.key" class="task">
+                  <span class="task-ic" :class="'ic-' + i.tone" aria-hidden="true" v-html="ICONS.alert"></span>
+                  <div class="task-main">
+                    <div class="t-title">{{ i.title }}</div>
+                    <div class="t-sub">{{ i.sub }}</div>
+                  </div>
+                  <div v-if="i.action" class="task-end">
+                    <button class="btn btn-secondary btn-sm" type="button" @click="goTo(i.action)">
+                      Открыть
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <div class="card-title-sans">Отчёты</div>
+            </div>
+            <div class="card-body">
+              <div class="mlist">
+                <button
+                  v-for="r in reports" :key="r.key"
+                  class="mrow" type="button" :disabled="loading" @click="r.run()"
+                >
+                  <span class="task-ic" :class="'ic-' + r.tone" aria-hidden="true" v-html="ICONS[r.icon]"></span>
+                  <span class="m-main">
+                    <span class="m-name">{{ r.label }}</span>
+                    <span class="m-sub">{{ r.sub }}</span>
+                  </span>
+                  <span class="m-go" aria-hidden="true" v-html="ICONS.download"></span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </aside>
       </div>
     </div>
 
+    <AddRecipientWizard
+      v-if="draftWizardOpen"
+      @saved="onDraftSaved"
+      @close="closeDraftWizard"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { usePageStore } from '../stores/page';
+import { notify } from '../utils/toast';
 import api from '../api';
+import AddRecipientWizard from '../components/AddRecipientWizard.vue';
+import { readDraft, readDraftSavedAt, countDraftFiles, summarizeDraft } from '../utils/recipientDraft';
+
+const PAGE_TITLES = {
+  dashboard: 'Дашборд',
+  recipients: 'Реабилитанты',
+  groups: 'Группы',
+  diagnostics: 'Диагностика',
+  progress: 'Прогресс',
+  documents: 'Документы',
+  schedule: 'Расписание',
+  'admin-users': 'Пользователи',
+  'recipient-details': 'Карточка реабилитанта'
+};
 
 const pageStore = usePageStore();
-const goTo = (page) => {
-  const titles = { recipients: 'Реабилитанты', 'admin-users': 'Пользователи' };
-  pageStore.setPage(page, titles[page] || page);
+const goTo = (page, params = {}) => {
+  pageStore.setPage(page, PAGE_TITLES[page] || page, params);
 };
 
+const ICONS = {
+  users: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>',
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>',
+  chart: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18M18 17V9M12 17v-6M6 17v-3"/></svg>',
+  clock: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>',
+  alert: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>',
+  doc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M16 13H8M16 17H8"/></svg>',
+  download: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>'
+};
+
+const ov = ref({});
 const loading = ref(true);
-const records = ref([]);
-const roles   = ref({ admin: 0, teacher: 0, employee: 0, recipient: 0 });
-const recipientStats = ref({
-  total: 0, activeCount: 0, draftCount: 0, archivedCount: 0
-});
 
-const totalRecords = computed(() => records.value.reduce((s, r) => s + (r.value || 0), 0));
-const recordValue = (key) => records.value.find(r => r.key === key)?.value ?? 0;
+const kpi = computed(() => ov.value.kpi || []);
+const directions = computed(() => ov.value.directions || []);
+const scores = computed(() => ov.value.scores || []);
+const load = computed(() => ov.value.load || []);
+const issues = computed(() => ov.value.issues || []);
 
-const RECORD_ICONS = {
-  users:       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/></svg>',
-  recipients:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
-  groups:      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3h4a2 2 0 0 1 2 2v4M3 17v4a2 2 0 0 0 2 2h4M17 21h4a2 2 0 0 0 2-2v-4M7 3H5a2 2 0 0 0-2 2v4"/></svg>',
-  diagnostics: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>',
-  documents:   '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
-  specialists: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>',
-  results:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
-  directions:  '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg>',
-  nozology:    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 2a2 2 0 0 0-2 2v5H4a2 2 0 0 0-2 2v2a2 2 0 0 0 2 2h5v5a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2v-5h5a2 2 0 0 0 2-2v-2a2 2 0 0 0-2-2h-5V4a2 2 0 0 0-2-2z"/></svg>',
-  default:     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/></svg>'
+const plural = (n, one, few, many) => {
+  const a = Math.abs(n) % 100;
+  const b = a % 10;
+  if (a > 10 && a < 20) return many;
+  if (b > 1 && b < 5) return few;
+  if (b === 1) return one;
+  return many;
 };
-const REC_TONES = {
-  users: 'tone-plum',  recipients: 'tone-sage', groups: 'tone-amber', diagnostics: 'tone-blue',
-  documents: 'tone-rose', specialists: 'tone-teal', results: 'tone-sage', directions: 'tone-amber',
-  nozology: 'tone-plum'
-};
-const recTone = (key) => REC_TONES[key] || 'tone-blue';
+const blockWord = (n) => plural(n, 'блок', 'блока', 'блоков');
 
-const C   = 2 * Math.PI * 38;
-const GAP = 2;
-const donutSegments = computed(() => {
-  const s = recipientStats.value;
-  const total = s.total || 0;
-  if (total === 0) return [];
-
-  const raw = [
-    { value: s.activeCount,   color: '#5F7E45' },
-    { value: s.draftCount,    color: '#B07223' },
-    { value: s.archivedCount, color: '#D6CFBE' }
-  ].filter(seg => seg.value > 0);
-  if (raw.length === 0) return [];
-
-  const effectiveC     = C - raw.length * GAP;
-  const INITIAL_OFFSET = -C / 4;
-  let accumulatedArc   = 0;
-
-  return raw.map((seg, i) => {
-    const arcLen     = (seg.value / total) * effectiveC;
-    const dashoffset = INITIAL_OFFSET - accumulatedArc - i * GAP;
-    accumulatedArc  += arcLen;
-    return {
-      color:     seg.color,
-      dasharray: `${arcLen.toFixed(2)} ${C.toFixed(2)}`,
-      dashoffset: dashoffset.toFixed(2)
-    };
-  });
-});
-
-const kpiRows = computed(() => {
-  const s = recipientStats.value;
-  const total = Math.max(s.total || 1, 1);
-  return [
-    { color: '#5F7E45', label: 'Активные',  value: s.activeCount   || 0, pct: Math.round(((s.activeCount   || 0) / total) * 100) },
-    { color: '#B07223', label: 'Черновики', value: s.draftCount    || 0, pct: Math.round(((s.draftCount    || 0) / total) * 100) },
-    { color: '#D6CFBE', label: 'В архиве',  value: s.archivedCount || 0, pct: Math.round(((s.archivedCount || 0) / total) * 100) }
-  ];
-});
-
-const ROLE_META = {
-  admin:     { label: 'Администраторы', av: 'av-rose',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a5 5 0 0 1 5 5v2a5 5 0 0 1-10 0V7a5 5 0 0 1 5-5z"/><path d="M20 21v-2a5 5 0 0 0-5-5H9a5 5 0 0 0-5 5v2"/></svg>' },
-  teacher:   { label: 'Преподаватели',  av: 'av-sage',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>' },
-  employee:  { label: 'Сотрудники',     av: 'av-teal',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>' },
-  recipient: { label: 'Реципиенты',     av: 'av-blue',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M20 21a8 8 0 0 0-16 0"/></svg>' }
-};
-const roleRows = computed(() => {
-  const total = Math.max(Object.values(roles.value).reduce((s, n) => s + n, 0), 1);
-  return ['admin', 'teacher', 'employee', 'recipient'].map(key => ({
-    key,
-    label: ROLE_META[key].label,
-    av:    ROLE_META[key].av,
-    icon:  ROLE_META[key].icon,
-    value: roles.value[key] || 0,
-    pct:   Math.round(((roles.value[key] || 0) / total) * 100)
+const chartMonths = computed(() => {
+  const months = ov.value.chart?.months || [];
+  const stackMax = Math.max(1, ...months.map((m) => m.intake + m.done));
+  return months.map((m) => ({
+    ...m,
+    intakeH: `${Math.round((m.intake / stackMax) * 100)}%`,
+    doneH: `${Math.round((m.done / stackMax) * 100)}%`
   }));
 });
 
-const loadAdminStats = async () => {
+const chartTotal = computed(() =>
+  chartMonths.value.reduce((sum, m) => sum + m.intake + m.done, 0)
+);
+
+const chartAria = computed(() => {
+  const parts = chartMonths.value.map(
+    (m) => `${m.label}: поступило ${m.intake}, заключений ${m.done}`
+  );
+  return `Помесячная динамика. ${parts.join('. ')}.`;
+});
+
+const CSV_SEP = ';';
+const csvCell = (v) => {
+  const s = v == null ? '' : String(v);
+  return /["\n\r;]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+};
+const downloadCsv = (name, rows) => {
+  const body = rows.map((r) => r.map(csvCell).join(CSV_SEP)).join('\r\n');
+  const blob = new Blob(['﻿' + body], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${name}_${ov.value.date || 'today'}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  notify(`Файл «${a.download}» выгружен`, { key: 'exec-export' });
+};
+
+const kpiRows = () => [
+  ['Показатель', 'Значение', 'Комментарий'],
+  ...kpi.value.map((k) => [k.label, `${k.value}${k.unit || ''}`.trim(), k.trendText])
+];
+const scoreRows = () => [
+  ['Показатель', 'Значение', 'Основание'],
+  ...scores.value.map((s) => [s.label, `${s.value}${s.unit || ''}`, s.note])
+];
+const chartRows = () => [
+  ['Месяц', 'Поступило', 'Заключений выдано'],
+  ...chartMonths.value.map((m) => [m.label, m.intake, m.done])
+];
+const directionRows = () => [
+  ['Направление', 'Закрыто блоков', 'Всего назначено', 'Доля, %'],
+  ...directions.value.map((d) => [d.name, d.done, d.total, d.pct])
+];
+const loadRows = () => [
+  ['Специалист', 'Блоков диагностики', 'Доля от максимума, %'],
+  ...load.value.map((t) => [t.name, t.count, t.pct])
+];
+const issueRows = () => [
+  ['Проблема', 'Пояснение'],
+  ...issues.value.map((i) => [i.title, i.sub])
+];
+const contingentRows = () => [
+  ['Статус', 'Реабилитантов'],
+  ...(ov.value.contingent || []).map((c) => [c.label, c.value])
+];
+const staffRows = () => [
+  ['Роль', 'Учётных записей'],
+  ...(ov.value.staff || []).map((s) => [s.label, s.value])
+];
+
+const exportChart = () => downloadCsv('поступления_и_заключения', chartRows());
+const exportDirections = () => downloadCsv('диагностика_по_направлениям', directionRows());
+const exportLoad = () => downloadCsv('загрузка_специалистов', loadRows());
+const exportIssues = () => downloadCsv('требует_решения', issueRows());
+
+const exportAll = () => {
+  const rows = [
+    ['Обзор центра'],
+    ['Период', ov.value.periodLabel || ''],
+    ['Выгружено', new Date().toLocaleString('ru-RU')],
+    [],
+    ['КЛЮЧЕВЫЕ ПОКАЗАТЕЛИ'], ...kpiRows(),
+    [],
+    ['СВОДНЫЕ ДОЛИ'], ...scoreRows(),
+    [],
+    ['ПОСТУПЛЕНИЯ И ЗАКЛЮЧЕНИЯ ПО МЕСЯЦАМ'], ...chartRows(),
+    [],
+    ['ДИАГНОСТИКА ПО НАПРАВЛЕНИЯМ'], ...directionRows(),
+    [],
+    ['ЗАГРУЗКА СПЕЦИАЛИСТОВ'], ...loadRows(),
+    [],
+    ['ТРЕБУЕТ РЕШЕНИЯ'], ...issueRows(),
+    [],
+    ['РЕАБИЛИТАНТЫ ПО СТАТУСАМ'], ...contingentRows(),
+    [],
+    ['ПОЛЬЗОВАТЕЛИ ПО РОЛЯМ'], ...staffRows()
+  ];
+  downloadCsv('обзор_центра', rows);
+};
+
+const reports = [
+  {
+    key: 'all', label: 'Сводка центра', sub: 'CSV · все разделы обзора',
+    tone: 'teal', icon: 'doc', run: () => exportAll()
+  },
+  {
+    key: 'dyn', label: 'Динамика по месяцам', sub: 'CSV · поступления и заключения',
+    tone: 'blue', icon: 'chart', run: () => exportChart()
+  },
+  {
+    key: 'dir', label: 'Диагностика по направлениям', sub: 'CSV · закрытые блоки',
+    tone: 'plum', icon: 'check', run: () => exportDirections()
+  },
+  {
+    key: 'load', label: 'Загрузка специалистов', sub: 'CSV · блоки на человека',
+    tone: 'sage', icon: 'users', run: () => exportLoad()
+  }
+];
+
+const initials = (name) => {
+  const parts = (name || '').split(' ').filter(Boolean);
+  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '—';
+};
+
+const draft = ref(null);
+const draftSavedAt = ref(null);
+const draftLoading = ref(true);
+const draftWizardOpen = ref(false);
+const draftsTotal = ref(0);
+
+const loadDraftCard = async () => {
+  draftLoading.value = true;
+  try {
+    const raw = readDraft();
+    const files = raw ? await countDraftFiles() : 0;
+    draft.value = summarizeDraft(raw, files);
+    draftSavedAt.value = draft.value ? readDraftSavedAt() : null;
+  } catch (e) {
+    console.error('draft:', e);
+    draft.value = null;
+    draftSavedAt.value = null;
+  } finally {
+    draftLoading.value = false;
+  }
+};
+
+const loadDraftsTotal = async () => {
+  try {
+    const { data } = await api.get('/recipients/drafts');
+    draftsTotal.value = data.total ?? (data.data || []).length;
+  } catch (e) {
+    console.error('drafts:', e);
+  }
+};
+
+const openDraftsTab = () => {
+  pageStore.setPage('recipients', 'Реабилитанты', { tab: 'drafts' });
+};
+
+const openDraftWizard = () => { draftWizardOpen.value = true; };
+const closeDraftWizard = () => {
+  draftWizardOpen.value = false;
+  loadDraftCard();
+  loadDraftsTotal();
+};
+const onDraftSaved = () => {
+  loadOverview();
+  loadDraftsTotal();
+};
+
+const draftTitle = computed(() => {
+  if (!draft.value) return '';
+  if (draft.value.name) return draft.value.name;
+  if (draft.value.repName) return `Ребёнок ${draft.value.repName}`;
+  return 'Имя пока не введено';
+});
+
+const savedAgo = (d) => {
+  if (!d) return '';
+  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
+  if (mins < 1) return 'сохранено только что';
+  if (mins < 60) return `сохранено ${mins} ${plural(mins, 'минуту', 'минуты', 'минут')} назад`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `сохранено ${hours} ${plural(hours, 'час', 'часа', 'часов')} назад`;
+  const days = Math.floor(hours / 24);
+  return `сохранено ${days} ${plural(days, 'день', 'дня', 'дней')} назад`;
+};
+
+const draftSub = computed(() => {
+  if (!draft.value) return '';
+  const parts = [];
+  if (draft.value.name && draft.value.repName) parts.push(`представитель — ${draft.value.repName}`);
+  if (draft.value.fileCount) {
+    parts.push(`${draft.value.fileCount} ${plural(draft.value.fileCount, 'скан приложен', 'скана приложено', 'сканов приложено')}`);
+  }
+  const ago = savedAgo(draftSavedAt.value);
+  if (ago) parts.push(ago);
+  return parts.join(' · ') || 'Регистрация начата, но не завершена';
+});
+
+const loadOverview = async () => {
   loading.value = true;
   try {
-    const { data } = await api.get('/dashboard/admin-stats');
-    records.value        = data.records || [];
-    roles.value          = data.roles || roles.value;
-    recipientStats.value = { ...recipientStats.value, ...data.recipientStats };
-  } catch (e) {
-    console.error('admin-stats:', e);
+    const { data } = await api.get('/dashboard/exec-overview');
+    ov.value = data || {};
+  } catch (err) {
+    console.error(err);
+    notify('Не удалось загрузить обзор центра', { key: 'exec-load' });
   } finally {
     loading.value = false;
   }
 };
 
+let refreshTimer = null;
+
 onMounted(() => {
   document.documentElement.style.setProperty('--bg-app', '#F7F4ED');
-  loadAdminStats();
+  loadOverview();
+  loadDraftCard();
+  loadDraftsTotal();
+  refreshTimer = setInterval(loadOverview, 120000);
 });
+
 onUnmounted(() => {
   document.documentElement.style.removeProperty('--bg-app');
+  if (refreshTimer) clearInterval(refreshTimer);
 });
 </script>
 
@@ -379,7 +665,7 @@ onUnmounted(() => {
   --db-focus-ring: 0 0 0 0.1875rem rgba(95,126,69,0.35);
 
   font-family: var(--db-font-sans);
-  font-size: 0.9375rem;
+  font-size: 1rem;
   line-height: 1.55;
   color: var(--db-ink);
   animation: dbPageIn 0.4s cubic-bezier(0.2,0.7,0.2,1);
@@ -388,312 +674,435 @@ onUnmounted(() => {
   from { opacity: 0; transform: translateY(0.4rem); }
   to   { opacity: 1; transform: none; }
 }
-.page-head {
+
+:where(.exec) button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  cursor: pointer;
+}
+:where(.exec) svg { width: 1rem; height: 1rem; flex: none; }
+
+.greet { margin-bottom: 1.75rem; }
+.greet-row {
   display: flex;
-  align-items: flex-start;
+  align-items: flex-end;
   justify-content: space-between;
   gap: 1.5rem;
-  margin-bottom: 1.75rem;
   flex-wrap: wrap;
 }
-.page-head-text { flex: 1 1 20rem; min-width: 0; }
-.page-eyebrow {
+.greet-main { flex: 1 1 24rem; min-width: 0; }
+.eyebrow {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-weight: 700;
+  color: var(--db-ink-muted);
+  margin-bottom: 0.5rem;
+}
+.greet h1 {
+  font-family: var(--db-font-serif);
+  font-size: 2.5rem;
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: -0.025em;
+  color: var(--db-ink-strong);
+  margin: 0 0 0.5rem;
+}
+.lede { font-size: 1rem; color: var(--db-ink-muted); max-width: 44rem; }
+.greet-meta { font-size: 0.8125rem; color: var(--db-ink-subtle); margin-top: 0.75rem; }
+.greet-actions { display: flex; gap: 0.625rem; flex-wrap: wrap; }
+
+.btn {
   display: inline-flex;
   align-items: center;
   gap: 0.4375rem;
+  padding: 0.625rem 1.125rem;
+  border-radius: 62.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: 0.0625rem solid transparent;
+  transition: background 0.16s, border-color 0.16s, color 0.16s;
+  white-space: nowrap;
+}
+.btn:focus-visible { outline: none; box-shadow: var(--db-focus-ring); }
+.btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.btn-primary { background: var(--db-sage-800); color: #fff; }
+.btn-primary:hover:not(:disabled) { background: var(--db-sage-900); }
+.btn-secondary {
+  background: var(--db-paper);
+  border-color: var(--db-line);
+  color: var(--db-ink-strong);
+}
+.btn-secondary:hover:not(:disabled) { background: var(--db-paper-soft); }
+.btn-sm { padding: 0.375rem 0.8125rem; font-size: 0.8125rem; }
+
+.grid { display: grid; gap: 1.25rem; }
+.grid-4 { grid-template-columns: repeat(4, minmax(0,1fr)); }
+.grid-main-aside { grid-template-columns: minmax(0,1fr) 22rem; align-items: start; }
+.stack { display: grid; gap: 1.25rem; align-content: start; min-width: 0; }
+.kpi-grid { margin-bottom: 1.5rem; }
+
+.kpi {
+  background: var(--db-paper);
+  border: 0.0625rem solid var(--db-line);
+  border-radius: var(--db-radius-lg);
+  padding: 1.125rem 1.25rem;
+  box-shadow: var(--db-shadow-sm);
+  min-width: 0;
+}
+.k-label {
   font-size: 0.75rem;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
-  color: var(--db-sage-700);
+  letter-spacing: 0.07em;
+  color: var(--db-ink-muted);
   font-weight: 600;
-  margin-bottom: 0.4375rem;
+  display: flex;
+  align-items: center;
+  gap: 0.4375rem;
 }
-.page-eyebrow svg { width: 0.875rem; height: 0.875rem; }
-.page-title {
+.k-icon {
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: var(--db-radius-sm);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.k-icon :deep(svg) { width: 0.9375rem; height: 0.9375rem; }
+.k-value {
   font-family: var(--db-font-serif);
-  font-size: 1.875rem;
-  line-height: 1.15;
+  font-size: 2rem;
   font-weight: 500;
-  letter-spacing: -0.02em;
   color: var(--db-ink-strong);
-  margin-bottom: 0.375rem;
+  letter-spacing: -0.025em;
+  line-height: 1;
+  margin-top: 0.625rem;
+  font-variant-numeric: tabular-nums;
 }
-.page-sub { font-size: 0.9375rem; color: var(--db-ink-muted); max-width: 44rem; line-height: 1.55; }
-.db-btn {
+.k-value small {
+  font-size: 1rem;
+  color: var(--db-ink-muted);
+  font-family: var(--db-font-sans);
+  font-weight: 500;
+}
+.k-trend {
+  font-size: 0.8125rem;
+  margin-top: 0.4375rem;
   display: inline-flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 0.625rem 1rem;
-  min-height: 2.75rem;
-  border-radius: 0.625rem;
-  border: 0.0625rem solid transparent;
-  font-size: 0.9375rem;
+  gap: 0.25rem;
   font-weight: 500;
-  font-family: var(--db-font-sans);
-  transition: background 0.15s, border-color 0.15s, color 0.15s;
-  white-space: nowrap;
-  cursor: pointer;
 }
-.db-btn svg { width: 0.9375rem; height: 0.9375rem; flex: 0 0 0.9375rem; }
-.db-btn-primary  { background: var(--db-sage-900); color: #F4F8EC; border-color: var(--db-sage-900); }
-.db-btn-primary:hover { background: var(--db-sage-800); border-color: var(--db-sage-800); }
-.db-btn-secondary { background: var(--db-paper); color: var(--db-ink); border-color: var(--db-line-strong); }
-.db-btn-secondary:hover { background: var(--db-paper-soft); border-color: var(--db-ink-muted); }
-.db-btn-ghost { color: var(--db-ink-muted); }
-.db-btn-ghost:hover { background: var(--db-paper-soft); color: var(--db-ink); }
-.db-btn-sm { padding: 0.4375rem 0.75rem; min-height: 2.125rem; font-size: 0.875rem; }
-.db-card {
+.k-trend.up { color: var(--db-sage-700); }
+.k-trend.down { color: var(--db-rose-700); }
+.k-trend.flat { color: var(--db-ink-muted); font-weight: 400; }
+.k-trend svg { width: 0.75rem; height: 0.75rem; }
+
+.ic-sage  { background: var(--db-sage-50);  color: var(--db-sage-700); }
+.ic-blue  { background: var(--db-blue-50);  color: var(--db-blue-700); }
+.ic-plum  { background: var(--db-plum-50);  color: var(--db-plum-700); }
+.ic-amber { background: var(--db-amber-50); color: var(--db-amber-700); }
+.ic-teal  { background: var(--db-teal-50);  color: var(--db-teal-700); }
+.ic-rose  { background: var(--db-rose-50);  color: var(--db-rose-700); }
+
+.card {
   background: var(--db-paper);
   border: 0.0625rem solid var(--db-line);
   border-radius: var(--db-radius-lg);
   box-shadow: var(--db-shadow-sm);
   overflow: hidden;
+  min-width: 0;
 }
 .card-head {
-  padding: 1.125rem 1.5rem 0.875rem;
-  border-bottom: 0.0625rem solid var(--db-line-soft);
   display: flex;
   align-items: flex-start;
+  justify-content: space-between;
   gap: 0.875rem;
+  padding: 1.125rem 1.5rem 0.875rem;
+  border-bottom: 0.0625rem solid var(--db-line-soft);
 }
-.ch-icon {
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 0.625rem;
-  display: grid;
-  place-items: center;
-  flex: 0 0 2.25rem;
-  background: var(--db-sage-50);
-  color: var(--db-sage-700);
-}
-.ch-icon.amber { background: var(--db-amber-50); color: var(--db-amber-700); }
-.ch-icon.blue  { background: var(--db-blue-50);  color: var(--db-blue-700); }
-.ch-icon.rose  { background: var(--db-rose-50);  color: var(--db-rose-700); }
-.ch-icon.plum  { background: var(--db-plum-50);  color: var(--db-plum-700); }
-.ch-icon svg   { width: 1.125rem; height: 1.125rem; }
-.ch-body       { flex: 1; min-width: 0; }
-.ch-title {
+.head-end { display: flex; align-items: center; gap: 0.625rem; flex-wrap: wrap; }
+.card-title {
   font-family: var(--db-font-serif);
-  font-size: 1.125rem;
-  font-weight: 500;
+  font-size: 1.25rem;
+  font-weight: 600;
   letter-spacing: -0.015em;
   color: var(--db-ink-strong);
   line-height: 1.2;
-  margin-bottom: 0.2rem;
 }
-.ch-sub    { font-size: 0.875rem; color: var(--db-ink-muted); }
-.ch-actions { display: flex; gap: 0.5rem; align-items: center; flex-shrink: 0; }
-.db-badge {
+.card-title-sans { font-size: 1rem; font-weight: 600; color: var(--db-ink-strong); line-height: 1.2; }
+.card-sub { font-size: 0.8125rem; color: var(--db-ink-muted); margin-top: 0.1875rem; }
+.card-body { padding: 1.25rem 1.5rem 1.5rem; }
+.empty { font-size: 0.875rem; color: var(--db-ink-subtle); padding: 0.5rem 0; }
+
+.tag {
   display: inline-flex;
   align-items: center;
-  gap: 0.3125rem;
-  padding: 0.25rem 0.625rem;
-  border-radius: 999px;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  white-space: nowrap;
-  border: 0.0625rem solid transparent;
-}
-.db-badge svg { width: 0.6875rem; height: 0.6875rem; flex: 0 0 0.6875rem; }
-.db-badge-active  { background: var(--db-sage-50); color: var(--db-sage-700); border-color: var(--db-sage-100); }
-.av-blue  { background: var(--db-blue-100);  color: var(--db-blue-700);  }
-.av-plum  { background: var(--db-plum-100);  color: var(--db-plum-700);  }
-.av-teal  { background: var(--db-teal-100);  color: var(--db-teal-700);  }
-.av-amber { background: var(--db-amber-100); color: var(--db-amber-700); }
-.av-rose  { background: var(--db-rose-100);  color: var(--db-rose-700);  }
-.av-sage  { background: var(--db-sage-100);  color: var(--db-sage-700);  }
-.records-wrap { margin-bottom: 1.25rem; }
-.records-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 0.875rem;
-  padding: 1.5rem;
-}
-.records-empty {
-  grid-column: 1 / -1;
-  text-align: center;
-  padding: 1.5rem;
-  color: var(--db-ink-subtle);
-}
-.rec-tile {
-  position: relative;
-  background: var(--db-paper-soft);
-  border: 0.0625rem solid var(--db-line);
-  border-radius: var(--db-radius-md);
-  padding: 0.875rem 1.125rem;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.75rem;
-}
-.rec-ico {
-  width: 2.5rem; height: 2.5rem;
-  border-radius: 0.625rem;
-  display: grid; place-items: center;
-  flex: 0 0 2.5rem;
-}
-.rec-ico :deep(svg) { width: 1.375rem; height: 1.375rem; }
-.rec-num {
-  font-family: var(--db-font-serif);
-  font-size: 2.25rem;
-  font-weight: 500;
-  line-height: 1;
-  letter-spacing: -0.03em;
-  color: var(--db-ink-strong);
-  font-variant-numeric: tabular-nums;
-}
-.rec-label { font-size: 1.0625rem; font-weight: 500; color: var(--db-ink-muted); }
-
-.rec-tile.tone-sage  { background: var(--db-sage-50);  border-color: var(--db-sage-100);  }
-.rec-tile.tone-sage  .rec-ico { background: var(--db-sage-100);  color: var(--db-sage-700);  }
-.rec-tile.tone-sage  .rec-num { color: var(--db-sage-700); }
-.rec-tile.tone-amber { background: var(--db-amber-50); border-color: var(--db-amber-100); }
-.rec-tile.tone-amber .rec-ico { background: var(--db-amber-100); color: var(--db-amber-700); }
-.rec-tile.tone-amber .rec-num { color: var(--db-amber-700); }
-.rec-tile.tone-blue  { background: var(--db-blue-50);  border-color: var(--db-blue-100);  }
-.rec-tile.tone-blue  .rec-ico { background: var(--db-blue-100);  color: var(--db-blue-700);  }
-.rec-tile.tone-blue  .rec-num { color: var(--db-blue-700); }
-.rec-tile.tone-rose  { background: var(--db-rose-50);  border-color: var(--db-rose-100);  }
-.rec-tile.tone-rose  .rec-ico { background: var(--db-rose-100);  color: var(--db-rose-700);  }
-.rec-tile.tone-rose  .rec-num { color: var(--db-rose-700); }
-.rec-tile.tone-plum  { background: var(--db-plum-50);  border-color: var(--db-plum-100);  }
-.rec-tile.tone-plum  .rec-ico { background: var(--db-plum-100);  color: var(--db-plum-700);  }
-.rec-tile.tone-plum  .rec-num { color: var(--db-plum-700); }
-.rec-tile.tone-teal  { background: var(--db-teal-50);  border-color: var(--db-teal-100);  }
-.rec-tile.tone-teal  .rec-ico { background: var(--db-teal-100);  color: var(--db-teal-700);  }
-.rec-tile.tone-teal  .rec-num { color: var(--db-teal-700); }
-.dash-top {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1.25rem;
-  margin-bottom: 1.25rem;
-  align-items: start;
-}
-@media (max-width: 72rem) {
-  .dash-top { grid-template-columns: 1fr; }
-}
-.info-body  { padding: 1.5rem 1.5rem 1.25rem; }
-.info-main  { display: flex; align-items: center; gap: 2rem; margin-bottom: 1.5rem; }
-
-.info-ring  { flex: 0 0 7.5rem; width: 7.5rem; height: 7.5rem; position: relative; }
-.info-ring svg {
-  width: 100%; height: 100%;
-  display: block;
-  transform: rotate(-90deg);
-}
-.ring-label {
-  position: absolute; inset: 0;
-  display: flex; flex-direction: column;
-  align-items: center; justify-content: center;
-  gap: 0.0625rem;
-  pointer-events: none;
-}
-.ring-num {
-  font-family: var(--db-font-serif);
-  font-size: 2.125rem;
-  font-weight: 500;
-  line-height: 1;
-  letter-spacing: -0.03em;
-  color: var(--db-ink-strong);
-}
-.ring-cap {
-  font-size: 0.6875rem;
-  text-transform: uppercase;
-  letter-spacing: 0.07em;
-  font-weight: 500;
-  color: var(--db-ink-subtle);
-}
-
-.info-kpi        { flex: 1; min-width: 0; }
-.info-kpi-title  { font-family: var(--db-font-serif); font-size: 1.0625rem; font-weight: 500; color: var(--db-ink-strong); margin-bottom: 0.125rem; }
-.info-kpi-sub    { font-size: 0.8125rem; color: var(--db-ink-muted); margin-bottom: 1rem; }
-
-.kpi-row   { display: flex; align-items: center; gap: 0.625rem; margin-bottom: 0.5625rem; }
-.kpi-dot   { width: 0.5rem; height: 0.5rem; border-radius: 50%; flex: 0 0 0.5rem; }
-.kpi-label { font-size: 0.875rem; color: var(--db-ink-muted); flex: 1; min-width: 0; }
-.kpi-track { width: 5rem; height: 0.375rem; background: var(--db-line-soft); border-radius: 999px; overflow: hidden; flex: 0 0 5rem; }
-.kpi-fill  { height: 100%; border-radius: 999px; transition: width 0.6s cubic-bezier(0.2,0.7,0.2,1); }
-.kpi-val   { font-size: 0.875rem; font-weight: 600; color: var(--db-ink-strong); min-width: 1.25rem; text-align: right; }
-
-.info-stats {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.75rem;
-  padding-top: 1.25rem;
-  border-top: 0.0625rem solid var(--db-line-soft);
-}
-.stat-tile {
-  background: var(--db-paper-soft);
-  border: 0.0625rem solid var(--db-line);
-  border-radius: var(--db-radius-md);
-  padding: 0.875rem 0.875rem 0.75rem;
-  text-align: center;
-}
-.stat-tile .st-num {
-  font-family: var(--db-font-serif);
-  font-size: 1.875rem;
-  font-weight: 500;
-  line-height: 1;
-  letter-spacing: -0.03em;
-  color: var(--db-ink-strong);
-  margin-bottom: 0.3125rem;
-}
-.stat-tile .st-label { font-size: 0.75rem; color: var(--db-ink-muted); line-height: 1.35; }
-.stat-tile.green { background: var(--db-sage-50);  border-color: var(--db-sage-100);  }
-.stat-tile.green .st-num { color: var(--db-sage-700); }
-.stat-tile.amber { background: var(--db-amber-50); border-color: var(--db-amber-100); }
-.stat-tile.amber .st-num { color: var(--db-amber-700); }
-.stat-tile.blue  { background: var(--db-blue-50);  border-color: var(--db-blue-100);  }
-.stat-tile.blue  .st-num { color: var(--db-blue-700); }
-.docs-list { list-style: none; }
-.docs-row {
-  display: flex;
-  align-items: center;
-  gap: 0.875rem;
-  padding: 0.875rem 1.5rem;
-  border-bottom: 0.0625rem solid var(--db-line-soft);
-  transition: background 0.1s;
-}
-.docs-row:last-child { border-bottom: none; }
-.docs-row:hover { background: var(--db-paper-soft); }
-.dr-avatar {
-  width: 2.25rem; height: 2.25rem;
-  border-radius: 50%;
-  flex: 0 0 2.25rem;
-  display: grid; place-items: center;
-}
-.dr-avatar :deep(svg) { width: 1.0625rem; height: 1.0625rem; }
-.dr-info { flex: 1; min-width: 0; }
-.dr-name { font-weight: 500; font-size: 0.9375rem; color: var(--db-ink-strong); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dr-meta { font-size: 0.8125rem; color: var(--db-ink-muted); margin-top: 0.0625rem; }
-.dr-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3125rem;
-  font-size: 0.875rem;
+  gap: 0.25rem;
+  padding: 0.1875rem 0.5rem;
+  border-radius: 62.5rem;
+  font-size: 0.75rem;
   font-weight: 600;
-  padding: 0.25rem 0.6875rem;
-  border-radius: 999px;
-  flex: 0 0 auto;
-  border: 0.0625rem solid transparent;
   white-space: nowrap;
 }
-.dr-ok   { background: var(--db-sage-50);  color: var(--db-sage-700);  border-color: var(--db-sage-100); }
-.docs-foot {
-  padding: 0.875rem 1.5rem;
-  border-top: 0.0625rem solid var(--db-line-soft);
+.tag-sage { background: var(--db-sage-50);  color: var(--db-sage-700); }
+.tag-rose { background: var(--db-rose-50);  color: var(--db-rose-700); }
+
+.draft { margin-bottom: 1.5rem; }
+
+.dr-empty-t { font-size: 0.9375rem; font-weight: 600; color: var(--db-ink-strong); }
+.dr-empty-s {
+  font-size: 0.8125rem;
+  color: var(--db-ink-subtle);
+  line-height: 1.45;
+  margin-top: 0.1875rem;
+  max-width: 44rem;
+}
+
+.dr-body { display: grid; gap: 1rem; }
+.dr-top { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
+.dr-id { flex: 1; min-width: 11rem; }
+.dr-name { font-size: 1rem; font-weight: 600; color: var(--db-ink-strong); }
+.dr-sub { font-size: 0.8125rem; color: var(--db-ink-subtle); margin-top: 0.0625rem; }
+
+.avatar {
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 2.25rem;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.av-amber { background: var(--db-amber-100); color: var(--db-amber-700); }
+
+.dr-progress { display: grid; gap: 0.375rem; }
+.dr-bar {
+  height: 0.4375rem;
+  border-radius: 62.5rem;
+  background: var(--db-paper-sunken);
+  overflow: hidden;
+}
+.dr-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 62.5rem;
+  background: var(--db-amber-500);
+  transition: width 0.25s ease;
+}
+.dr-figures { font-size: 0.8125rem; color: var(--db-ink-muted); }
+.dr-figures b { font-weight: 700; color: var(--db-ink-strong); }
+
+.dr-steps { display: grid; gap: 0.75rem; }
+.dr-step-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--db-ink-strong);
+  margin-bottom: 0.375rem;
+}
+.dr-step-num { font-weight: 500; color: var(--db-ink-subtle); white-space: nowrap; }
+.dr-chips { display: flex; flex-wrap: wrap; gap: 0.3125rem; }
+.dr-chip {
+  font-size: 0.75rem;
+  padding: 0.1875rem 0.5rem;
+  border-radius: var(--db-radius-sm);
+  background: var(--db-amber-50);
+  color: var(--db-amber-700);
+  border: 0.0625rem solid var(--db-amber-100);
+}
+.dr-step-done {
+  font-size: 0.8125rem;
+  color: var(--db-sage-700);
+  background: var(--db-sage-50);
+  border: 0.0625rem solid var(--db-sage-100);
+  border-radius: var(--db-radius-md);
+  padding: 0.625rem 0.75rem;
+  line-height: 1.45;
+}
+
+.dr-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--db-ink-subtle);
+  line-height: 1.45;
+}
+.dr-note svg { width: 0.875rem; height: 0.875rem; flex: 0 0 0.875rem; margin-top: 0.125rem; }
+
+.p-link {
+  display: inline;
+  padding: 0;
+  font: inherit;
+  font-weight: inherit;
+  color: inherit;
+  background: none;
+  border: none;
+  border-bottom: 0.0625rem dashed var(--db-line-strong);
+  border-radius: 0.125rem;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.p-link:hover { color: var(--db-sage-700); border-bottom-color: var(--db-sage-500); }
+.p-link:focus-visible { outline: none; box-shadow: var(--db-focus-ring); }
+
+.chart { display: flex; align-items: flex-end; gap: 0.625rem; height: 11rem; padding-top: 0.5rem; }
+.bar-col {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4375rem;
+  min-width: 0;
+  height: 100%;
+}
+.bar-stack {
+  width: 100%;
+  max-width: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  flex: 1;
+  min-height: 0;
+}
+.bar { width: 100%; border-radius: 0.25rem 0.25rem 0 0; background: var(--db-sage-500); min-height: 0.25rem; }
+.bar.light { background: var(--db-sage-100); border-radius: 0.25rem 0.25rem 0 0; }
+.bar.light + .bar { border-radius: 0; }
+.bar-x { font-size: 0.75rem; color: var(--db-ink-muted); font-weight: 500; }
+.chart-legend { display: flex; gap: 1rem; flex-wrap: wrap; }
+.leg { display: inline-flex; align-items: center; gap: 0.4375rem; font-size: 0.8125rem; color: var(--db-ink-muted); }
+.sw { width: 0.75rem; height: 0.75rem; border-radius: 0.1875rem; }
+.sw-dark { background: var(--db-sage-500); }
+.sw-light { background: var(--db-sage-100); }
+
+.prog-list { display: flex; flex-direction: column; gap: 1.125rem; }
+.prog-row { display: grid; grid-template-columns: 1fr auto; gap: 0.25rem 0.75rem; align-items: center; }
+.prog-label { font-size: 0.875rem; color: var(--db-ink-strong); font-weight: 500; min-width: 0; }
+.prog-value {
+  font-size: 0.8125rem;
+  color: var(--db-ink-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.prog-value .now { color: var(--db-sage-700); font-weight: 700; }
+.prog-bar {
+  grid-column: 1 / -1;
+  position: relative;
+  height: 0.5rem;
+  background: var(--db-line-soft);
+  border-radius: 62.5rem;
+  overflow: hidden;
+}
+.prog-fill { position: absolute; inset: 0 auto 0 0; background: var(--db-sage-500); border-radius: 62.5rem; }
+.prog-fill.amber { background: var(--db-amber-500); }
+.prog-fill.blue  { background: var(--db-blue-500); }
+.prog-fill.plum  { background: var(--db-plum-500); }
+.prog-fill.teal  { background: var(--db-teal-500); }
+.prog-fill.rose  { background: var(--db-rose-500); }
+
+.scores { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.625rem; margin-top: 1.25rem; }
+.score { background: var(--db-paper-soft); border-radius: var(--db-radius-md); padding: 0.75rem 0.875rem; }
+.s-label { font-size: 0.75rem; color: var(--db-ink-muted); font-weight: 600; }
+.s-val {
+  font-family: var(--db-font-serif);
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--db-ink-strong);
+  line-height: 1;
+  margin-top: 0.25rem;
+}
+.s-val small {
+  font-size: 0.8125rem;
+  color: var(--db-ink-muted);
+  font-family: var(--db-font-sans);
+  font-weight: 500;
+}
+.s-note { font-size: 0.75rem; color: var(--db-ink-subtle); margin-top: 0.25rem; }
+
+.tasks { display: flex; flex-direction: column; }
+.task {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 0;
+  border-bottom: 0.0625rem solid var(--db-line-soft);
+}
+.task:last-child { border-bottom: 0; padding-bottom: 0; }
+.task:first-child { padding-top: 0; }
+.task-ic {
+  width: 2rem;
+  height: 2rem;
+  border-radius: var(--db-radius-sm);
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.task-ic :deep(svg) { width: 1rem; height: 1rem; }
+.task-main { flex: 1; min-width: 0; }
+.t-title { font-size: 0.875rem; font-weight: 600; color: var(--db-ink-strong); }
+.t-sub { font-size: 0.8125rem; color: var(--db-ink-muted); margin-top: 0.125rem; }
+.task-end { flex: none; }
+
+.mlist { display: flex; flex-direction: column; }
+.mrow {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  gap: 0.75rem;
+  padding: 0.875rem 0;
+  border-bottom: 0.0625rem solid var(--db-line-soft);
+  text-align: left;
+  width: 100%;
+  border-radius: var(--db-radius-sm);
+  transition: background 0.16s;
 }
-.docs-foot-note { font-size: 0.8125rem; color: var(--db-ink-muted); }
-@media (max-width: 60rem) {
-  .records-grid { grid-template-columns: 1fr 1fr; }
+.mrow:last-child { border-bottom: 0; padding-bottom: 0; }
+.mrow:first-child { padding-top: 0; }
+.mrow:hover:not(:disabled) { background: var(--db-paper-soft); }
+.mrow:focus-visible { outline: none; box-shadow: var(--db-focus-ring); }
+.mrow:disabled { opacity: 0.55; cursor: not-allowed; }
+.m-main { flex: 1; min-width: 0; display: block; }
+.m-name { font-size: 0.875rem; font-weight: 600; color: var(--db-ink-strong); display: block; }
+.m-sub { font-size: 0.8125rem; color: var(--db-ink-muted); display: block; }
+.m-go { color: var(--db-ink-subtle); display: grid; place-items: center; flex: none; }
+.m-go :deep(svg) { width: 1rem; height: 1rem; }
+
+.icon-mini {
+  width: 1.875rem;
+  height: 1.875rem;
+  border-radius: var(--db-radius-sm);
+  border: 0.0625rem solid var(--db-line);
+  background: var(--db-paper);
+  color: var(--db-ink-muted);
+  display: grid;
+  place-items: center;
+  flex: none;
+  transition: background 0.16s, color 0.16s;
+}
+.icon-mini:hover:not(:disabled) { background: var(--db-paper-soft); color: var(--db-ink-strong); }
+.icon-mini:focus-visible { outline: none; box-shadow: var(--db-focus-ring); }
+.icon-mini:disabled { opacity: 0.45; cursor: not-allowed; }
+.icon-mini :deep(svg) { width: 0.9375rem; height: 0.9375rem; }
+
+@media (max-width: 75rem) {
+  .grid-main-aside { grid-template-columns: 1fr; }
+  .grid-4 { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 36rem) {
-  .records-grid { grid-template-columns: 1fr; }
-  .info-main  { flex-direction: column; align-items: flex-start; gap: 1.25rem; }
-  .info-stats { grid-template-columns: 1fr 1fr; }
+  .greet h1 { font-size: 2rem; }
+  .grid-4 { grid-template-columns: 1fr; }
+  .scores { grid-template-columns: 1fr; }
+  .card-body { padding: 1rem 1rem 1.25rem; }
+  .card-head { padding: 1rem 1rem 0.75rem; }
+  .task { flex-wrap: wrap; }
+  .task-end { width: 100%; padding-left: 2.75rem; }
+  .dr-top .btn { width: 100%; }
 }
 </style>

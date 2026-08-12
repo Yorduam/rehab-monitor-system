@@ -4,9 +4,11 @@ import { authMiddleware, roleMiddleware } from '../middleware/auth.js';
 import {
   User, Recipient, ReGroup, Direction, Nozology,
   ReResult, RecipientDoc, ScheduleEvent, DiagnosticAssignment,
-  DiagnosticSession, DiagnosticConclusion, RecipientScanDoc, DocType
+  DiagnosticSession, DiagnosticConclusion, RecipientScanDoc, DocType,
+  RecipientDraft, LegalRepresentative
 } from '../models/index.js';
 import { DIAGNOSTIC_BLOCKS } from '../src/utils/diagnosticBlocks.js';
+import { summarizeDraft } from '../src/utils/recipientDraft.js';
 import { hasGrant } from '../services/dataAccess.js';
 
 const router = express.Router();
@@ -190,7 +192,6 @@ router.get('/diagnostics', authMiddleware, async (req, res, next) => {
     next(err);
   }
 });
-
 
 const eventState = (event, todayStr, nowMin) => {
   if (event.status === 'completed') return 'done';
@@ -384,7 +385,6 @@ router.get('/teacher', authMiddleware, roleMiddleware('admin', 'employee', 'teac
     next(err);
   }
 });
-
 
 const MS_DAY = 24 * 60 * 60 * 1000;
 
@@ -654,6 +654,361 @@ router.get('/employee-alerts', authMiddleware, roleMiddleware('admin', 'employee
           ]
         }
       ]
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const RU_WEEKDAYS = [
+  'Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'
+];
+
+const greetingWord = (h) => {
+  if (h < 5) return 'Доброй ночи';
+  if (h < 12) return 'Доброе утро';
+  if (h < 18) return 'Добрый день';
+  return 'Добрый вечер';
+};
+
+const ageOf = (v) => {
+  const s = dateOnly(v);
+  if (!s) return null;
+  const [y, m, d] = s.split('-').map(Number);
+  const now = new Date();
+  let age = now.getFullYear() - y;
+  const mm = now.getMonth() + 1;
+  if (mm < m || (mm === m && now.getDate() < d)) age -= 1;
+  return age >= 0 && age < 150 ? age : null;
+};
+
+const initialsOf = (r) => {
+  const a = (r?.lastName || '').trim()[0] || '';
+  const b = (r?.firstName || '').trim()[0] || '';
+  return (a + b).toUpperCase() || '—';
+};
+
+const TONES = ['sage', 'blue', 'plum', 'amber', 'teal', 'rose'];
+const toneOf = (id) => TONES[Math.abs(Number(id) || 0) % TONES.length];
+
+const withAge = (r) => {
+  const age = ageOf(r?.birthDate);
+  const name = r ? recipientFullName(r) : 'Без имени';
+  return age == null ? name : `${name}, ${age}`;
+};
+
+const repPhone = (rep) => (rep?.telephone ? String(rep.telephone).trim() : null);
+
+const repName = (rep) => {
+  if (!rep) return null;
+  const last = (rep.lastName || '').trim();
+  const first = (rep.firstName || '').trim();
+  if (!last && !first) return null;
+  return first ? `${first[0]}. ${last}`.trim() : last;
+};
+
+const RU_MONTHS_SHORT = ['Янв', 'Фев', 'Мар', 'Апр', 'Май', 'Июн', 'Июл', 'Авг', 'Сен', 'Окт', 'Ноя', 'Дек'];
+
+const RU_MONTHS_NOM = [
+  'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь',
+  'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь'
+];
+
+const monthKeyOf = (v) => {
+  if (!v) return null;
+  const d = v instanceof Date ? v : new Date(v);
+  return Number.isNaN(d.getTime())
+    ? null
+    : `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+
+const pctOf = (part, total) => (total > 0 ? Math.round((part / total) * 100) : 0);
+
+const ruDecimal = (n) => String(n).replace('.', ',');
+
+const DIRECTION_TONES = ['sage', 'amber', 'plum', 'blue', 'teal', 'rose'];
+
+const ROLE_LABELS = {
+  admin: 'Администраторы',
+  teacher: 'Преподаватели',
+  employee: 'Сотрудники',
+  recipient: 'Реабилитанты'
+};
+
+router.get('/exec-overview', authMiddleware, roleMiddleware('admin'), async (req, res, next) => {
+  try {
+    const now = new Date();
+    const today = localDate(now);
+
+    const [
+      recipients, sessions, conclusions, assignments,
+      directions, users, events, expiredDocs, draftCount
+    ] = await Promise.all([
+      Recipient.findAll({ attributes: ['id', 'status'] }),
+      DiagnosticSession.findAll({
+        attributes: ['id', 'recipientId', 'date', 'status', 'createdAt']
+      }),
+      DiagnosticConclusion.findAll({
+        attributes: ['id', 'sessionId', 'recipientId', 'verdict', 'issuedAt']
+      }),
+      DiagnosticAssignment.findAll({
+        attributes: [
+          'id', 'recipientId', 'directionId', 'diagnosticSessionId',
+          'specialistUserId', 'blockStatus', 'date'
+        ]
+      }),
+      Direction.findAll({ attributes: ['id', 'name', 'profileKey'] }),
+      User.findAll({ attributes: ['id', 'firstName', 'lastName', 'email', 'role'] }),
+      ScheduleEvent.findAll({ attributes: ['id', 'status', 'date'] }),
+      RecipientDoc.findAll({
+        where: { mseValidDate: { [Op.lt]: today } },
+        attributes: ['id', 'recipientId']
+      }),
+      RecipientDraft.count()
+    ]);
+
+    const byStatus = (s) => recipients.filter((r) => r.status === s).length;
+    const activeCount = byStatus('active');
+
+    const firstSession = new Map();
+    for (const s of sessions) {
+      if (!s.createdAt) continue;
+      const ts = new Date(s.createdAt).getTime();
+      const prev = firstSession.get(s.recipientId);
+      if (prev == null || ts < prev) firstSession.set(s.recipientId, ts);
+    }
+
+    const months = [];
+    for (let i = 5; i >= 0; i -= 1) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      months.push({ key: monthKeyOf(d), label: RU_MONTHS_SHORT[d.getMonth()], intake: 0, done: 0 });
+    }
+    const monthIndex = new Map(months.map((m, i) => [m.key, i]));
+
+    for (const ts of firstSession.values()) {
+      const i = monthIndex.get(monthKeyOf(new Date(ts)));
+      if (i !== undefined) months[i].intake += 1;
+    }
+    for (const c of conclusions) {
+      const i = monthIndex.get(monthKeyOf(c.issuedAt));
+      if (i !== undefined) months[i].done += 1;
+    }
+    const chartMax = Math.max(1, ...months.map((m) => Math.max(m.intake, m.done)));
+    const thisMonth = months[months.length - 1];
+
+    const sessionById = new Map(sessions.map((s) => [s.id, s]));
+    const leadDays = [];
+    for (const c of conclusions) {
+      const s = sessionById.get(c.sessionId);
+      if (!s?.createdAt || !c.issuedAt) continue;
+      const diff = (new Date(c.issuedAt) - new Date(s.createdAt)) / MS_DAY;
+      if (Number.isFinite(diff) && diff >= 0) leadDays.push(diff);
+    }
+    const avgLead = leadDays.length
+      ? Math.round((leadDays.reduce((a, b) => a + b, 0) / leadDays.length) * 10) / 10
+      : null;
+
+    const doneBlocks = assignments.filter((a) => a.blockStatus === 'completed').length;
+    const fillPct = pctOf(doneBlocks, assignments.length);
+
+    const quarterAgo = new Date(now.getTime() - 90 * MS_DAY);
+    const conclusionsQuarter = conclusions.filter(
+      (c) => c.issuedAt && new Date(c.issuedAt) >= quarterAgo
+    ).length;
+
+    const kpi = [
+      {
+        key: 'active', tone: 'sage', icon: 'users',
+        label: 'Активных реабилитантов',
+        value: String(activeCount), unit: '',
+        trendDir: thisMonth.intake > 0 ? 'up' : 'flat',
+        trendText: thisMonth.intake > 0
+          ? `+${thisMonth.intake} ${plural(thisMonth.intake, 'заявка', 'заявки', 'заявок')} в этом месяце`
+          : 'новых заявок в этом месяце нет'
+      },
+      {
+        key: 'conclusions', tone: 'blue', icon: 'check',
+        label: 'Заключений выдано',
+        value: String(conclusionsQuarter), unit: '',
+        trendDir: conclusionsQuarter > 0 ? 'up' : 'flat',
+        trendText: 'за последние 90 дней'
+      },
+      {
+        key: 'lead', tone: 'plum', icon: 'chart',
+        label: 'Срок до заключения',
+        value: avgLead == null ? '—' : ruDecimal(avgLead),
+        unit: avgLead == null ? '' : ` ${plural(Math.round(avgLead), 'день', 'дня', 'дней')}`,
+        trendDir: avgLead == null ? 'flat' : (avgLead <= 14 ? 'up' : 'down'),
+        trendText: avgLead == null ? 'заключений ещё не было' : 'в среднем от заявки до выдачи'
+      },
+      {
+        key: 'fill', tone: 'amber', icon: 'clock',
+        label: 'Заполненность диагностик',
+        value: String(fillPct), unit: '%',
+        trendDir: fillPct >= 95 ? 'up' : 'down',
+        trendText: `${doneBlocks} из ${assignments.length} блоков · цель 95%`
+      }
+    ];
+
+    const byDirection = new Map();
+    for (const a of assignments) {
+      const cur = byDirection.get(a.directionId) || { total: 0, done: 0 };
+      cur.total += 1;
+      if (a.blockStatus === 'completed') cur.done += 1;
+      byDirection.set(a.directionId, cur);
+    }
+    const directionRows = directions
+      .map((d, i) => {
+        const s = byDirection.get(d.id) || { total: 0, done: 0 };
+        return {
+          id: d.id,
+          name: d.name,
+          done: s.done,
+          total: s.total,
+          pct: pctOf(s.done, s.total),
+          tone: DIRECTION_TONES[i % DIRECTION_TONES.length]
+        };
+      })
+      .sort((a, b) => b.total - a.total);
+
+    const bySession = new Map();
+    for (const a of assignments) {
+      if (!a.diagnosticSessionId) continue;
+      const cur = bySession.get(a.diagnosticSessionId) || { total: 0, done: 0 };
+      cur.total += 1;
+      if (a.blockStatus === 'completed') cur.done += 1;
+      bySession.set(a.diagnosticSessionId, cur);
+    }
+    const concludedSessions = new Set(conclusions.map((c) => c.sessionId).filter(Boolean));
+    const openSessions = sessions.filter((s) => s.status !== 'completed' && s.status !== 'cancelled');
+
+    const waitingConclusion = openSessions.filter((s) => {
+      if (concludedSessions.has(s.id)) return false;
+      const b = bySession.get(s.id);
+      return !!b && b.total > 0 && b.done === b.total;
+    }).length;
+
+    const unclaimed = openSessions.filter((s) => !bySession.has(s.id)).length;
+
+    const liveSessions = sessions.filter((s) => s.status !== 'cancelled');
+    const sessionsClosed = liveSessions.filter((s) => s.status === 'completed').length;
+    const eventsDone = events.filter((e) => e.status === 'completed').length;
+    const scores = [
+      {
+        key: 'sessions',
+        label: 'Заявок доведено до заключения',
+        value: String(pctOf(sessionsClosed, liveSessions.length)), unit: '%',
+        note: `${sessionsClosed} из ${liveSessions.length} · без отменённых`
+      },
+      {
+        key: 'events',
+        label: 'Занятий проведено',
+        value: String(pctOf(eventsDone, events.length)), unit: '%',
+        note: `${eventsDone} из ${events.length}`
+      }
+    ];
+
+    const loadMap = new Map();
+    for (const a of assignments) {
+      loadMap.set(a.specialistUserId, (loadMap.get(a.specialistUserId) || 0) + 1);
+    }
+    const maxLoad = Math.max(1, ...loadMap.values());
+    const load = users
+      .filter((u) => u.role === 'teacher')
+      .map((u) => {
+        const count = loadMap.get(u.id) || 0;
+        const pct = Math.round((count / maxLoad) * 100);
+        return { id: u.id, name: userFullName(u), count, pct, tone: pct >= 90 ? 'amber' : 'sage' };
+      })
+      .filter((t) => t.count > 0)
+      .sort((a, b) => b.count - a.count);
+
+    const issues = [];
+    const overdueBlocks = assignments.filter(
+      (a) => a.blockStatus !== 'completed' && dateOnly(a.date) && dateOnly(a.date) < today
+    ).length;
+
+    if (overdueBlocks) {
+      issues.push({
+        key: 'blocks-overdue', tone: 'rose',
+        title: `Просрочено блоков диагностики: ${overdueBlocks}`,
+        sub: 'Дата приёма прошла, результат не внесён — тянет вниз заполненность',
+        action: 'diagnostics'
+      });
+    }
+    if (waitingConclusion) {
+      issues.push({
+        key: 'waiting-conclusion', tone: 'amber',
+        title: `Ждут заключения: ${waitingConclusion}`,
+        sub: 'Все блоки закрыты, заключение ещё не выдано',
+        action: 'diagnostics'
+      });
+    }
+    if (unclaimed) {
+      issues.push({
+        key: 'unclaimed', tone: 'amber',
+        title: `Не взято в работу: ${unclaimed}`,
+        sub: 'Заявка создана, но ни один специалист её не забрал',
+        action: 'diagnostics'
+      });
+    }
+    const overloaded = load.filter((t) => t.pct >= 90 && t.count > 1);
+    for (const t of overloaded.slice(0, 1)) {
+      issues.push({
+        key: `overload-${t.id}`, tone: 'amber',
+        title: `Высокая загрузка: ${t.name}`,
+        sub: `${t.count} ${plural(t.count, 'блок', 'блока', 'блоков')} диагностики — стоит перераспределить`,
+        action: 'schedule'
+      });
+    }
+    if (expiredDocs.length) {
+      issues.push({
+        key: 'mse-expired', tone: 'rose',
+        title: `Просрочено справок МСЭ: ${expiredDocs.length}`,
+        sub: 'Нужно запросить у представителей новые документы',
+        action: 'documents'
+      });
+    }
+    if (draftCount) {
+      issues.push({
+        key: 'drafts', tone: 'blue',
+        title: `Незавершённых регистраций: ${draftCount}`,
+        sub: 'Черновик заведён, карточка не создана',
+        action: 'recipients'
+      });
+    }
+
+    const contingent = [
+      { key: 'active', label: 'Активные', value: activeCount },
+      { key: 'draft', label: 'Черновики', value: byStatus('draft') },
+      { key: 'archived', label: 'В архиве', value: byStatus('archived') }
+    ];
+    const staff = Object.keys(ROLE_LABELS).map((role) => ({
+      key: role,
+      label: ROLE_LABELS[role],
+      value: users.filter((u) => u.role === role).length
+    })).filter((r) => r.value > 0);
+
+    res.json({
+      periodLabel: `${RU_MONTHS_NOM[now.getMonth()]} ${now.getFullYear()} · сводка центра`,
+      updatedAt: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`,
+      date: today,
+      kpi,
+      chart: { months, max: chartMax },
+      directions: directionRows,
+      scores,
+      load,
+      issues,
+      contingent,
+      staff,
+      totals: {
+        recipients: recipients.length,
+        sessions: sessions.length,
+        conclusions: conclusions.length,
+        assignments: assignments.length,
+        events: events.length,
+        users: users.length
+      }
     });
   } catch (err) {
     next(err);

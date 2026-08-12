@@ -1491,11 +1491,19 @@ const applyTabParam = () => {
 };
 watch(() => pageStore.params?.tab, applyTabParam);
 
+const applyActionParam = () => {
+  if (pageStore.params?.action !== 'new') return;
+  if (showWizard.value) return;
+  showWizard.value = true;
+};
+watch(() => pageStore.params?.action, applyActionParam);
+
 onMounted(() => {
   document.documentElement.style.setProperty('--bg-app', '#F7F4ED');
   loadRecipients();
   loadGroups();
   applyTabParam();
+  applyActionParam();
   if (canSeeDrafts.value && activeTab.value !== 'drafts') loadDrafts();
   window.addEventListener('click', handleClickOutside);
   window.addEventListener('keydown', handleEscape);
