@@ -472,13 +472,12 @@ router.get('/sessions/:id', authMiddleware, roleMiddleware('admin', 'employee', 
   }
 });
 
-router.post('/sessions/:id/claim', authMiddleware, roleMiddleware('admin', 'teacher'), async (req, res) => {
+router.post('/sessions/:id/claim', authMiddleware, roleMiddleware('teacher'), async (req, res) => {
   const t = await sequelize.startUnmanagedTransaction();
   try {
-    let { startTime, endTime, specialistUserId } = req.body;
+    let { startTime, endTime } = req.body;
 
-    const targetId = req.user.role === 'admin' && specialistUserId ? specialistUserId : req.user.id;
-    const specialist = await User.findByPk(targetId);
+    const specialist = await User.findByPk(req.user.id);
     if (!specialist) {
       await t.rollback();
       return res.status(400).json({ message: 'Специалист не найден' });
@@ -505,7 +504,7 @@ router.post('/sessions/:id/claim', authMiddleware, roleMiddleware('admin', 'teac
     }
 
     const already = await DiagnosticAssignment.findOne({
-      where: { diagnosticSessionId: session.id, specialistUserId: targetId }
+      where: { diagnosticSessionId: session.id, specialistUserId: req.user.id }
     });
     if (already) {
       await t.rollback();
@@ -523,7 +522,7 @@ router.post('/sessions/:id/claim', authMiddleware, roleMiddleware('admin', 'teac
       return res.status(400).json({ message: 'Время окончания должно быть позже начала' });
     }
 
-    const conflict = await findConflict(targetId, session.date, startTime, endTime);
+    const conflict = await findConflict(req.user.id, session.date, startTime, endTime);
     if (conflict) {
       await t.rollback();
       return res.status(409).json({
@@ -544,7 +543,7 @@ router.post('/sessions/:id/claim', authMiddleware, roleMiddleware('admin', 'teac
       diagnosticSessionId: session.id,
       recipientId: session.recipientId,
       directionId: specialist.directionId,
-      specialistUserId: targetId,
+      specialistUserId: req.user.id,
       date: session.date,
       startTime,
       endTime,
@@ -555,7 +554,7 @@ router.post('/sessions/:id/claim', authMiddleware, roleMiddleware('admin', 'teac
     }, { transaction: t });
 
     await ScheduleEvent.create({
-      specialistUserId: targetId,
+      specialistUserId: req.user.id,
       recipientId: session.recipientId,
       directionId: specialist.directionId,
       assignmentId: assignment.id,

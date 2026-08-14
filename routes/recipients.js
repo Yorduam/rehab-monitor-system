@@ -12,6 +12,7 @@ import {
   FamilyStatus, LegalRepFamilyStatus
 } from '../models/index.js';
 import { getRecipientReadiness } from '../services/recipientReadiness.js';
+import { getEnrollmentState, generateEnrollmentDocument } from '../services/enrollmentDocs.js';
 import { summarizeDraft } from '../src/utils/recipientDraft.js';
 import { buildScanFileName } from '../services/scanFileName.js';
 import {
@@ -508,6 +509,41 @@ router.get('/:id/readiness', authMiddleware, async (req, res, next) => {
     if (!readiness) return res.status(404).json({ message: 'Реабилитант не найден' });
     res.json(readiness);
   } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:id/enrollment', authMiddleware, async (req, res, next) => {
+  try {
+    const state = await getEnrollmentState(req.params.id);
+    if (!state) return res.status(404).json({ message: 'Реабилитант не найден' });
+    res.json(state);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.get('/:id/enrollment/:docKey/file', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
+  try {
+    const { buffer, filename, contentType } = await generateEnrollmentDocument(req.params.id, req.params.docKey);
+
+    await logAccess(req, {
+      recipientId: Number(req.params.id),
+      category: 'passport',
+      action: 'download',
+      reasonCode: 'contract',
+      reasonText: `Документ на зачисление: ${req.params.docKey}`
+    });
+
+    const ext = filename.split('.').pop();
+    res.setHeader('Content-Type', contentType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="document.${ext}"; filename*=UTF-8''${encodeURIComponent(filename)}`
+    );
+    res.send(buffer);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ message: err.message });
     next(err);
   }
 });

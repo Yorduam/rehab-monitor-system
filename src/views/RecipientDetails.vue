@@ -540,7 +540,6 @@
           <div class="card-head">
             <div>
               <h2 class="card-title">Прикреплённые файлы</h2>
-              <div class="card-sub">Скан можно заменить — прежние версии сохраняются в истории</div>
             </div>
             <span v-if="scans.length" class="rd-scan-badge">{{ scans.length }}</span>
           </div>
@@ -721,10 +720,6 @@
             </div>
           </div>
           <div class="card-body">
-            <p class="rd-assign-moved">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-              Педагогические заметки и отметки достижений по каждому занятию в системе пока не ведутся — показаны факт занятия, дата, специалист и статус из расписания.
-            </p>
             <div v-if="agendaLoading" class="rd-loading" style="min-height:100px"><div class="spinner"></div></div>
             <div v-else-if="!allEventsDesc.length" class="rd-inline-empty">В расписании пока нет занятий</div>
             <div v-else class="lesson-list">
@@ -799,10 +794,6 @@
         <section class="card">
           <div class="card-head"><h2 class="card-title">Законный представитель</h2></div>
           <div class="card-body">
-            <p class="rd-assign-moved">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-              В системе хранится один законный представитель. Расширенный состав семьи и дополнительные контакты пока не ведутся.
-            </p>
             <div v-if="!recipient.representative" class="rd-inline-empty">Представитель не указан</div>
             <template v-else>
               <dl class="kv-grid">
@@ -845,15 +836,6 @@
         <section class="card">
           <div class="card-head"><h2 class="card-title">Диагностика и развитие</h2></div>
           <div class="card-body">
-            <p class="rd-assign-moved">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-              Числовые показатели развития (баллы «старт → сейчас → цель») в системе пока не ведутся. Ниже — назначения на диагностику, их статусы и текстовые результаты.
-            </p>
-            <p class="rd-assign-moved">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg>
-              Назначение на диагностику выполняется на вкладке «Диагностика» → «Назначение на диагностику».
-            </p>
-
             <h3 class="rd-subtitle">Заявки на диагностику</h3>
             <div v-if="assignmentsLoading" class="rd-loading" style="min-height:80px"><div class="spinner"></div></div>
             <div v-else-if="!activeSessions.length" class="rd-inline-empty">Активных заявок нет</div>
@@ -879,10 +861,6 @@
                 </tr>
               </tbody>
             </table>
-            <p v-if="activeSessions.length && canCancelSession" class="rd-cancel-hint">
-              Если диагностика назначена на неверную дату — отмените заявку и создайте новую.
-            </p>
-
             <h3 class="rd-subtitle" style="margin-top: 1.75rem;">Назначенные диагностики</h3>
             <div v-if="assignmentsLoading" class="rd-loading" style="min-height:80px"><div class="spinner"></div></div>
             <div v-else-if="!assignments.length" class="rd-inline-empty">Пока нет назначений</div>
@@ -918,6 +896,102 @@
                   </div>
                 </div>
               </div>
+            </template>
+          </div>
+        </section>
+      </div>
+
+      <div v-else-if="activeTab === 'enrollment'" class="tabpanel">
+        <section class="card">
+          <div class="card-head">
+            <div>
+              <h2 class="card-title">Документы на зачисление</h2>
+              <div class="card-sub">{{ enrollSubtitle }}</div>
+            </div>
+            <span v-if="enroll" class="rd-scan-badge">{{ enroll.signedCount }} / {{ enroll.docs.length }}</span>
+          </div>
+
+          <div class="card-body">
+            <div v-if="enrollLoading" class="rd-loading" style="min-height:120px"><div class="spinner"></div></div>
+            <div v-else-if="enrollError" class="rd-inline-empty">{{ enrollError }}</div>
+
+            <template v-else-if="enroll">
+              <div v-if="!enroll.verdict" class="en-note en-note-wait">
+                Заключение по диагностике ещё не выдано. Как только специалист вынесет решение,
+                здесь появятся документы на подпись.
+              </div>
+
+              <div v-else-if="!enroll.positive" class="en-note en-note-stop">
+                Решение по диагностике — «{{ enroll.verdictLabel }}». Документы на зачисление не готовятся.
+              </div>
+
+              <template v-else>
+                <div class="en-grid">
+                  <div v-for="d in enroll.docs" :key="d.key" class="en-doc" :class="{ done: d.uploaded }">
+                    <div class="en-doc-head">
+                      <span class="en-doc-ic" aria-hidden="true">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </span>
+                      <div class="en-doc-t">
+                        <div class="en-doc-name">{{ d.title }}</div>
+                        <div class="en-doc-state">
+                          <template v-if="d.uploaded">
+                            Подписанный скан загружен<template v-if="d.uploadedAt"> · {{ formatDate(d.uploadedAt) }}</template>
+                          </template>
+                          <template v-else>Скан с подписью не загружен</template>
+                        </div>
+                      </div>
+                      <span class="en-doc-tag" :class="d.uploaded ? 'is-done' : 'is-wait'">
+                        {{ d.uploaded ? 'Готово' : 'Ждём' }}
+                      </span>
+                    </div>
+
+                    <div class="en-doc-actions">
+                      <button
+                        type="button"
+                        class="en-btn en-btn-primary"
+                        :disabled="enrollBusy === d.key"
+                        @click="downloadEnrollDoc(d)"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                        {{ enrollBusy === d.key ? 'Готовим…' : 'Скачать бланк' }}
+                      </button>
+
+                      <template v-if="canEditDocs">
+                        <label class="en-btn en-btn-ghost" :class="{ 'is-busy': enrollBusy === 'up:' + d.key }">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                          {{ enrollBusy === 'up:' + d.key ? 'Загрузка…' : (d.uploaded ? 'Заменить скан' : 'Загрузить скан') }}
+                          <input
+                            type="file"
+                            class="en-file"
+                            accept="image/*,application/pdf"
+                            :disabled="enrollBusy === 'up:' + d.key"
+                            @change="pickSignedScan(d, $event)"
+                          />
+                        </label>
+
+                        <a
+                          v-if="d.uploaded && d.scanId"
+                          class="en-btn en-btn-ghost"
+                          :href="`/api/v1/recipients/${recipientId}/scans/${d.scanId}/file`"
+                          target="_blank"
+                          rel="noopener"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+                          Открыть скан
+                        </a>
+                      </template>
+                    </div>
+
+                    <p v-if="enrollDocError[d.key]" class="du-error en-doc-err">{{ enrollDocError[d.key] }}</p>
+                  </div>
+                </div>
+
+                <div v-if="enroll.allSigned" class="en-note en-note-ok en-done">
+                  Все подписанные документы загружены. Осталось назначить группу —
+                  это делается во вкладке «Занятия и группа».
+                </div>
+              </template>
             </template>
           </div>
         </section>
@@ -1098,7 +1172,7 @@ import { usePageStore } from '../stores/page';
 import { useAuthStore } from '../stores/auth';
 import api from '../api';
 import { fullName, initials, recipientAge, statusLabel } from '../utils/recipient';
-import { notifySaved } from '../utils/toast';
+import { notify, notifySaved } from '../utils/toast';
 import AssignDiagnosticModal from '../components/AssignDiagnosticModal.vue';
 import LockedBlock from '../components/LockedBlock.vue';
 
@@ -1207,6 +1281,7 @@ const tabs = [
   { id: 'profile', label: 'Анкета и медкарта' },
   { id: 'lessons', label: 'Занятия и группа' },
   { id: 'diagnostics', label: 'Диагностика и развитие' },
+  { id: 'enrollment', label: 'Зачисление' },
   { id: 'documents', label: 'Документы' },
   { id: 'representative', label: 'Представитель и семья' },
 ];
@@ -1222,8 +1297,8 @@ const STAGE_TAB = {
   intake: 'profile',        
   statement: 'documents',   
   diagnostic: 'diagnostics',
-  enrollment: 'lessons',    
-  lessons: 'lessons',       
+  enrollment: 'enrollment',
+  lessons: 'lessons',
   cycle: 'diagnostics'      
 };
 const stageTabLabel = (key) => tabs.find((t) => t.id === STAGE_TAB[key])?.label || 'карточку';
@@ -1781,6 +1856,112 @@ const saveScanReplace = async () => {
   }
 };
 
+const enroll = ref(null);
+const enrollLoading = ref(false);
+const enrollError = ref('');
+const enrollBusy = ref('');
+const enrollDocError = ref({});
+
+const enrollSubtitle = computed(() => {
+  const e = enroll.value;
+  if (!e) return 'Бланки на подпись после положительного заключения';
+  if (!e.verdict) return 'Ждём заключение по диагностике';
+  if (!e.positive) return 'Решение отрицательное — бланки не нужны';
+  if (e.allSigned) return 'Все три документа подписаны и загружены';
+  return `Подписано ${e.signedCount} из ${e.docs.length} · остальные ждут скан`;
+});
+
+const loadEnrollment = async () => {
+  if (!recipientId || enrollLoading.value) return;
+  enrollLoading.value = true;
+  enrollError.value = '';
+  try {
+    const { data } = await api.get(`/recipients/${recipientId}/enrollment`);
+    enroll.value = data;
+  } catch (err) {
+    console.error('loadEnrollment', err);
+    enroll.value = null;
+    enrollError.value = err?.response?.data?.message || 'Не удалось получить данные о зачислении';
+  } finally {
+    enrollLoading.value = false;
+  }
+};
+
+const downloadEnrollDoc = async (d) => {
+  if (enrollBusy.value) return;
+  enrollBusy.value = d.key;
+  enrollDocError.value = { ...enrollDocError.value, [d.key]: '' };
+  try {
+    const res = await api.get(`/recipients/${recipientId}/enrollment/${d.key}/file`, {
+      responseType: 'blob'
+    });
+    const disp = res.headers?.['content-disposition'] || '';
+    const m = disp.match(/filename\*=UTF-8''([^;]+)/i);
+    const name = m ? decodeURIComponent(m[1]) : `${d.title}.docx`;
+    const url = URL.createObjectURL(res.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    notify(`«${d.title}» скачан — распечатайте и подпишите`);
+  } catch (err) {
+    console.error('downloadEnrollDoc', err);
+    let msg = 'Не удалось подготовить документ';
+    const body = err?.response?.data;
+    if (body instanceof Blob) {
+      try { msg = JSON.parse(await body.text())?.message || msg; } catch {}
+    } else if (body?.message) {
+      msg = body.message;
+    }
+    enrollDocError.value = { ...enrollDocError.value, [d.key]: msg };
+  } finally {
+    enrollBusy.value = '';
+  }
+};
+
+const pickSignedScan = async (d, event) => {
+  const input = event.target;
+  const file = input.files?.[0];
+  input.value = '';
+  if (!file) return;
+
+  const setErr = (msg) => { enrollDocError.value = { ...enrollDocError.value, [d.key]: msg }; };
+  setErr('');
+
+  if (file.size > MAX_SCAN_MB * 1024 * 1024) {
+    setErr(`Файл больше ${MAX_SCAN_MB} МБ — выберите файл меньшего размера`);
+    return;
+  }
+
+  enrollBusy.value = 'up:' + d.key;
+  try {
+    const payload = {
+      scans: [{
+        docKey: d.scanCode,
+        entityType: 'rehabilitant',
+        originalName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        base64: await fileToBase64(file)
+      }]
+    };
+    if (d.uploaded) {
+      payload.mode = 'update';
+      payload.reason = `Повторная загрузка подписанного документа: ${d.title}`;
+    }
+    await api.post(`/recipients/${recipientId}/scans`, payload);
+    notifySaved(`Скан «${d.title}» загружен`);
+    await Promise.all([loadEnrollment(), loadScans(true), loadReadiness()]);
+  } catch (err) {
+    console.error('pickSignedScan', err);
+    setErr(err?.response?.data?.message || 'Не удалось загрузить скан');
+  } finally {
+    enrollBusy.value = '';
+  }
+};
+
 const historyScan = ref(null);
 const openScanHistory = (s) => { historyScan.value = s; };
 const closeScanHistory = () => { historyScan.value = null; };
@@ -1926,6 +2107,8 @@ watch(activeTab, (tab) => {
     loadScans();
   } else if (tab === 'profile') {
     loadDocHistory();
+  } else if (tab === 'enrollment') {
+    loadEnrollment();
   }
 });
 
@@ -2342,6 +2525,71 @@ onMounted(async () => {
   background: var(--sage-100); color: var(--sage-700);
   font-size: 0.8rem; font-weight: 700; border-radius: 62.5rem;
 }
+.en-note {
+  border-radius: var(--radius-md);
+  padding: 0.75rem 0.9rem;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  border: 0.0625rem solid transparent;
+}
+.en-note-ok { background: var(--sage-50); border-color: var(--sage-100); color: var(--sage-800); }
+.en-note-wait { background: var(--amber-50); border-color: var(--amber-100); color: var(--amber-700); }
+.en-note-stop { background: var(--rose-50); border-color: var(--rose-100); color: var(--rose-700); }
+.en-done { margin-top: 1rem; }
+
+.en-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+  gap: 0.875rem;
+  margin-top: 1rem;
+}
+.en-doc {
+  border: 0.0625rem solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--paper);
+  padding: 0.875rem 0.95rem 0.95rem;
+  display: flex; flex-direction: column; gap: 0.75rem;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.en-doc:hover { border-color: var(--line-strong); box-shadow: var(--shadow-md); }
+.en-doc.done { background: var(--sage-50); border-color: var(--sage-100); }
+
+.en-doc-head { display: flex; align-items: flex-start; gap: 0.6rem; }
+.en-doc-ic {
+  width: 2.1rem; height: 2.1rem; flex: 0 0 2.1rem;
+  display: grid; place-items: center; border-radius: var(--radius-sm);
+  background: var(--paper-sunken); color: var(--sage-700);
+}
+.en-doc.done .en-doc-ic { background: var(--sage-100); }
+.en-doc-ic svg { width: 1.1rem; height: 1.1rem; }
+.en-doc-t { min-width: 0; flex: 1; display: grid; gap: 0.15rem; }
+.en-doc-name { font-size: 0.925rem; font-weight: 600; color: var(--ink-strong); line-height: 1.3; min-height: 2.6em; }
+.en-doc-state { font-size: 0.78rem; color: var(--ink-subtle); }
+.en-doc-tag {
+  flex: 0 0 auto; font-size: 0.7rem; font-weight: 700;
+  padding: 0.15rem 0.45rem; border-radius: 62.5rem; white-space: nowrap;
+}
+.en-doc-tag.is-done { background: var(--sage-100); color: var(--sage-700); }
+.en-doc-tag.is-wait { background: var(--amber-100); color: var(--amber-700); }
+
+.en-doc-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: auto; }
+.en-btn {
+  position: relative; overflow: hidden;
+  display: inline-flex; align-items: center; gap: 0.35rem;
+  font-size: 0.8rem; font-weight: 600; line-height: 1;
+  padding: 0.45rem 0.7rem; border-radius: var(--radius-sm);
+  border: 0.0625rem solid var(--line-strong); background: var(--paper);
+  color: var(--ink-muted); cursor: pointer; text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+.en-btn svg { width: 0.85rem; height: 0.85rem; }
+.en-btn:hover { background: var(--paper-soft); color: var(--ink-strong); }
+.en-btn:disabled, .en-btn.is-busy { opacity: 0.6; cursor: default; }
+.en-btn-primary { background: var(--sage-700); border-color: var(--sage-700); color: #FFFFFF; }
+.en-btn-primary:hover:not(:disabled) { background: var(--sage-800); border-color: var(--sage-800); color: #FFFFFF; }
+.en-file { position: absolute; width: 0.0625rem; height: 0.0625rem; opacity: 0; pointer-events: none; }
+.en-doc-err { margin: 0; }
+
 .rd-scan-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(11.5rem, 1fr));
@@ -2467,19 +2715,6 @@ onMounted(async () => {
 .rd-assign-action { display: flex; align-items: flex-end; }
 .rd-assign-action .btn { width: 100%; }
 .rd-assign-err { margin: 0.6rem 0 0; color: var(--rose-500); font-size: 0.875rem; }
-.rd-assign-moved {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin: 0 0 1.5rem;
-  padding: 0.75rem 1rem;
-  background: var(--sage-50);
-  border: 0.0625rem solid var(--sage-100);
-  border-radius: var(--radius-md);
-  color: var(--sage-700);
-  font-size: 0.875rem;
-}
-.rd-assign-moved svg { width: 1.1rem; height: 1.1rem; flex: 0 0 auto; }
 .rd-subtitle { font-size: 1rem; font-weight: 600; margin: 0 0 0.75rem; color: var(--ink-strong); }
 
 .rd-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
@@ -2492,7 +2727,6 @@ onMounted(async () => {
 .rd-cancel-btn:hover:not(:disabled) { border-color: var(--rose-500); color: var(--rose-500); }
 .rd-cancel-btn:disabled { opacity: 0.5; cursor: default; }
 .rd-col-act { width: 1%; white-space: nowrap; text-align: right; }
-.rd-cancel-hint { margin: 0.6rem 0 0; font-size: 0.8125rem; color: var(--ink-muted); line-height: 1.45; }
 .rd-cancel-note { margin: 0; font-size: 0.9375rem; color: var(--ink); line-height: 1.5; }
 
 .rd-result { border: 0.0625rem solid var(--line-soft); border-radius: var(--radius-md); padding: 0.9rem 1rem; margin-bottom: 0.85rem; background: #FAF7F0; }

@@ -10,8 +10,11 @@ import {
 import { DIAGNOSTIC_BLOCKS } from '../src/utils/diagnosticBlocks.js';
 import { summarizeDraft } from '../src/utils/recipientDraft.js';
 import { hasGrant } from '../services/dataAccess.js';
+import { ENROLL_DOCS, findPendingEnrollment } from '../services/enrollmentDocs.js';
 
 const router = express.Router();
+
+const ENROLL_SCAN_CODES = ENROLL_DOCS.map((d) => d.scanCode);
 
 function recipientFullName(r) {
   return [r.lastName, r.firstName, r.middleName].filter(Boolean).join(' ') || 'Без имени';
@@ -442,7 +445,7 @@ router.get('/employee-alerts', authMiddleware, roleMiddleware('admin', 'employee
     const nameAttrs = ['id', 'firstName', 'middleName', 'lastName'];
     const named = (r) => (r ? recipientFullName(r) : 'Без имени');
 
-    const [expiredDocs, sessions, noShows, activeRecipients, signedTypes, currentScans, conclusions] =
+    const [expiredDocs, sessions, noShows, activeRecipients, signedTypes, currentScans, conclusions, pendingEnroll] =
       await Promise.all([
         RecipientDoc.findAll({
           where: { mseValidDate: { [Op.lt]: today } },
@@ -472,12 +475,16 @@ router.get('/employee-alerts', authMiddleware, roleMiddleware('admin', 'employee
           where: { status: 'active' },
           attributes: [...nameAttrs, 'groupId']
         }),
-        DocType.findAll({ where: { category: 'signed' }, attributes: ['id', 'code', 'name'] }),
+        DocType.findAll({
+          where: { category: 'signed', code: { [Op.notIn]: ENROLL_SCAN_CODES } },
+          attributes: ['id', 'code', 'name']
+        }),
         RecipientScanDoc.findAll({
           where: { isCurrent: true },
           attributes: ['recipId', 'docType', 'uploadedAt']
         }),
-        DiagnosticConclusion.findAll({ attributes: ['id', 'sessionId', 'recipientId', 'verdict', 'issuedAt'] })
+        DiagnosticConclusion.findAll({ attributes: ['id', 'sessionId', 'recipientId', 'verdict', 'issuedAt'] }),
+        findPendingEnrollment()
       ]);
 
     const expiredItems = expiredDocs.map((d) => ({
@@ -578,12 +585,43 @@ router.get('/employee-alerts', authMiddleware, roleMiddleware('admin', 'employee
         };
       });
 
+    const enrollItems = pendingEnroll.map((p) => ({
+      recipientId: p.recipientId,
+      name: p.name,
+      days: daysSince(p.issuedAt, today),
+      tab: 'enrollment',
+      signedCount: p.signedCount,
+      note: p.signedCount
+        ? `Диагностика пройдена, ${p.verdictLabel} — подписано ${p.signedCount} из ${p.totalDocs}`
+        : `Диагностика пройдена, ${p.verdictLabel} — нужно подготовить документы`
+    }));
+
     const card = ['карточка', 'карточки', 'карточек'];
     const claim = ['заявка', 'заявки', 'заявок'];
 
     res.json({
       date: today,
       groups: [
+        {
+          key: 'enrollment',
+          title: 'Диагностика завершена',
+          subtitle: 'Решение положительное — можно готовить документы на зачисление',
+          tone: 'sage',
+          tiles: [
+            buildTile({
+              key: 'enroll-ready', tone: 'sage', unit: card,
+              title: 'Готовы к зачислению',
+              empty: 'Никто не ждёт документов на зачисление',
+              action: { page: 'recipients', title: 'Реабилитанты' },
+              items: enrollItems,
+              meta: (list) => {
+                const started = list.filter((i) => i.signedCount > 0).length;
+                const waiting = `${list.length} ${plural(list.length, 'ждёт', 'ждут', 'ждут')} документов`;
+                return started ? `${waiting}, у ${started} часть уже подписана` : waiting;
+              }
+            })
+          ]
+        },
         {
           key: 'urgent',
           title: 'Требует немедленного действия',
@@ -620,7 +658,7 @@ router.get('/employee-alerts', authMiddleware, roleMiddleware('admin', 'employee
         {
           key: 'stuck',
           title: 'Застряло',
-          subtitle: 'Число суток с последнего перехода по маршруту',
+          subtitle: null,
           tone: 'amber',
           tiles: [
             buildTile({
@@ -742,7 +780,7 @@ router.get('/exec-overview', authMiddleware, roleMiddleware('admin'), async (req
 
     const [
       recipients, sessions, conclusions, assignments,
-      directions, users, events, expiredDocs, draftCount
+      directions, users, events, expiredDocs, draftCount, pendingEnroll
     ] = await Promise.all([
       Recipient.findAll({ attributes: ['id', 'status'] }),
       DiagnosticSession.findAll({
@@ -764,7 +802,8 @@ router.get('/exec-overview', authMiddleware, roleMiddleware('admin'), async (req
         where: { mseValidDate: { [Op.lt]: today } },
         attributes: ['id', 'recipientId']
       }),
-      RecipientDraft.count()
+      RecipientDraft.count(),
+      findPendingEnrollment()
     ]);
 
     const byStatus = (s) => recipients.filter((r) => r.status === s).length;
@@ -924,6 +963,28 @@ router.get('/exec-overview', authMiddleware, roleMiddleware('admin'), async (req
       .sort((a, b) => b.count - a.count);
 
     const issues = [];
+
+    for (const p of pendingEnroll.slice(0, 5)) {
+      issues.push({
+        key: `enroll-${p.recipientId}`, tone: 'sage',
+        title: `${p.name} — диагностика завершена`,
+        sub: p.signedCount
+          ? `Решение: ${p.verdictLabel} · подписано ${p.signedCount} из ${p.totalDocs} документов`
+          : `Решение: ${p.verdictLabel} · пора подготовить документы на зачисление`,
+        action: 'recipient-details',
+        actionParams: { recipientId: p.recipientId, tab: 'enrollment' }
+      });
+    }
+    if (pendingEnroll.length > 5) {
+      const rest = pendingEnroll.length - 5;
+      issues.push({
+        key: 'enroll-rest', tone: 'sage',
+        title: `Ещё ${rest} ${plural(rest, 'реабилитант ждёт', 'реабилитанта ждут', 'реабилитантов ждут')} документов`,
+        sub: 'Диагностика пройдена, решение положительное',
+        action: 'recipients'
+      });
+    }
+
     const overdueBlocks = assignments.filter(
       (a) => a.blockStatus !== 'completed' && dateOnly(a.date) && dateOnly(a.date) < today
     ).length;

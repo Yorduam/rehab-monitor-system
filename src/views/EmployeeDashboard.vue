@@ -99,7 +99,7 @@
               :key="t.key + '-' + idx"
               class="tl-row"
               type="button"
-              @click="openRecipient(it.recipientId)"
+              @click="openRecipient(it.recipientId, it.tab)"
             >
               <span class="avatar" :class="avatarClass(it.recipientId)" aria-hidden="true">{{ initials(it.name) }}</span>
               <span class="tl-main">
@@ -127,7 +127,6 @@
       <div class="alerts-head dr-head">
         <div>
           <div class="section-eyebrow">Незаконченная карточка</div>
-          <div class="alerts-sub">Та, которую начали на этом компьютере</div>
         </div>
         <button
           v-if="draftsTotal"
@@ -182,15 +181,6 @@
           <div v-else class="dr-step-done">
             Личные данные заполнены полностью. Остался третий шаг мастера — сканы, пакет документов и подтверждение комплектности.
           </div>
-
-          <p class="dr-note">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-            <span>
-              Карточка сохранена и на сервере: её видно с любого компьютера и она переживёт очистку данных браузера.
-              Здесь показана только та, что начата на этом компьютере, — остальные лежат в разделе
-              <button class="p-link" type="button" @click="openDraftsTab">«Черновики»</button>.
-            </span>
-          </p>
         </div>
       </div>
     </section>
@@ -390,8 +380,11 @@ const pageStore = usePageStore();
 const authStore = useAuthStore();
 
 const goTo = (page, label, params) => pageStore.setPage(page, label || page, params || {});
-const openRecipient = (id) => {
-  if (id) pageStore.setPage('recipient-details', 'Карточка реабилитанта', { recipientId: id });
+const openRecipient = (id, tab) => {
+  if (!id) return;
+  const params = { recipientId: id };
+  if (tab) params.tab = tab;
+  pageStore.setPage('recipient-details', 'Карточка реабилитанта', params);
 };
 
 const now = new Date();
@@ -909,6 +902,7 @@ onUnmounted(() => {
 .alerts-sub { font-size: var(--fs-13); color: var(--ink-subtle); margin-top: 0.125rem; }
 
 .tiles { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+.tiles-1 { grid-template-columns: minmax(14rem, 24rem); }
 
 .tile { background: var(--paper); border: 0.0625rem solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); overflow: hidden; transition: border-color 0.15s, box-shadow 0.15s; }
 .tile.open { border-color: var(--line-strong); box-shadow: var(--shadow-md); }
@@ -931,6 +925,9 @@ onUnmounted(() => {
 .tone-rose .tile-num i { color: var(--rose-700); }
 .tone-amber .tile-num b { color: var(--amber-500); }
 .tone-amber .tile-num i { color: var(--amber-700); }
+.tone-sage .tile-num b { color: var(--sage-500); }
+.tone-sage .tile-num i { color: var(--sage-700); }
+.tone-sage .tile-meta { color: var(--sage-700); }
 .tone-calm .tile-num b { color: var(--sage-500); }
 .tone-calm .tile-num i { color: var(--ink-subtle); }
 .tone-calm .tile-meta { color: var(--sage-700); }
@@ -968,9 +965,6 @@ onUnmounted(() => {
 .dr-chips { display: flex; flex-wrap: wrap; gap: 0.3125rem; }
 .dr-chip { font-size: var(--fs-12); padding: 0.1875rem 0.5rem; border-radius: var(--r-sm); background: var(--amber-50); color: var(--amber-700); border: 0.0625rem solid var(--amber-100); }
 .dr-step-done { font-size: var(--fs-13); color: var(--sage-700); background: var(--sage-50); border: 0.0625rem solid var(--sage-100); border-radius: var(--r-md); padding: 0.625rem 0.75rem; line-height: 1.45; }
-
-.dr-note { display: flex; align-items: flex-start; gap: 0.5rem; margin: 0; font-size: var(--fs-12); color: var(--ink-subtle); line-height: 1.45; }
-.dr-note svg { width: 0.875rem; height: 0.875rem; flex: 0 0 0.875rem; margin-top: 0.125rem; }
 
 .dr-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.875rem; flex-wrap: wrap; }
 .dr-all-btn { flex: 0 0 auto; }

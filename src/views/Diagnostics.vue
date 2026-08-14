@@ -74,7 +74,6 @@
       <section class="route" aria-labelledby="route-title">
         <div class="route-head">
           <h2 class="route-title" id="route-title">Маршрут диагностики</h2>
-          <span class="route-hint">Нажмите на этап, чтобы открыть его форму</span>
         </div>
         <div class="route-tiles" role="list">
 
@@ -2120,7 +2119,6 @@ onMounted(() => {
           <header class="modal-head">
             <div class="mh-body">
               <div class="mh-title" id="recipient-modal-title">Выбрать реабилитанта</div>
-              <div class="mh-sub">Данные в шапке и PDF-отчёте обновятся после выбора</div>
             </div>
             <button type="button" class="modal-close" data-recipient-close aria-label="Закрыть">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -2133,7 +2131,6 @@ onMounted(() => {
           </div>
           <div class="modal-list" id="recipient-list" role="listbox" aria-label="Реабилитанты"></div>
           <footer class="modal-foot">
-            <span class="selected-count">Дважды кликните по имени в карточке, чтобы открыть этот список</span>
             <div class="modal-foot-spacer"></div>
             <button type="button" class="btn btn-secondary btn-sm" data-recipient-close>Закрыть</button>
           </footer>
@@ -5207,11 +5204,6 @@ onUnmounted(() => {
       line-height: 1.2;
       margin-bottom: 0.25rem;
     }
-    .diagnostics-page .modal-head .mh-sub{
-      font-size: 0.8125rem;
-      color: var(--ink-muted);
-    }
-    .diagnostics-page .modal-head .mh-sub strong{ color: var(--ink-strong); font-weight: 600; }
     .diagnostics-page .modal-close{
       width: 2.25rem; height: 2.25rem;
       display: grid; place-items: center;
@@ -5337,11 +5329,6 @@ onUnmounted(() => {
       gap: 0.625rem;
       background: var(--paper-soft);
     }
-    .diagnostics-page .modal-foot .selected-count{
-      font-size: 0.8125rem;
-      color: var(--ink-muted);
-    }
-    .diagnostics-page .modal-foot .selected-count strong{ color: var(--ink-strong); font-weight: 600; }
     .diagnostics-page .modal-foot-spacer{ flex: 1; }
 
     @media (max-width: 30rem) {
@@ -5869,10 +5856,6 @@ onUnmounted(() => {
       font-weight: 500;
       color: var(--ink-strong);
       letter-spacing: -0.015em;
-    }
-    .diagnostics-page .route-hint{
-      font-size: 0.75rem;
-      color: var(--ink-muted);
     }
     .diagnostics-page .route-tiles{
       display: grid;

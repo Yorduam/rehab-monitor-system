@@ -7,9 +7,6 @@
           <div class="greet-main">
             <div class="eyebrow">{{ ov.periodLabel || 'Сводка центра' }}</div>
             <h1>Обзор центра</h1>
-            <p class="lede">
-              Ключевые показатели реабилитационного процесса и его измеримость по всем участникам.
-            </p>
           </div>
           <div class="greet-actions">
             <button class="btn btn-secondary" type="button" :disabled="loading" @click="loadOverview">
@@ -30,7 +27,6 @@
             </button>
           </div>
         </div>
-        <div v-if="ov.updatedAt" class="greet-meta">Данные на {{ ov.updatedAt }}</div>
       </div>
 
       <div class="grid grid-4 kpi-grid">
@@ -59,7 +55,6 @@
           <div class="card-head">
             <div>
               <div class="card-title-sans">Незаконченная карточка</div>
-              <div class="card-sub">Та, которую начали на этом компьютере</div>
             </div>
             <div class="head-end">
               <button
@@ -118,14 +113,6 @@
               Личные данные заполнены полностью. Остался третий шаг мастера — сканы, пакет документов и подтверждение комплектности.
             </div>
 
-            <p class="dr-note">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-              <span>
-                Карточка сохранена и на сервере: её видно с любого компьютера и она переживёт очистку данных браузера.
-                Здесь показана только та, что начата на этом компьютере, — остальные лежат в разделе
-                <button class="p-link" type="button" @click="openDraftsTab">«Черновики»</button>.
-              </span>
-            </p>
           </div>
         </div>
       </section>
@@ -276,7 +263,7 @@
                     <div class="t-sub">{{ i.sub }}</div>
                   </div>
                   <div v-if="i.action" class="task-end">
-                    <button class="btn btn-secondary btn-sm" type="button" @click="goTo(i.action)">
+                    <button class="btn btn-secondary btn-sm" type="button" @click="goTo(i.action, i.actionParams || {})">
                       Открыть
                     </button>
                   </div>
@@ -710,8 +697,6 @@ onUnmounted(() => {
   color: var(--db-ink-strong);
   margin: 0 0 0.5rem;
 }
-.lede { font-size: 1rem; color: var(--db-ink-muted); max-width: 44rem; }
-.greet-meta { font-size: 0.8125rem; color: var(--db-ink-subtle); margin-top: 0.75rem; }
 .greet-actions { display: flex; gap: 0.625rem; flex-wrap: wrap; }
 
 .btn {
@@ -926,17 +911,6 @@ onUnmounted(() => {
   padding: 0.625rem 0.75rem;
   line-height: 1.45;
 }
-
-.dr-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 0.5rem;
-  margin: 0;
-  font-size: 0.75rem;
-  color: var(--db-ink-subtle);
-  line-height: 1.45;
-}
-.dr-note svg { width: 0.875rem; height: 0.875rem; flex: 0 0 0.875rem; margin-top: 0.125rem; }
 
 .p-link {
   display: inline;

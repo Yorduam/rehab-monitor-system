@@ -17,7 +17,6 @@
       </span>
       <span class="lb-text">
         <span class="lb-title">{{ title }} — закрыто</span>
-        <span class="lb-sub">Откроются после указания причины, она попадёт в журнал</span>
       </span>
       <button type="button" class="lb-btn" @click="openAsk">Показать {{ shortTitle }}</button>
     </div>
@@ -175,7 +174,6 @@ const submit = async () => {
 .lb-icon svg { width: 0.9375rem; height: 0.9375rem; }
 .lb-text { display: flex; flex-direction: column; gap: 0.0625rem; min-width: 0; flex: 1 1 auto; }
 .lb-title { font-size: 0.8125rem; font-weight: 600; color: var(--text-primary, #1a2c3e); }
-.lb-sub { font-size: 0.75rem; color: var(--text-tertiary, #5a7d9a); line-height: 1.35; }
 .lb-btn {
   flex: 0 0 auto;
   padding: 0.4375rem 0.875rem;

@@ -7,15 +7,21 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(__dirname, '..', 'templates', 'documents');
 
 const TEMPLATE_MAP = {
-  pdn:   { minor: 'pd_consent_minor.docx',    adult: 'pd_consent_adult.docx',    ext: 'docx' },
-  photo: { minor: 'photo_consent_minor.docx', adult: 'photo_consent_adult.docx', ext: 'docx' },
-  diag:  { minor: 'diagnostics_minor.docx',   adult: 'diagnostics_adult.docx',   ext: 'docx' },
+  pdn:      { minor: 'pd_consent_minor.docx',        adult: 'pd_consent_adult.docx',        ext: 'docx' },
+  photo:    { minor: 'photo_consent_minor.docx',     adult: 'photo_consent_adult.docx',     ext: 'docx' },
+  diag:     { minor: 'diagnostics_minor.docx',       adult: 'diagnostics_adult.docx',       ext: 'docx' },
+  contract: { minor: 'enroll_contract_minor.docx',   adult: 'enroll_contract_adult.docx',   ext: 'docx' },
+  enroll:   { minor: 'enroll_statement_minor.docx',  adult: 'enroll_statement_adult.docx',  ext: 'docx' },
+  plan:     { minor: 'enroll_plan_minor.docx',       adult: 'enroll_plan_adult.docx',       ext: 'docx' },
 };
 
 const OUT_BASENAME = {
-  pdn:   'Согласие_на_обработку_ПДн',
-  photo: 'Согласие_на_фото_видео',
-  diag:  'Заявление_на_диагностику',
+  pdn:      'Согласие_на_обработку_ПДн',
+  photo:    'Согласие_на_фото_видео',
+  diag:     'Заявление_на_диагностику',
+  contract: 'Договор_оказания_услуг',
+  enroll:   'Заявление_о_зачислении_на_курс',
+  plan:     'Индивидуальный_план',
 };
 
 const CONTENT_TYPE = {
@@ -140,9 +146,12 @@ export function buildTokens(form = {}, isMinor) {
     passportSerial: form.rDocSeries || '',
     passportNumber: form.rDocNum || '',
     passportWho: form.rDocIssuer || '',
+    passportDate: fmtDate(form.rDocDate),
     passportRegistration: rehRegAddress,
     address: rehFactAddress,
     disabledGroup: disabilityLabel,
+    SNILS: form.rSnils || '',
+    telephone: form.rPhone || repPhone,
   };
 
   return { ...word, ...excel, ...excelCommon };

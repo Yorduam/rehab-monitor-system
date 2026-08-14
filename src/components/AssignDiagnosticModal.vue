@@ -56,12 +56,6 @@
           <section class="ad-section" :class="{ 'is-locked': !formEnabled }">
             <h4 class="ad-section-title">Дата диагностики</h4>
 
-            <p class="ad-explain">
-              Укажите только дату. Направление и специалиста выбирать не нужно —
-              заявка попадёт в общий список, и специалисты сами возьмут реабилитанта
-              на диагностику по своему профилю в удобное им время.
-            </p>
-
             <div class="ad-grid">
               <label class="ad-field">
                 <span class="ad-key">Дата</span>
@@ -347,13 +341,6 @@ onMounted(() => {
 .ad-input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
 .ad-input:disabled { opacity: .6; cursor: not-allowed; }
 .ad-textarea { resize: vertical; min-height: 52px; }
-
-.ad-explain {
-  margin-bottom: .8rem; padding: .6rem .7rem;
-  border: 1px dashed var(--accent-border); border-radius: var(--radius-md);
-  background: var(--accent-soft); color: var(--accent-text);
-  font-size: .8rem; line-height: 1.45;
-}
 
 .ad-error { margin-top: .7rem; font-size: .82rem; color: #a3341d; }
 .ad-success { margin-top: .7rem; font-size: .82rem; color: var(--accent-text); font-weight: 600; }

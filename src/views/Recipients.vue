@@ -13,10 +13,6 @@
               <template v-if="tomorrowList.length">, завтра — <strong>{{ tomorrowList.length }}</strong></template>
               <template v-if="attentionList.length"> · требуют внимания — <strong>{{ attentionList.length }}</strong></template>
             </p>
-            <p class="t-page-sub" v-else>
-              Начатые, но не доведённые до конца карточки: <strong>{{ drafts.length }}</strong>.
-              В базе реабилитантов их ещё нет.
-            </p>
           </div>
           <div class="t-page-actions">
             <button class="t-btn t-btn-primary" @click.stop="openAddModal">
@@ -592,10 +588,6 @@
                 <kbd aria-hidden="true">/</kbd>
               </div>
             </div>
-            <p class="t-drafts-note">
-              Черновик заводится сам, как только в мастере заполнено первое поле,
-              и виден всем сотрудникам — продолжить можно с любого компьютера.
-            </p>
           </div>
 
           <div v-if="draftsLoading" class="t-loading-state">
@@ -1634,10 +1626,6 @@ onUnmounted(() => {
   grid-template-columns: minmax(0, 26rem) minmax(0, 1fr);
   gap: 1rem; align-items: center;
   margin-bottom: 1.25rem;
-}
-.t-drafts-note {
-  font-size: 0.8125rem; line-height: 1.5;
-  color: var(--t-ink-subtle);
 }
 @media (max-width: 768px) {
   .t-drafts-bar { grid-template-columns: 1fr; }

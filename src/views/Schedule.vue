@@ -380,7 +380,7 @@ import DiagnosticBoardModal from '../components/DiagnosticBoardModal.vue';
 
 const authStore = useAuthStore();
 const canAssign = computed(() => authStore.isAdmin || authStore.isEmployee);
-const canClaim = computed(() => authStore.isTeacher || authStore.isAdmin);
+const canClaim = computed(() => authStore.isTeacher);
 
 const DAY_START = 8;
 const DAY_END = 20;

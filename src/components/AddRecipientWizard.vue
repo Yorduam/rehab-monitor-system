@@ -44,7 +44,6 @@
               Новая карточка
             </div>
             <h1 class="rw-ph-title">Добавление реабилитанта</h1>
-            <p class="rw-ph-sub">Заполните данные о законном представителе, реабилитанте и загрузите подтверждающие документы. Прогресс сохраняется автоматически.</p>
           </div>
           <div class="rw-ph-actions">
             <button class="rw-btn rw-btn-ghost" type="button" @click="$emit('close')">
@@ -211,11 +210,6 @@
                         @click="toggleFamilyStatus(opt)">{{ opt.name }}</button>
                     </div>
                   </fieldset>
-
-                  <p class="rw-fs-hint">
-                    Необязательно. Статус описывает семью, а не ребёнка, поэтому хранится у
-                    представителя и виден во всех карточках его подопечных.
-                  </p>
                 </div>
               </div>
 
@@ -253,7 +247,6 @@
                 <div class="rw-f rw-c4">
                   <label class="rw-label" for="r-birth">Дата рождения <span class="rw-req">*</span></label>
                   <input id="r-birth" class="rw-input" type="date" v-model="f.rBirth" :max="today" />
-                  <span class="rw-field-help">Возраст рассчитается автоматически</span>
                 </div>
               </div>
 
@@ -325,7 +318,7 @@
                       </div>
                     </div>
                   </div>
-                  <span class="rw-field-help">{{ crgAgeHint }}</span>
+                  <span v-if="crgAgeHint" class="rw-field-help">{{ crgAgeHint }}</span>
                 </div>
 
                 <div v-if="f.rCrg" class="rw-f rw-c12">
@@ -397,10 +390,9 @@
                       </div>
                     </div>
                   </div>
-                  <span class="rw-field-help">Классы Международной классификации болезней (МКБ-10)</span>
                 </div>
                 <div class="rw-f rw-c12">
-                  <label class="rw-label" for="r-diagnosis">Диагноз <span class="rw-opt">свободный ввод</span></label>
+                  <label class="rw-label" for="r-diagnosis">Диагноз</label>
                   <textarea id="r-diagnosis" rows="2" v-model="f.rDiagnosis" maxlength="255" placeholder="Основной диагноз и сопутствующие (при наличии)"></textarea>
                 </div>
               </div>
@@ -456,7 +448,7 @@
               <div class="rw-divider"><span class="rw-dv-label">Адрес регистрации</span><span class="rw-dv-line"></span></div>
               <div class="rw-fg">
                 <div class="rw-f rw-c4">
-                  <label class="rw-label" for="r-reg-okrug">Округ Москвы <span class="rw-opt">если в Москве</span></label>
+                  <label class="rw-label" for="r-reg-okrug">Округ Москвы</label>
                   <select id="r-reg-okrug" class="rw-select" v-model="f.rRegOkrug">
                     <option value="">Не в Москве / выберите…</option>
                     <option v-for="o in moscowOkruga" :key="o" :value="o">{{ o }}</option>
@@ -472,7 +464,6 @@
               <label class="rw-switch-row" style="margin-bottom:1rem">
                 <div class="rw-sr-text">
                   <div class="rw-sr-title">Совпадает с адресом регистрации</div>
-                  <div class="rw-sr-sub">Включите, если фактический адрес совпадает с пропиской</div>
                 </div>
                 <span class="rw-switch">
                   <input type="checkbox" v-model="f.rAddrSame" />
@@ -481,7 +472,7 @@
               </label>
               <div v-if="!f.rAddrSame" class="rw-fg">
                 <div class="rw-f rw-c4">
-                  <label class="rw-label" for="r-fact-okrug">Округ Москвы <span class="rw-opt">если в Москве</span></label>
+                  <label class="rw-label" for="r-fact-okrug">Округ Москвы</label>
                   <select id="r-fact-okrug" class="rw-select" v-model="f.rFactOkrug">
                     <option value="">Не в Москве / выберите…</option>
                     <option v-for="o in moscowOkruga" :key="o" :value="o">{{ o }}</option>
@@ -509,7 +500,6 @@
                     Сенсорные особенности, триггеры и сигналы поддержки
                   </label>
                   <textarea id="r-special" rows="5" v-model="f.rSpecial" maxlength="2000" placeholder="Например: Возможны эпизоды агрессии при перегрузке средой. Чувствительность к громким звукам. Резкая смена активности без подготовки вызывает тревогу…"></textarea>
-                  <span class="rw-field-help">Описание видно всем специалистам, работающим с реабилитантом. Указывайте поведенческие триггеры и проверенные способы поддержки.</span>
                 </div>
               </div>
 
@@ -525,7 +515,6 @@
               </div>
               <div>
                 <h2 class="rw-ch-title">Документы</h2>
-                <p class="rw-ch-sub">Загрузите сканы готовых документов, затем сгенерируйте заявление и согласия, распечатайте, подпишите и загрузите обратно подписанные экземпляры.</p>
               </div>
             </div>
             <div class="rw-card-body">
@@ -575,7 +564,6 @@
                   <div class="rw-ssh-step">2</div>
                   <div class="rw-ssh-body">
                     <div class="rw-ssh-title">Документы на подпись</div>
-                    <div class="rw-ssh-sub">Система сформирует пакет документов на основе данных, заполненных на предыдущих шагах. Скачайте, распечатайте и дайте подписать законному представителю.</div>
                   </div>
                   <span class="rw-ssh-meta">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -620,7 +608,6 @@
                   <div class="rw-ssh-step">3</div>
                   <div class="rw-ssh-body">
                     <div class="rw-ssh-title">Подписанные документы</div>
-                    <div class="rw-ssh-sub">Загрузите сканы или фото каждого из трёх документов после подписания законным представителем.</div>
                   </div>
                   <span class="rw-ssh-meta">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
@@ -1068,7 +1055,7 @@ const pluralYears = (n) => {
 const capitalize = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
 const crgGroupDisabled = computed(() => crgAge.value === null);
 const crgAgeHint = computed(() => {
-  if (crgAge.value === null) return 'Возраст рассчитается автоматически';
+  if (crgAge.value === null) return '';
   const age = crgAge.value;
   const label = age < 18 ? 'категория «ребёнок-инвалид»' : 'для инвалидов 18+';
   return `Возраст: ${age} ${pluralYears(age)} · перечень ЦРГ — ${label}`;
@@ -2161,12 +2148,6 @@ onUnmounted(() => {
   color: var(--rw-ink-strong);
   margin-bottom: 0.375rem;
 }
-.rw-ph-sub {
-  font-size: 1rem;
-  color: var(--rw-ink-muted);
-  max-width: 42rem;
-  line-height: 1.55;
-}
 .rw-ph-actions { display: inline-flex; gap: 0.5rem; flex-wrap: wrap; }
 .rw-stepper {
   background: var(--rw-paper);
@@ -2414,7 +2395,6 @@ onUnmounted(() => {
 .rw-f-notes textarea::placeholder { color: #B0533F; opacity: 0.7; font-weight: 400; }
 .rw-f-notes textarea:hover { border-color: var(--rw-amber-500); }
 .rw-f-notes textarea:focus { background: #FDF6E7; border-color: var(--rw-amber-500); box-shadow: 0 0 0 3px rgba(176,114,35,.22); }
-.rw-f-notes .rw-field-help { color: var(--rw-amber-700); }
 .rw-divider {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -3029,10 +3009,6 @@ onUnmounted(() => {
 .rw-fs-group:last-of-type { margin-bottom: 0.625rem; }
 .rw-fs-legend { margin-bottom: 0.5rem; padding: 0; }
 
-.rw-fs-hint {
-  margin: 0; font-size: 0.8125rem; line-height: 1.45;
-  color: var(--rw-ink-subtle);
-}
 .rw-dup-meta { color: var(--rw-ink-subtle); }
 
 .rw-ut-view {
