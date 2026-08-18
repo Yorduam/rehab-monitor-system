@@ -836,7 +836,77 @@
         <section class="card">
           <div class="card-head"><h2 class="card-title">Диагностика и развитие</h2></div>
           <div class="card-body">
-            <h3 class="rd-subtitle">Заявки на диагностику</h3>
+            <h3 class="rd-subtitle">История диагностик</h3>
+            <div v-if="assignmentsLoading" class="rd-loading" style="min-height:80px"><div class="spinner"></div></div>
+            <div v-else-if="!historySessions.length" class="rd-inline-empty">Диагностик пока не было</div>
+            <template v-else>
+              <div class="rd-hist-tabs" role="tablist" aria-label="Переключение по диагностикам">
+                <button
+                  v-for="s in historySessions"
+                  :key="'hist-' + s.id"
+                  type="button"
+                  role="tab"
+                  class="rd-hist-tab"
+                  :class="{ 'is-active': s.id === selectedHistoryId }"
+                  :aria-selected="s.id === selectedHistoryId"
+                  @click="selectedHistoryId = s.id"
+                >
+                  <span class="rd-hist-kind">{{ s.kindLabel || 'Первичная' }}</span>
+                  <span class="rd-hist-date">{{ formatDate(s.date) }}</span>
+                </button>
+              </div>
+
+              <div v-if="selectedHistory" class="rd-hist-panel">
+                <div class="rd-hist-head">
+                  <span class="doc-status" :class="sessionStatus(selectedHistory).tone">
+                    {{ sessionStatus(selectedHistory).label }}
+                  </span>
+                  <span class="rd-hist-meta">
+                    {{ selectedHistory.kindLabel || 'Первичная' }} диагностика от {{ formatDate(selectedHistory.date) }}
+                  </span>
+                </div>
+
+                <div v-if="!(selectedHistory.blocks || []).length" class="rd-inline-empty">
+                  Блоки ещё не заполнены
+                </div>
+                <div v-else class="rd-hist-blocks">
+                  <div v-for="b in selectedHistory.blocks" :key="'hb-' + b.id" class="rd-result">
+                    <div class="rd-result-head">
+                      <span class="rd-result-dir">{{ b.direction?.name || 'Направление не указано' }}</span>
+                      <span class="rd-result-meta">
+                        {{ b.specialistName || '—' }} ·
+                        {{ b.blockStatus === 'completed' ? 'сдан' : 'в работе' }}
+                      </span>
+                    </div>
+                    <div v-if="b.resultsHidden" class="rd-result-empty">Результаты доступны только автору блока</div>
+                    <div v-else-if="!blockResultLines(b).length" class="rd-result-empty">Результаты не заполнены</div>
+                    <div v-else>
+                      <div v-for="(r, i) in blockResultLines(b)" :key="'hbr-' + b.id + '-' + i" class="rd-result-block">
+                        <div class="rd-result-block-title">{{ r.title }}</div>
+                        <div v-if="r.specialists" class="rd-result-spec">Специалисты: {{ r.specialists }}</div>
+                        <p v-if="r.recs" class="rd-result-recs">{{ r.recs }}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="selectedHistory.conclusion" class="rd-hist-conclusion">
+                  <div class="rd-hist-conclusion-head">
+                    Заключение · {{ verdictLabel(selectedHistory.conclusion.verdict) }}
+                  </div>
+                  <p class="rd-hist-conclusion-text">{{ selectedHistory.conclusion.summary }}</p>
+                  <p v-if="selectedHistory.conclusion.recommendations" class="rd-hist-conclusion-text">
+                    {{ selectedHistory.conclusion.recommendations }}
+                  </p>
+                  <div class="rd-hist-conclusion-meta">
+                    {{ selectedHistory.conclusion.authorName || '—' }} · {{ formatDate(selectedHistory.conclusion.issuedAt) }}
+                  </div>
+                </div>
+                <div v-else class="rd-inline-empty">Заключение ещё не выдано</div>
+              </div>
+            </template>
+
+            <h3 class="rd-subtitle" style="margin-top: 1.75rem;">Заявки на диагностику</h3>
             <div v-if="assignmentsLoading" class="rd-loading" style="min-height:80px"><div class="spinner"></div></div>
             <div v-else-if="!activeSessions.length" class="rd-inline-empty">Активных заявок нет</div>
             <table v-else class="rd-table">
@@ -1231,10 +1301,44 @@ const diagCount = computed(
 );
 
 const sessionStatus = (s) => {
+  if (s.status === 'completed') return { label: 'Завершена', tone: 'sage' };
   if (!s.total) return { label: 'Никто ещё не взял', tone: 'amber' };
   if (s.fullyCompleted) return { label: 'Все этапы заполнены', tone: 'sage' };
   return { label: `Заполнено ${s.completed} из ${s.total}`, tone: 'amber' };
 };
+
+const historySessions = computed(
+  () => sessions.value
+    .filter((s) => s.status !== 'cancelled')
+    .slice()
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.id - b.id)
+);
+const selectedHistoryId = ref(null);
+const selectedHistory = computed(
+  () => historySessions.value.find((s) => s.id === selectedHistoryId.value) || null
+);
+
+const VERDICT_LABELS = {
+  recommended: 'рекомендован к зачислению',
+  trial: 'пробные занятия',
+  rejected: 'не рекомендован'
+};
+const verdictLabel = (v) => VERDICT_LABELS[v] || 'решение не указано';
+
+function blockResultLines(b) {
+  const blocks = b?.results?.blocks;
+  if (!Array.isArray(blocks)) return [];
+  return blocks
+    .filter((x) =>
+      (x && typeof x.recs === 'string' && x.recs.trim()) ||
+      (x && Array.isArray(x.specialists) && x.specialists.length)
+    )
+    .map((x) => ({
+      title: blockTitle(x),
+      specialists: Array.isArray(x.specialists) ? x.specialists.join(', ') : '',
+      recs: typeof x.recs === 'string' ? x.recs.trim() : ''
+    }));
+}
 
 const canCancelSession = computed(() => authStore.isAdmin || authStore.isEmployee);
 const cancelTarget = ref(null);
@@ -2032,6 +2136,9 @@ const loadAssignments = async () => {
     const { data } = await api.get('/schedule/sessions', { params: { recipientId } });
     const list = (Array.isArray(data) ? data : []).filter((s) => s.status !== 'cancelled');
     sessions.value = list;
+    if (!list.some((s) => s.id === selectedHistoryId.value)) {
+      selectedHistoryId.value = list.length ? list[0].id : null;
+    }
     assignments.value = list
       .flatMap((s) => (s.blocks || []).map((b) => ({
         id: b.id,
@@ -2739,6 +2846,35 @@ onMounted(async () => {
 .rd-result-block-title { font-size: 0.875rem; font-weight: 600; color: var(--ink-muted); margin-bottom: 0.3rem; }
 .rd-result-spec { font-size: 0.82rem; color: var(--ink-muted); margin-bottom: 0.3rem; }
 .rd-result-recs { margin: 0; font-size: 0.9rem; line-height: 1.5; color: var(--ink-strong); white-space: pre-wrap; }
+
+.rd-hist-tabs { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+.rd-hist-tab {
+  display: flex; flex-direction: column; gap: 0.125rem;
+  padding: 0.5rem 0.875rem; text-align: left;
+  background: var(--sage-50); border: 0.0625rem solid var(--sage-100);
+  border-radius: 0.625rem; cursor: pointer; font-family: inherit; color: inherit;
+}
+.rd-hist-tab:hover { background: var(--sage-100); }
+.rd-hist-tab.is-active {
+  background: #fff; border-color: var(--sage-700);
+  box-shadow: inset 0 -0.125rem 0 var(--sage-700);
+}
+.rd-hist-kind { font-size: 0.875rem; font-weight: 600; color: var(--ink-strong); }
+.rd-hist-date { font-size: 0.75rem; color: var(--ink-muted); }
+.rd-hist-panel {
+  border: 0.0625rem solid var(--line-soft); border-radius: var(--radius-md);
+  padding: 1rem; background: #fff;
+}
+.rd-hist-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin-bottom: 0.875rem; }
+.rd-hist-meta { font-size: 0.85rem; color: var(--ink-muted); }
+.rd-hist-conclusion {
+  margin-top: 0.875rem; padding: 0.875rem 1rem;
+  background: var(--sage-50); border: 0.0625rem solid var(--sage-100);
+  border-radius: var(--radius-md);
+}
+.rd-hist-conclusion-head { font-size: 0.9rem; font-weight: 600; color: var(--sage-700); margin-bottom: 0.5rem; }
+.rd-hist-conclusion-text { margin: 0 0 0.5rem; font-size: 0.9rem; line-height: 1.5; color: var(--ink-strong); white-space: pre-wrap; }
+.rd-hist-conclusion-meta { font-size: 0.8rem; color: var(--ink-muted); }
 
 .rd-footer {
   margin-top: 1.5rem; padding-top: 1rem; border-top: 0.0625rem solid var(--line);

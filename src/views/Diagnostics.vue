@@ -1,5 +1,5 @@
 <template>
-  <div class="diagnostics-page" :class="{ 'diag-readonly': isEmployee }">
+  <div class="diagnostics-page" :class="{ 'diag-readonly': readonlyView }">
     <a class="skip-link" href="#stages-flow">Перейти к этапам диагностики</a>
 
 
@@ -38,7 +38,7 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
               <circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/>
             </svg>
-            Первичная диагностика · 4 этапа
+            {{ heroEyebrow }}
           </div>
           <div class="hero-name-row">
             <h1 class="hero-name" id="hero-name" tabindex="0" title="Дважды кликните, чтобы выбрать другого реабилитанта">Загрузка…</h1>
@@ -69,6 +69,70 @@
             <div class="progress-fill" id="route-fill" style="width: 25%"></div>
           </div>
         </div>
+      </section>
+
+      <section class="diag-switch" aria-label="Диагностики реабилитанта">
+        <header class="ds-head">
+          <h2 class="ds-title">История диагностик</h2>
+          <span class="ds-count">{{ sessionTabs.length }}</span>
+        </header>
+
+        <div class="ds-row">
+          <div class="ds-tabs" role="tablist" aria-label="Переключение по диагностикам">
+            <button
+              v-for="tab in sessionTabs"
+              :key="tab.id"
+              type="button"
+              role="tab"
+              class="ds-tab"
+              :class="{ 'is-active': tab.id === selectedSessionId, 'is-done': tab.done, 'is-live': tab.live }"
+              :aria-selected="tab.id === selectedSessionId"
+              @click="selectSession(tab.id)"
+            >
+              <span class="ds-tab-num">{{ tab.num }}</span>
+              <span class="ds-tab-body">
+                <span class="ds-tab-kind">
+                  {{ tab.kindLabel }}<template v-if="tab.ordinal"> · {{ tab.ordinal }}</template>
+                </span>
+                <span class="ds-tab-meta">
+                  <span class="ds-tab-date">{{ tab.dateLabel }}</span>
+                  <span class="ds-state" :class="tab.done ? 'is-done' : tab.live ? 'is-live' : 'is-wait'">
+                    {{ tab.stateLabel }}<template v-if="tab.progress && !tab.done"> · {{ tab.progress }}</template>
+                  </span>
+                </span>
+              </span>
+            </button>
+            <p v-if="!sessionTabs.length" class="ds-empty">Диагностик пока не было</p>
+          </div>
+
+          <div v-if="isTeacher" class="ds-actions">
+            <button
+              v-if="canJoinSelected"
+              type="button"
+              class="ds-btn ds-btn-join"
+              :disabled="sessionBusy"
+              @click="joinSelectedSession"
+            >
+              Присоединиться
+            </button>
+            <div class="ds-start">
+              <label class="sr-only" for="ds-start-kind">Тип новой диагностики</label>
+              <select id="ds-start-kind" class="ds-kind" v-model="startKind" :disabled="sessionBusy">
+                <option value="interim">Промежуточная</option>
+                <option value="final">Итоговая</option>
+              </select>
+              <button
+                type="button"
+                class="ds-btn ds-btn-start"
+                :disabled="sessionBusy"
+                @click="startObservation"
+              >
+                Начать диагностику
+              </button>
+            </div>
+          </div>
+        </div>
+        <p v-if="switchNote" class="ds-note" role="status">{{ switchNote }}</p>
       </section>
 
       <section class="route" aria-labelledby="route-title">
@@ -1607,7 +1671,7 @@ const gateText = computed(() => {
   if (authStore.isTeacher) {
     return teacherAssignedCount.value === 0
       ? 'Отметьте «Присутствует» на вкладке «Реабилитанты» — и направленный на диагностику реабилитант появится здесь.'
-      : 'Выберите реабилитанта из отмеченных присутствующими, чтобы открыть карточку.'
+      : 'Выберите реабилитанта, чтобы открыть карточку диагностики или начать промежуточную.'
   }
   return 'Чтобы открыть карточку диагностики, сначала выберите реабилитанта из списка.'
 })
@@ -1616,6 +1680,120 @@ function openRecipientPicker() {
 }
 
 const diagMode = ref('card')
+
+const KIND_LABELS = { primary: 'Первичная', interim: 'Промежуточная', final: 'Итоговая' }
+const STATUS_LABELS = { open: 'ожидает', in_progress: 'идёт', completed: 'завершена', cancelled: 'отменена' }
+const OBSERVATION_KINDS = ['interim', 'final']
+
+const sessionList = ref([])
+const selectedSessionId = ref(null)
+const sessionBusy = ref(false)
+const startKind = ref('interim')
+const switchNote = ref('')
+
+function ruDateShort(value) {
+  const m = String(value ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/)
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : ''
+}
+
+const sessionTabs = computed(() =>
+  sessionList.value
+    .filter((s) => s.status !== 'cancelled')
+    .slice()
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)) || Number(a.id) - Number(b.id))
+    .map((s, i, all) => {
+      const kind = s.kind || 'primary'
+      const sameKind = all.filter((x) => (x.kind || 'primary') === kind)
+      return {
+        id: s.id,
+        kindLabel: KIND_LABELS[kind] || KIND_LABELS.primary,
+        ordinal: sameKind.length > 1 ? sameKind.findIndex((x) => x.id === s.id) + 1 : 0,
+        num: String(i + 1).padStart(2, '0'),
+        dateLabel: ruDateShort(s.date),
+        stateLabel: STATUS_LABELS[s.status] || s.status,
+        progress: s.total ? `${s.completed || 0} из ${s.total}` : '',
+        done: s.status === 'completed',
+        live: s.status === 'in_progress'
+      }
+    })
+)
+
+const selectedSession = computed(
+  () => sessionList.value.find((s) => s.id === selectedSessionId.value) || null
+)
+
+const historyMode = computed(() => selectedSession.value?.status === 'completed')
+
+const readonlyView = computed(() => isEmployee.value || historyMode.value)
+
+const heroEyebrow = computed(() => {
+  const s = selectedSession.value
+  if (!s) return 'Первичная диагностика · 4 этапа'
+  const label = KIND_LABELS[s.kind] || KIND_LABELS.primary
+  const date = ruDateShort(s.date)
+  return `${label} диагностика` + (date ? ` · ${date}` : '') +
+         (s.status === 'completed' ? ' · только просмотр' : '')
+})
+
+const canJoinSelected = computed(() => {
+  const s = selectedSession.value
+  if (!isTeacher.value || !s) return false
+  if (!OBSERVATION_KINDS.includes(s.kind)) return false
+  if (s.status !== 'open' && s.status !== 'in_progress') return false
+  return !(s.blocks || []).some((b) => b.isMine)
+})
+
+async function selectSession(id) {
+  if (id === selectedSessionId.value) return
+  selectedSessionId.value = id
+  switchNote.value = ''
+  if (typeof window.__reloadDiagnosticSession === 'function') {
+    await window.__reloadDiagnosticSession()
+  }
+}
+
+async function startObservation() {
+  const recipientId = window.__diagnosticsRuntime?.currentRecipient?.id
+  if (!recipientId) {
+    switchNote.value = 'Сначала выберите реабилитанта.'
+    return
+  }
+  sessionBusy.value = true
+  switchNote.value = ''
+  try {
+    const { data } = await api.post('/schedule/sessions/observation', {
+      recipientId,
+      kind: startKind.value
+    })
+    selectedSessionId.value = data?.id ?? null
+    if (typeof window.__reloadDiagnosticSession === 'function') {
+      await window.__reloadDiagnosticSession()
+    }
+    switchNote.value = `${KIND_LABELS[startKind.value]} диагностика начата — блок открыт для заполнения.`
+  } catch (err) {
+    switchNote.value = err?.response?.data?.message || 'Не удалось начать диагностику.'
+  } finally {
+    sessionBusy.value = false
+  }
+}
+
+async function joinSelectedSession() {
+  const id = selectedSessionId.value
+  if (!id) return
+  sessionBusy.value = true
+  switchNote.value = ''
+  try {
+    await api.post(`/schedule/sessions/${id}/join`)
+    if (typeof window.__reloadDiagnosticSession === 'function') {
+      await window.__reloadDiagnosticSession()
+    }
+    switchNote.value = 'Вы присоединились к диагностике — ваш блок открыт для заполнения.'
+  } catch (err) {
+    switchNote.value = err?.response?.data?.message || 'Не удалось присоединиться к диагностике.'
+  } finally {
+    sessionBusy.value = false
+  }
+}
 
 function handleMobileStageChange(event) {
   const value = event?.target?.value
@@ -1654,21 +1832,24 @@ onMounted(() => {
     lockTeacherProfile();
   }
 
-  if (authStore.isEmployee) {
+  {
     const isCardEditable = (el) => {
       if (!el || !el.closest) return false;
-      if (!el.closest('.content')) return false; 
+      if (!el.closest('.content')) return false;
+      if (el.closest('.diag-switch')) return false;
       const tag = el.tagName;
       return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
     };
     const NAV_KEYS = ['Tab', 'Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown'];
     const swallow = (e) => {
+      if (!readonlyView.value) return;
       if (diagMode.value !== 'card') return;
       if (!isCardEditable(e.target)) return;
       e.preventDefault();
       e.stopPropagation();
     };
     const swallowKey = (e) => {
+      if (!readonlyView.value) return;
       if (diagMode.value !== 'card') return;
       const el = e.target;
       if (!isCardEditable(el)) return;
@@ -1823,6 +2004,9 @@ onMounted(() => {
       document.title = 'ERP-Р • Диагностика — ' + current.fullName;
       try { localStorage.setItem('diagnostics.selectedRecipient', JSON.stringify(current)); } catch (_) {}
       if (!opts.silent && typeof showToast === 'function') showToast('Выбран реабилитант: <strong>' + escapeHtml(current.fullName) + '</strong>');
+      selectedSessionId.value = null;
+      sessionList.value = [];
+      switchNote.value = '';
       loadAssignmentsForRecipient();
       hydrateResultsForRecipient();
     }
@@ -1832,6 +2016,19 @@ onMounted(() => {
       if (!live.length) return null;
       return live.reduce((a, b) => (Number(b.id) > Number(a.id) ? b : a));
     }
+
+    function adoptSessions(payload) {
+      const list = Array.isArray(payload) ? payload : [];
+      sessionList.value = list;
+      const target = list.find((s) => s.id === selectedSessionId.value) || pickCurrentSession(list);
+      selectedSessionId.value = target?.id ?? null;
+      return target;
+    }
+
+    window.__reloadDiagnosticSession = async () => {
+      await loadAssignmentsForRecipient();
+      await hydrateResultsForRecipient();
+    };
 
     async function hydrateResultsForRecipient() {
       if (typeof window.__resetFormState === 'function') {
@@ -1847,7 +2044,7 @@ onMounted(() => {
       if (typeof window.__applyFormState !== 'function') return;
       try {
         const { data } = await api.get('/schedule/sessions', { params: { recipientId } });
-        const target = pickCurrentSession(data);
+        const target = adoptSessions(data);
         const blocks = target ? (target.blocks || []) : [];
         diagnosticsRuntime.blocks = blocks;
         blocks
@@ -1915,14 +2112,21 @@ onMounted(() => {
         return;
       }
       try {
-        const { data } = await api.get('/schedule/sessions');
-        const sessions = Array.isArray(data) ? data : [];
+        const [sessionsRes, caseloadRes] = await Promise.all([
+          api.get('/schedule/sessions'),
+          api.get('/recipients', { params: { limit: 300 } }).catch(() => null)
+        ]);
+        const sessions = Array.isArray(sessionsRes?.data) ? sessionsRes.data : [];
         const byId = new Map();
+        const observationIds = new Set();
         for (const s of sessions) {
           if (s.status === 'cancelled' || s.status === 'completed') continue;
-          if (!(s.blocks || []).some((b) => b.isMine)) continue;
+          const mine = (s.blocks || []).some((b) => b.isMine);
+          if (!mine && !s.observation) continue;
           const rec = s.recipient;
-          if (rec && rec.id != null && !byId.has(rec.id)) byId.set(rec.id, rec);
+          if (!rec || rec.id == null) continue;
+          if (!byId.has(rec.id)) byId.set(rec.id, rec);
+          if (s.observation) observationIds.add(rec.id);
         }
         const ids = [...byId.keys()];
         const full = await Promise.all(ids.map(async (id) => {
@@ -1931,10 +2135,18 @@ onMounted(() => {
         }));
         const d = new Date();
         const todayLocal = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-        const present = full.filter((row) =>
-          row && row.attendanceStatus === 'present' && String(row.attendanceDate) === todayLocal
-        );
-        diagnosticsRuntime.recipients = present.map((row, idx) => normalizeRecipient(row, idx));
+        const merged = new Map();
+        for (const row of full) {
+          if (!row || row.id == null) continue;
+          const present = row.attendanceStatus === 'present' && String(row.attendanceDate) === todayLocal;
+          if (present || observationIds.has(row.id)) merged.set(row.id, row);
+        }
+        const payload = caseloadRes?.data;
+        const caseload = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
+        for (const row of caseload) {
+          if (row && row.id != null && !merged.has(row.id)) merged.set(row.id, row);
+        }
+        diagnosticsRuntime.recipients = [...merged.values()].map((row, idx) => normalizeRecipient(row, idx));
         teacherAssignedCount.value = diagnosticsRuntime.recipients.length;
         renderRecipientList();
       } catch (err) {
@@ -1966,7 +2178,7 @@ onMounted(() => {
       }
       try {
         const response = await api.get('/schedule/sessions', { params: { recipientId } });
-        const target = pickCurrentSession(response?.data);
+        const target = adoptSessions(response?.data);
         const isTeacher = authStore.isTeacher;
         let pending = [];
         for (const b of (target?.blocks || [])) {
@@ -4831,6 +5043,7 @@ onUnmounted(() => {
   window.__forcedProfileKey = '';
   window.__openRecipientPicker = null;
   window.__renderPeers = null;
+  window.__reloadDiagnosticSession = null;
   if (peersPoller) {
     clearInterval(peersPoller);
     peersPoller = null;
@@ -4975,6 +5188,10 @@ onUnmounted(() => {
 .diagnostics-page.diag-readonly .content [contenteditable] {
   pointer-events: none !important;
   cursor: default !important;
+}
+.diagnostics-page.diag-readonly .content .diag-switch select {
+  pointer-events: auto !important;
+  cursor: pointer !important;
 }
 
 .diagnostics-page{
@@ -5972,16 +6189,23 @@ onUnmounted(() => {
     }
     .diagnostics-page .side-nav-item .sni-body{ flex: 1; min-width: 0; }
     .diagnostics-page .side-nav-item .sni-name{
+      display: block;
       font-size: 0.8437rem;
       color: var(--ink-strong);
       font-weight: 500;
       line-height: 1.25;
     }
     .diagnostics-page .side-nav-item .sni-spec{
+      display: block;
+      margin-top: 0.125rem;
       font-size: 0.6875rem;
-      color: var(--ink-muted);
-      margin-top: 0.0625rem;
+      line-height: 1.3;
+      color: var(--ink-subtle);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
+    .diagnostics-page .side-nav-item .sni-spec:empty{ display: none; }
     .diagnostics-page .side-nav-item .sni-status{
       width: 0.625rem; height: 0.625rem;
       border-radius: 50%;
@@ -7668,13 +7892,241 @@ onUnmounted(() => {
     .diagnostics-page .side-nav-item--peers{ margin-top: 0.25rem; border-top: 0.0625rem solid var(--line-soft); padding-top: 0.625rem; }
     .diagnostics-page .side-nav-item--peers .sni-num--icon{ display: inline-flex; align-items: center; justify-content: center; color: var(--ink-subtle); }
     .diagnostics-page .side-nav-item--peers .sni-num--icon svg{ width: 0.9375rem; height: 0.9375rem; }
-    .diagnostics-page .side-nav-item--peers .sni-name,
-    .diagnostics-page .side-nav-item--peers .sni-spec{ display: block; }
 
     @media (max-width: 56rem){
       .diagnostics-page .peers-head{ flex-direction: column; gap: 0.625rem; }
       .diagnostics-page .peers-head-side{ align-items: flex-start; }
       .diagnostics-page .peer-param{ grid-template-columns: 1fr; gap: 0.25rem; }
       .diagnostics-page .peer-when{ display: none; }
+    }
+
+    .diagnostics-page .diag-switch{
+      margin: 0 0 1.25rem;
+      padding: 0.9375rem 1.125rem 1.0625rem;
+      background: var(--paper);
+      border: 0.0625rem solid var(--line);
+      border-radius: var(--radius-lg);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .diagnostics-page .ds-head{
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-bottom: 0.75rem;
+    }
+    .diagnostics-page .ds-title{
+      font-family: var(--font-serif);
+      font-size: 0.9375rem;
+      font-weight: 600;
+      letter-spacing: 0.01em;
+      color: var(--ink-strong);
+    }
+    .diagnostics-page .ds-count{
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 1.25rem;
+      height: 1.25rem;
+      padding: 0 0.375rem;
+      border-radius: 0.625rem;
+      background: var(--paper-sunken);
+      color: var(--ink-subtle);
+      font-size: 0.6875rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .diagnostics-page .ds-row{
+      display: flex;
+      align-items: flex-start;
+      gap: 1.25rem;
+      flex-wrap: wrap;
+    }
+
+    .diagnostics-page .ds-tabs{
+      display: flex;
+      align-items: stretch;
+      gap: 0.4375rem;
+      flex: 1 1 20rem;
+      min-width: 0;
+      overflow-x: auto;
+      padding-bottom: 0.25rem;
+      scrollbar-width: thin;
+      scrollbar-color: var(--line-strong) transparent;
+    }
+    .diagnostics-page .ds-tabs::-webkit-scrollbar{ height: 0.375rem; }
+    .diagnostics-page .ds-tabs::-webkit-scrollbar-thumb{
+      background: var(--line-strong);
+      border-radius: 0.1875rem;
+    }
+
+    .diagnostics-page .ds-tab{
+      display: flex;
+      align-items: flex-start;
+      gap: 0.5rem;
+      flex: 0 0 auto;
+      padding: 0.5rem 0.75rem 0.5625rem;
+      text-align: left;
+      background: var(--paper-soft);
+      border: 0.0625rem solid var(--line);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      transition: background .15s ease, border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+    }
+    .diagnostics-page .ds-tab:hover{
+      background: var(--paper-sunken);
+      border-color: var(--line-strong);
+    }
+    .diagnostics-page .ds-tab.is-active{
+      background: var(--paper);
+      border-color: var(--sage-500);
+      box-shadow: 0 0 0 0.0625rem var(--sage-500), var(--shadow-sm);
+    }
+
+    .diagnostics-page .ds-tab-num{
+      flex: 0 0 auto;
+      padding-top: 0.0625rem;
+      color: var(--ink-subtle);
+      font-size: 0.625rem;
+      font-weight: 600;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+    }
+    .diagnostics-page .ds-tab.is-active .ds-tab-num{ color: var(--sage-500); }
+
+    .diagnostics-page .ds-tab-body{
+      display: flex;
+      flex-direction: column;
+      gap: 0.1875rem;
+      min-width: 0;
+    }
+    .diagnostics-page .ds-tab-kind{
+      font-size: 0.8125rem;
+      font-weight: 600;
+      line-height: 1.25;
+      color: var(--ink-muted);
+      white-space: nowrap;
+    }
+    .diagnostics-page .ds-tab.is-active .ds-tab-kind{ color: var(--ink-strong); }
+    .diagnostics-page .ds-tab-meta{
+      display: flex;
+      align-items: center;
+      gap: 0.375rem;
+      white-space: nowrap;
+    }
+    .diagnostics-page .ds-tab-date{
+      color: var(--ink-subtle);
+      font-size: 0.6875rem;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .diagnostics-page .ds-state{
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+      padding: 0.0625rem 0.375rem;
+      border-radius: 0.3125rem;
+      font-size: 0.625rem;
+      font-weight: 600;
+      line-height: 1.5;
+      white-space: nowrap;
+    }
+    .diagnostics-page .ds-state::before{
+      content: "";
+      width: 0.3125rem;
+      height: 0.3125rem;
+      border-radius: 50%;
+      background: currentColor;
+    }
+    .diagnostics-page .ds-state.is-done{ background: var(--sage-50); color: var(--sage-700); }
+    .diagnostics-page .ds-state.is-live{ background: var(--amber-50); color: var(--amber-700); }
+    .diagnostics-page .ds-state.is-wait{ background: var(--paper-sunken); color: var(--ink-subtle); }
+    .diagnostics-page .ds-tab.is-live:not(.is-active){ border-color: var(--amber-100); }
+
+    .diagnostics-page .ds-empty{
+      align-self: center;
+      color: var(--ink-subtle);
+      font-size: 0.8125rem;
+      font-style: italic;
+    }
+
+    .diagnostics-page .ds-actions{
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      margin-left: auto;
+      flex: 0 0 auto;
+    }
+    .diagnostics-page .ds-start{
+      display: flex;
+      align-items: stretch;
+      border: 0.0625rem solid var(--line-strong);
+      border-radius: var(--radius-sm);
+      background: var(--paper);
+      overflow: hidden;
+      box-shadow: var(--shadow-xs);
+    }
+    .diagnostics-page .ds-kind{
+      padding: 0.4375rem 0.625rem;
+      border: none;
+      border-right: 0.0625rem solid var(--line);
+      background: var(--paper-soft);
+      color: var(--ink-muted);
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .diagnostics-page .ds-kind:disabled{ opacity: 0.5; cursor: default; }
+
+    .diagnostics-page .ds-btn{
+      padding: 0.4375rem 0.875rem;
+      border: 0.0625rem solid var(--line-strong);
+      border-radius: var(--radius-sm);
+      background: var(--paper);
+      color: var(--ink-strong);
+      font-size: 0.75rem;
+      font-weight: 600;
+      white-space: nowrap;
+      transition: background .15s ease, border-color .15s ease, color .15s ease;
+    }
+    .diagnostics-page .ds-btn:disabled{ opacity: 0.5; cursor: default; }
+    .diagnostics-page .ds-btn-join:hover:not(:disabled){
+      background: var(--sage-50);
+      border-color: var(--sage-400);
+      color: var(--sage-700);
+    }
+    .diagnostics-page .ds-btn-start{
+      border: none;
+      border-radius: 0;
+      background: var(--sage-700);
+      color: #fff;
+    }
+    .diagnostics-page .ds-btn-start:hover:not(:disabled){ background: var(--sage-800); }
+
+    .diagnostics-page .ds-note{
+      margin: 0.75rem 0 0;
+      padding: 0.5rem 0.6875rem;
+      border-left: 0.125rem solid var(--amber-500);
+      border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+      background: var(--amber-50);
+      color: var(--amber-700);
+      font-size: 0.75rem;
+      line-height: 1.45;
+    }
+
+    @media (max-width: 56rem){
+      .diagnostics-page .ds-row{ flex-direction: column; align-items: stretch; gap: 0.75rem; }
+      .diagnostics-page .ds-tabs{ flex: 0 1 auto; width: 100%; min-width: 0; }
+      .diagnostics-page .ds-actions{
+        margin-left: 0;
+        width: 100%;
+        min-width: 0;
+        flex-wrap: wrap;
+      }
+      .diagnostics-page .ds-btn-join{ flex: 1 1 100%; }
+      .diagnostics-page .ds-start{ flex: 1 1 auto; min-width: 0; }
+      .diagnostics-page .ds-kind{ flex: 0 1 auto; min-width: 0; }
+      .diagnostics-page .ds-btn-start{ flex: 1 1 auto; min-width: 0; }
     }
 </style>

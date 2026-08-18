@@ -137,7 +137,7 @@ export function buildTokens(form = {}, isMinor) {
         passportDateParent: fmtDate(form.rDocDate),
         passportCodeParent: '',
         passportRegistrationParent: rehRegAddress,
-        telephoneParent: repPhone,
+        telephoneParent: form.rPhone || repPhone,
       };
 
   const excelCommon = {

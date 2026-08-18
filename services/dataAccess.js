@@ -1,4 +1,5 @@
-import { AccessLog } from '../models/index.js';
+import { Op } from '@sequelize/core';
+import { AccessLog, AccessGrant } from '../models/index.js';
 
 export const CATEGORIES = ['passport', 'scans', 'contacts', 'medical'];
 
@@ -23,28 +24,45 @@ const REASON_SET = new Set(REASON_CODES.map((r) => r.code));
 
 export const GRANT_MS = 30 * 60 * 1000;
 
-const grants = new Map();
-
-const keyOf = (userId, recipientId, category) => `${userId}:${recipientId}:${category}`;
-
-const sweep = (now) => {
-  for (const [key, expiresAt] of grants) if (expiresAt <= now) grants.delete(key);
-};
+const keyOf = (recipientId, category) => `${recipientId}:${category}`;
 
 export const isAdmin = (user) => user?.role === 'admin';
 
-export const hasGrant = (user, recipientId, category) => {
-  if (isAdmin(user)) return true;
-  const expiresAt = grants.get(keyOf(user?.id, recipientId, category));
-  return typeof expiresAt === 'number' && expiresAt > Date.now();
+export const loadGrants = async (req, res, next) => {
+  if (!req._grants) {
+    req._grants = new Set();
+    if (req.user?.id) {
+      const rows = await AccessGrant.findAll({
+        attributes: ['recipientId', 'category'],
+        where: { userId: req.user.id, expiresAt: { [Op.gt]: new Date() } }
+      });
+      for (const row of rows) req._grants.add(keyOf(row.recipientId, row.category));
+    }
+  }
+  if (typeof next === 'function') next();
 };
 
-export const grantAccess = (user, recipientId, category) => {
-  const now = Date.now();
-  sweep(now);
-  const expiresAt = now + GRANT_MS;
-  grants.set(keyOf(user.id, recipientId, category), expiresAt);
-  return expiresAt;
+export const hasGrant = (req, recipientId, category) => {
+  if (isAdmin(req?.user)) return true;
+  return req?._grants?.has(keyOf(Number(recipientId), category)) === true;
+};
+
+export const grantAccess = async (req, recipientId, category, reasonCode = null) => {
+  const expiresAt = new Date(Date.now() + GRANT_MS);
+  await AccessGrant.destroy({ where: { expiresAt: { [Op.lte]: new Date() } } });
+
+  const [row, created] = await AccessGrant.findOrCreate({
+    where: { userId: req.user.id, recipientId, category },
+    defaults: { expiresAt, reasonCode, createdAt: new Date() }
+  });
+  if (!created) {
+    row.expiresAt = expiresAt;
+    row.reasonCode = reasonCode;
+    await row.save();
+  }
+
+  req._grants?.add(keyOf(Number(recipientId), category));
+  return expiresAt.getTime();
 };
 
 export const validateReason = (reasonCode, reasonText) => {
@@ -98,12 +116,12 @@ const blankOut = (target, fields) => {
   for (const f of fields) if (f in target) target[f] = null;
 };
 
-export const redactRecipient = (recipient, user) => {
+export const redactRecipient = (recipient, req) => {
   const plain = typeof recipient.toJSON === 'function' ? recipient.toJSON() : { ...recipient };
   const hidden = [];
 
   for (const category of CATEGORIES) {
-    if (hasGrant(user, plain.id, category)) continue;
+    if (hasGrant(req, plain.id, category)) continue;
     hidden.push(category);
 
     blankOut(plain, RECIPIENT_FIELDS[category] || []);

@@ -9,7 +9,7 @@ import {
 } from '../models/index.js';
 import { DIAGNOSTIC_BLOCKS } from '../src/utils/diagnosticBlocks.js';
 import { summarizeDraft } from '../src/utils/recipientDraft.js';
-import { hasGrant } from '../services/dataAccess.js';
+import { hasGrant, loadGrants } from '../services/dataAccess.js';
 import { ENROLL_DOCS, findPendingEnrollment } from '../services/enrollmentDocs.js';
 
 const router = express.Router();
@@ -225,7 +225,7 @@ const eventTitle = (event) =>
   || event.direction?.name
   || (event.type === 'diagnostic' ? 'Диагностика' : 'Занятие');
 
-router.get('/teacher', authMiddleware, roleMiddleware('admin', 'employee', 'teacher'), async (req, res, next) => {
+router.get('/teacher', authMiddleware, roleMiddleware('admin', 'employee', 'teacher'), loadGrants, async (req, res, next) => {
   try {
     const me = req.user.id;
     const now = new Date();
@@ -346,7 +346,7 @@ router.get('/teacher', authMiddleware, roleMiddleware('admin', 'employee', 'teac
     });
 
     noteRows.forEach((d) => {
-      const open = hasGrant(req.user, d.recipientId, 'medical');
+      const open = hasGrant(req, d.recipientId, 'medical');
       attention.push({
         kind: 'note',
         recipientId: d.recipientId,

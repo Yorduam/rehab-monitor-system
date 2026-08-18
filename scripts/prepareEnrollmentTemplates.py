@@ -23,7 +23,6 @@ PAIRS = [
 ]
 
 TOKEN = re.compile(r'\$\{([A-Za-z0-9_]+)\}')
-# a '$' or '${' left dangling at the end of an XML text node = token split across runs
 SPLIT = re.compile(r'\$\{?[A-Za-z0-9_]*</t>')
 
 os.makedirs(OUT, exist_ok=True)

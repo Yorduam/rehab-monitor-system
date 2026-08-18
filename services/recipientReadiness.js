@@ -6,6 +6,11 @@ import {
 } from '../models/index.js';
 
 const EXPIRING_SOON_DAYS = 30;
+const PRIMARY_COOLDOWN_DAYS = 365;
+
+const sessionKind = (s) => s?.kind || 'primary';
+
+const KIND_LABELS = { primary: 'Первичная', interim: 'Промежуточная', final: 'Итоговая' };
 
 const fmtDate = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -89,15 +94,16 @@ export function buildLifecycle({
     : `Не хватает: ${paperMissing.join(', ')}`;
 
   const liveSessions = (sessions || []).filter((s) => s.status !== 'cancelled');
-  const primarySession = liveSessions.find((s) => concBySession.has(s.id)) || null;
+  const primaryLive = liveSessions.filter((s) => sessionKind(s) === 'primary');
+  const primarySession = [...primaryLive].reverse().find((s) => concBySession.has(s.id)) || null;
   const primaryConclusion = primarySession ? concBySession.get(primarySession.id) : null;
   const diagDone = !!primaryConclusion;
   let diagHint;
   if (diagDone) {
     const verdict = VERDICT_SHORT[primaryConclusion.verdict] || '';
     diagHint = `Заключение от ${fmtRu(primaryConclusion.issuedAt)}` + (verdict ? ` · ${verdict}` : '');
-  } else if (liveSessions.length) {
-    const last = liveSessions[liveSessions.length - 1];
+  } else if (primaryLive.length) {
+    const last = primaryLive[primaryLive.length - 1];
     const blocks = (assignments || []).filter((a) => a.diagnosticSessionId === last.id);
     const doneBlocks = blocks.filter((a) => a.blockStatus === 'completed').length;
     diagHint = blocks.length
@@ -119,11 +125,7 @@ export function buildLifecycle({
   const weekNo = firstLesson
     ? Math.floor((Date.parse(today) - Date.parse(firstLesson)) / 604800000) + 1
     : null;
-  const finalSession = firstLesson
-    ? ([...liveSessions].reverse().find((s) =>
-        String(s.date).slice(0, 10) >= firstLesson &&
-        (!primarySession || s.id !== primarySession.id)) || null)
-    : null;
+  const finalSession = [...liveSessions].reverse().find((s) => sessionKind(s) === 'final') || null;
   const lessonsDone = !!finalSession;
   let lessonsHint;
   if (lessonsDone) {
@@ -319,7 +321,9 @@ export async function getRecipientReadiness(recipientId) {
     .map((s) => ({
       id: s.id,
       date: String(s.date).slice(0, 10),
-      status: s.status
+      status: s.status,
+      kind: sessionKind(s),
+      kindLabel: KIND_LABELS[sessionKind(s)] || KIND_LABELS.primary
     }));
 
   const group = recipient.groupId
@@ -403,10 +407,33 @@ export async function getRecipientReadiness(recipientId) {
       code: started ? 'session-in-progress' : 'session-open',
       severity: started ? 'error' : 'warning',
       message: started
-        ? `Диагностика по заявке от ${s.date} ещё не закрыта заключением`
-        : `Уже есть заявка на диагностику на ${s.date}`,
+        ? `${s.kindLabel} диагностика от ${fmtRu(s.date)} ещё не закрыта заключением`
+        : `Уже есть заявка на диагностику на ${fmtRu(s.date)}`,
       sessionId: s.id
     });
+  }
+
+  const primaryIds = new Set(
+    allSessions
+      .filter((s) => sessionKind(s) === 'primary' && s.status !== 'cancelled')
+      .map((s) => s.id)
+  );
+  const lastPrimaryConclusion =
+    [...conclusions].reverse().find((c) => primaryIds.has(c.sessionId)) || null;
+  if (lastPrimaryConclusion?.issuedAt) {
+    const issued = new Date(lastPrimaryConclusion.issuedAt);
+    issued.setHours(0, 0, 0, 0);
+    issued.setDate(issued.getDate() + PRIMARY_COOLDOWN_DAYS);
+    const availableFrom = fmtDate(issued);
+    if (today < availableFrom) {
+      blockers.push({
+        code: 'primary-cooldown',
+        severity: 'error',
+        message: `Повторная первичная диагностика возможна не раньше ${fmtRu(availableFrom)}` +
+                 ` — год с заключения от ${fmtRu(lastPrimaryConclusion.issuedAt)}`,
+        availableFrom
+      });
+    }
   }
   for (const e of expiringSoon) {
     blockers.push({

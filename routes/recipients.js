@@ -17,7 +17,7 @@ import { summarizeDraft } from '../src/utils/recipientDraft.js';
 import { buildScanFileName } from '../services/scanFileName.js';
 import {
   CATEGORIES, CATEGORY_LABELS, REASON_CODES, GRANT_MS,
-  hasGrant, grantAccess, validateReason, logAccess, redactRecipient, isAdmin
+  hasGrant, grantAccess, loadGrants, validateReason, logAccess, redactRecipient, isAdmin
 } from '../services/dataAccess.js';
 
 const router = express.Router();
@@ -470,12 +470,12 @@ router.get('/drafts/:draftId/scans/:scanId/file', authMiddleware, roleMiddleware
   }
 });
 
-router.get('/:id', authMiddleware, async (req, res, next) => {
+router.get('/:id', authMiddleware, loadGrants, async (req, res, next) => {
   try {
     const recipient = await Recipient.findByPk(req.params.id, { include: detailInclude });
     if (!recipient) return res.status(404).json({ message: 'Реабилитант не найден' });
 
-    const payload = redactRecipient(recipient, req.user);
+    const payload = redactRecipient(recipient, req);
 
     if (isAdmin(req.user)) {
       await logAccess(req, { recipientId: recipient.id, category: 'passport', action: 'view' });
@@ -1030,13 +1030,13 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
   }
 });
 
-router.get('/:id/scans', authMiddleware, async (req, res, next) => {
+router.get('/:id/scans', authMiddleware, loadGrants, async (req, res, next) => {
   try {
     const includeArchived = req.query.all === '1' || req.query.all === 'true';
     const where = { recipId: req.params.id };
     if (!includeArchived) where.isCurrent = true;
 
-    if (!hasGrant(req.user, Number(req.params.id), 'scans')) {
+    if (!hasGrant(req, Number(req.params.id), 'scans')) {
       await logAccess(req, { recipientId: Number(req.params.id), category: 'scans', action: 'denied' });
       return res.json({ locked: true, category: 'scans', scans: [] });
     }
@@ -1059,9 +1059,9 @@ router.get('/:id/scans', authMiddleware, async (req, res, next) => {
   }
 });
 
-router.get('/:id/scans/:scanId/file', authMiddleware, async (req, res, next) => {
+router.get('/:id/scans/:scanId/file', authMiddleware, loadGrants, async (req, res, next) => {
   try {
-    if (!hasGrant(req.user, Number(req.params.id), 'scans')) {
+    if (!hasGrant(req, Number(req.params.id), 'scans')) {
       await logAccess(req, {
         recipientId: Number(req.params.id), category: 'scans',
         action: 'denied', scanId: Number(req.params.scanId)
@@ -1110,7 +1110,7 @@ router.post('/:id/access', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ message: problem, field: 'reason' });
     }
 
-    const expiresAt = grantAccess(req.user, recipientId, category);
+    const expiresAt = await grantAccess(req, recipientId, category, reasonCode);
     await logAccess(req, {
       recipientId, category, action: 'view',
       reasonCode, reasonText: String(reasonText ?? '').trim() || null

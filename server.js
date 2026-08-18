@@ -11,6 +11,7 @@ import { Op } from '@sequelize/core';
 import { sequelize, Recipient } from './models/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestId } from './middleware/requestId.js';
+import { authMiddleware } from './middleware/auth.js';
 import logger from './config/logger.js';
 
 import authRoutes from './routes/auth.js';
@@ -75,7 +76,7 @@ app.use('/api/v1/lists', listsRoutes);
 app.use('/api/v1/dashboard', dashboardRoutes);
 app.use('/api/v1/schedule', scheduleRoutes);
 
-app.get('/api/search', async (req, res, next) => {
+app.get('/api/search', authMiddleware, async (req, res, next) => {
   try {
     const q = req.query.q?.toLowerCase();
     if (!q) return res.json({});
@@ -89,6 +90,7 @@ app.get('/api/search', async (req, res, next) => {
     const matchedPage = pages.find(p => p.keywords.some(k => q.includes(k)));
     if (matchedPage) return res.json({ page: matchedPage });
     const recipient = await Recipient.findOne({
+      attributes: ['id', 'lastName', 'firstName', 'middleName'],
       where: {
         [Op.or]: [
           { lastName: { [Op.like]: `%${q}%` } },

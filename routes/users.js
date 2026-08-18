@@ -2,6 +2,9 @@ import express from 'express'
 import bcrypt from 'bcrypt'
 import { authMiddleware, roleMiddleware } from '../middleware/auth.js'
 import { User, Recipient } from '../models/index.js'
+import { validatePassword } from '../validations/passwordPolicy.js'
+
+const ROLES = ['admin', 'teacher', 'employee', 'recipient']
 
 const router = express.Router()
 
@@ -25,6 +28,12 @@ router.post('/', authMiddleware, roleMiddleware('admin'), async (req, res) => {
     } = req.body
     if (!email || !password) {
       return res.status(400).json({ message: 'Email и пароль обязательны' })
+    }
+    const weak = validatePassword(password)
+    if (weak) return res.status(400).json({ message: weak, field: 'password' })
+
+    if (role && !ROLES.includes(role)) {
+      return res.status(400).json({ message: 'Неизвестная роль', field: 'role' })
     }
     const existing = await User.findOne({ where: { email } })
     if (existing) return res.status(400).json({ message: 'Email уже используется' })
@@ -74,6 +83,13 @@ router.put('/:id', authMiddleware, async (req, res) => {
       email, role, password, firstName, lastName, directionId, phone, cabinet,
       canConclude, canViewAllResults
     } = req.body
+    if (password) {
+      const weak = validatePassword(password)
+      if (weak) return res.status(400).json({ message: weak, field: 'password' })
+    }
+    if (role && !ROLES.includes(role)) {
+      return res.status(400).json({ message: 'Неизвестная роль', field: 'role' })
+    }
     if (email) user.email = email
     if (role && req.user.role === 'admin') user.role = role
     if (password) user.passwordHash = await bcrypt.hash(password, 10)

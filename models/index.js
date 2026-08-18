@@ -24,6 +24,7 @@ import DiagnosticAssignment from './DiagnosticAssignment.js';
 import DiagnosticSession from './DiagnosticSession.js';
 import DiagnosticConclusion from './DiagnosticConclusion.js';
 import AccessLog from './AccessLog.js';
+import AccessGrant from './AccessGrant.js';
 
 Recipient.belongsTo(User, { as: 'user', foreignKey: 'userId' });
 User.hasOne(Recipient, { as: 'recipient', foreignKey: 'userId' });
@@ -138,5 +139,6 @@ export {
   DiagnosticAssignment,
   DiagnosticSession,
   DiagnosticConclusion,
-  AccessLog
+  AccessLog,
+  AccessGrant
 };

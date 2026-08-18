@@ -84,6 +84,29 @@ function canIssueConclusion(user) {
 
 const VERDICTS = ['recommended', 'trial', 'rejected'];
 
+const OBSERVATION_KINDS = ['interim', 'final'];
+
+const KIND_LABELS = {
+  primary: 'Первичная',
+  interim: 'Промежуточная',
+  final: 'Итоговая'
+};
+
+const OBSERVATION_COOLDOWN_DAYS = 30;
+
+const isObservation = (kind) => OBSERVATION_KINDS.includes(kind);
+
+function addDaysIso(value, days) {
+  const d = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+function ruDate(value) {
+  const m = String(value ?? '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+  return m ? `${m[3]}.${m[2]}.${m[1]}` : '';
+}
+
 const STAGE_BY_PROFILE = {
   psy: 'psy',
   log: 'psy',
@@ -311,11 +334,15 @@ function serializeSession(s, viewer) {
     .sort((a, b) => String(a.startTime || '').localeCompare(String(b.startTime || '')))
     .map((a) => serializeBlock(a, viewer));
   const completed = blocks.filter((b) => b.blockStatus === 'completed').length;
-  const missing = missingStages(s.assignments || []);
+  const observation = isObservation(s.kind);
+  const missing = observation ? [] : missingStages(s.assignments || []);
   return {
     id: s.id,
     recipientId: s.recipientId,
     recipient: s.recipient || null,
+    kind: s.kind || 'primary',
+    kindLabel: KIND_LABELS[s.kind] || KIND_LABELS.primary,
+    observation,
     date: s.date,
     status: s.status,
     note: s.note || null,
@@ -361,7 +388,8 @@ router.post('/sessions', authMiddleware, roleMiddleware('admin', 'employee'), as
     });
     if (active) {
       return res.status(409).json({
-        message: `У реабилитанта уже есть активная заявка на диагностику от ${String(active.date).slice(0, 10)}`,
+        message: `У реабилитанта уже идёт ${(KIND_LABELS[active.kind] || KIND_LABELS.primary).toLowerCase()} ` +
+                 `диагностика от ${ruDate(active.date)}`,
         sessionId: active.id,
         date: String(active.date).slice(0, 10)
       });
@@ -389,6 +417,7 @@ router.post('/sessions', authMiddleware, roleMiddleware('admin', 'employee'), as
 
     const created = await DiagnosticSession.create({
       recipientId,
+      kind: 'primary',
       date,
       status: 'open',
       note: note?.trim() || null,
@@ -397,6 +426,104 @@ router.post('/sessions', authMiddleware, roleMiddleware('admin', 'employee'), as
 
     res.status(201).json(serializeSession(await loadSession(created.id), req.user));
   } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+router.post('/sessions/observation', authMiddleware, roleMiddleware('teacher'), async (req, res) => {
+  const t = await sequelize.startUnmanagedTransaction();
+  try {
+    const recipientId = parseInt(req.body?.recipientId, 10);
+    const kind = String(req.body?.kind || 'interim');
+    if (!recipientId) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Укажите реабилитанта' });
+    }
+    if (!isObservation(kind)) {
+      await t.rollback();
+      return res.status(400).json({ message: 'Самостоятельно можно начать только промежуточную или итоговую диагностику' });
+    }
+
+    const specialist = await User.findByPk(req.user.id);
+    if (!specialist?.directionId) {
+      await t.rollback();
+      return res.status(400).json({
+        message: 'У вас не указана профессиональная ориентированность — начать диагностику нельзя. Обратитесь к администратору.'
+      });
+    }
+
+    const recipient = await Recipient.findByPk(recipientId);
+    if (!recipient) {
+      await t.rollback();
+      return res.status(404).json({ message: 'Реабилитант не найден' });
+    }
+
+    const sessions = await DiagnosticSession.findAll({
+      where: { recipientId },
+      order: [['date', 'ASC'], ['id', 'ASC']]
+    });
+
+    const active = sessions.find((s) => s.status === 'open' || s.status === 'in_progress');
+    if (active) {
+      await t.rollback();
+      return res.status(409).json({
+        message: `У реабилитанта уже идёт ${(KIND_LABELS[active.kind] || KIND_LABELS.primary).toLowerCase()} ` +
+                 `диагностика от ${ruDate(active.date)} — присоединитесь к ней вместо новой`,
+        sessionId: active.id
+      });
+    }
+
+    if (!sessions.some((s) => s.kind === 'primary' && s.status === 'completed')) {
+      await t.rollback();
+      return res.status(422).json({
+        message: 'Сначала должна быть проведена первичная диагностика с заключением'
+      });
+    }
+
+    const previous = sessions.filter((s) => isObservation(s.kind) && s.status !== 'cancelled').pop() || null;
+    const start = today();
+    if (previous) {
+      const nextAllowed = addDaysIso(previous.date, OBSERVATION_COOLDOWN_DAYS);
+      if (start < nextAllowed) {
+        await t.rollback();
+        return res.status(409).json({
+          message: `Диагностика по наблюдению проводится не чаще раза в месяц. Предыдущая — ` +
+                   `${ruDate(previous.date)}, следующую можно начать с ${ruDate(nextAllowed)}.`,
+          nextAllowedAt: nextAllowed,
+          previousAt: String(previous.date).slice(0, 10)
+        });
+      }
+    }
+
+    const session = await DiagnosticSession.create({
+      recipientId,
+      kind,
+      date: start,
+      status: 'in_progress',
+      note: String(req.body?.note || '').trim() || null,
+      createdBy: req.user.id
+    }, { transaction: t });
+
+    await DiagnosticAssignment.create({
+      sessionId: `S-${recipientId}-${start}`,
+      diagnosticSessionId: session.id,
+      recipientId,
+      directionId: specialist.directionId,
+      specialistUserId: req.user.id,
+      date: start,
+      startTime: null,
+      endTime: null,
+      blockStatus: 'assigned',
+      results: null,
+      comment: null,
+      createdBy: req.user.id
+    }, { transaction: t });
+
+    await t.commit();
+    res.status(201).json(serializeSession(await loadSession(session.id), req.user));
+  } catch (err) {
+    await t.rollback();
     console.error(err);
     res.status(500).json({ message: 'Ошибка сервера' });
   }
@@ -412,14 +539,18 @@ router.get('/sessions', authMiddleware, roleMiddleware('admin', 'employee', 'tea
     if (status) where.status = status;
     if (recipientId) where.recipientId = parseInt(recipientId, 10);
 
-    if (req.user.role === 'teacher') {
+    if (req.user.role === 'teacher' && !recipientId) {
       const mine = await DiagnosticAssignment.findAll({
         where: { specialistUserId: req.user.id, diagnosticSessionId: { [Op.ne]: null } },
         attributes: ['diagnosticSessionId']
       });
       const ids = [...new Set(mine.map((a) => a.diagnosticSessionId))];
-      if (!ids.length) return res.json([]);
-      where.id = { [Op.in]: ids };
+      const visible = [{
+        kind: { [Op.in]: OBSERVATION_KINDS },
+        status: { [Op.in]: ['open', 'in_progress'] }
+      }];
+      if (ids.length) visible.push({ id: { [Op.in]: ids } });
+      where[Op.and] = [{ [Op.or]: visible }];
     }
 
     const rows = await DiagnosticSession.findAll({
@@ -440,7 +571,10 @@ router.get('/pool', authMiddleware, roleMiddleware('admin', 'employee', 'teacher
     const to = req.query.to || null;
     const where = {
       status: { [Op.in]: ['open', 'in_progress'] },
-      date: to ? { [Op.between]: [from, to] } : { [Op.gte]: from }
+      [Op.or]: [
+        { kind: { [Op.in]: OBSERVATION_KINDS } },
+        { date: to ? { [Op.between]: [from, to] } : { [Op.gte]: from } }
+      ]
     };
 
     const rows = await DiagnosticSession.findAll({
@@ -501,6 +635,12 @@ router.post('/sessions/:id/claim', authMiddleware, roleMiddleware('teacher'), as
     if (session.status === 'completed') {
       await t.rollback();
       return res.status(409).json({ message: 'По заявке уже выдано заключение' });
+    }
+    if (isObservation(session.kind)) {
+      await t.rollback();
+      return res.status(409).json({
+        message: 'Диагностика по наблюдению идёт без приёма по времени — к ней нужно присоединиться'
+      });
     }
 
     const already = await DiagnosticAssignment.findOne({
@@ -584,6 +724,61 @@ router.post('/sessions/:id/claim', authMiddleware, roleMiddleware('teacher'), as
   }
 });
 
+router.post('/sessions/:id/join', authMiddleware, roleMiddleware('teacher'), async (req, res) => {
+  try {
+    const specialist = await User.findByPk(req.user.id);
+    if (!specialist?.directionId) {
+      return res.status(400).json({
+        message: 'У вас не указана профессиональная ориентированность — присоединиться нельзя. Обратитесь к администратору.'
+      });
+    }
+
+    const session = await DiagnosticSession.findByPk(req.params.id);
+    if (!session) return res.status(404).json({ message: 'Диагностика не найдена' });
+    if (!isObservation(session.kind)) {
+      return res.status(409).json({ message: 'К первичной диагностике нужно записаться с временем приёма' });
+    }
+    if (session.status === 'cancelled') {
+      return res.status(409).json({ message: 'Диагностика отменена' });
+    }
+    if (session.status === 'completed') {
+      return res.status(409).json({ message: 'По диагностике уже выдано заключение' });
+    }
+
+    const already = await DiagnosticAssignment.findOne({
+      where: { diagnosticSessionId: session.id, specialistUserId: req.user.id }
+    });
+    if (already) {
+      return res.status(409).json({ message: 'Вы уже участвуете в этой диагностике' });
+    }
+
+    await DiagnosticAssignment.create({
+      sessionId: `S-${session.recipientId}-${String(session.date).slice(0, 10)}`,
+      diagnosticSessionId: session.id,
+      recipientId: session.recipientId,
+      directionId: specialist.directionId,
+      specialistUserId: req.user.id,
+      date: session.date,
+      startTime: null,
+      endTime: null,
+      blockStatus: 'assigned',
+      results: null,
+      comment: null,
+      createdBy: req.user.id
+    });
+
+    if (session.status === 'open') {
+      session.status = 'in_progress';
+      await session.save();
+    }
+
+    res.status(201).json(serializeSession(await loadSession(session.id), req.user));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
 router.post('/sessions/:id/cancel', authMiddleware, roleMiddleware('admin', 'employee'), async (req, res) => {
   try {
     const session = await DiagnosticSession.findByPk(req.params.id);
@@ -648,14 +843,16 @@ router.post('/sessions/:id/conclusion', authMiddleware, async (req, res) => {
         return res.status(422).json({ message: 'Ни один специалист ещё не провёл диагностику' });
       }
       const pending = blocks.filter((b) => b.blockStatus !== 'completed');
-      const missing = missingStages(blocks);
+      const missing = isObservation(session.kind) ? [] : missingStages(blocks);
       const force = req.body.force === true && req.user.role === 'admin';
       if ((pending.length || missing.length) && !force) {
         const parts = [];
         if (missing.length) parts.push('не пройдены этапы ' + missing.map((s) => s.title).join(', '));
         if (pending.length) parts.push(`не сдано блоков: ${pending.length} из ${blocks.length}`);
         return res.status(422).json({
-          message: 'Заключение выдаётся после этапов 01–03: ' + parts.join('; '),
+          message: (isObservation(session.kind)
+            ? 'Заключение выдаётся после того, как все участники сдали наблюдения: '
+            : 'Заключение выдаётся после этапов 01–03: ') + parts.join('; '),
           pending: pending.length,
           total: blocks.length,
           missingStages: missing,

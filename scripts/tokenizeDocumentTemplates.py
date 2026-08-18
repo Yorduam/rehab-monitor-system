@@ -67,11 +67,10 @@ def fill_blanks(text, tokens):
 
     out = re.sub(r'_+', repl, text)
     out = out.replace('\n', ' ').replace('\r', ' ')
-    out = re.sub(r' +([.,;])', r'\1', out)   # drop space before punctuation
+    out = re.sub(r' +([.,;])', r'\1', out)
     return out
 
 
-# edit ops: ('fill', [tokens...]) replace blanks in place; ('clear',) empty it
 def process(src, dst, para_edits, table_edits):
     doc = Document(os.path.join(BASE, src))
     paras, tables = walk(doc)
@@ -92,9 +91,8 @@ def process(src, dst, para_edits, table_edits):
 
 
 REL = ('fill', ['${rehRelation}', '${rehRegAddress}'])
-CHILD_DOC = ('fill', ['${rehDoc}', ''])   # value line + trailing wrap blank
+CHILD_DOC = ('fill', ['${rehDoc}', ''])
 
-# ── File 1: PD consent, minor (parent signs) ──────────────────────────────
 process(
     "1_SOGLASIE_roditelya_PD_nesovershennoletnego_FORMA_1.docx",
     "pd_consent_minor.docx",
@@ -115,7 +113,6 @@ process(
     },
 )
 
-# ── File 2: PD consent, 18+ (self) ────────────────────────────────────────
 process(
     "2_SOGLASIE_PD_dlya_lits_ot_14_let_FORMA_1.docx",
     "pd_consent_adult.docx",
@@ -133,7 +130,6 @@ process(
     },
 )
 
-# ── File 3: photo/video consent, 18+ (self) ───────────────────────────────
 process(
     "3_SOGLASIE_Reabilitantov_na_foto_video_semku_ot_14_let_FORMA_s_10.docx",
     "photo_consent_adult.docx",
@@ -151,7 +147,6 @@ process(
     },
 )
 
-# ── File 4: photo/video consent, minor (parent signs) ─────────────────────
 process(
     "4_SOGLASIE_Roditelya_reabilitanta_na_foto_video_semku_FORMA_s_10_04.docx",
     "photo_consent_minor.docx",
@@ -172,7 +167,6 @@ process(
     },
 )
 
-# ── Excel templates already carry ${tokens}; copy verbatim ────────────────
 shutil.copy(os.path.join(BASE, "5_Заявление на диагностику 18-.xlsx"),
             os.path.join(OUT, "diagnostics_minor.xlsx"))
 print("saved diagnostics_minor.xlsx")
@@ -180,7 +174,6 @@ shutil.copy(os.path.join(BASE, "6_Заявление на диагностику
             os.path.join(OUT, "diagnostics_adult.xlsx"))
 print("saved diagnostics_adult.xlsx")
 
-# ── Verify: re-dump the tokenized paragraphs/cells ────────────────────────
 print("\n--- verification ---")
 for fn in ["pd_consent_minor.docx", "pd_consent_adult.docx",
            "photo_consent_adult.docx", "photo_consent_minor.docx"]:

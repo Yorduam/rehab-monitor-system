@@ -1,7 +1,7 @@
 import { Op } from '@sequelize/core';
 import {
   Recipient, RecipientDoc, RecipientScanDoc, DocType,
-  LegalRepresentative, DiagnosticConclusion
+  LegalRepresentative, DiagnosticConclusion, DiagnosticSession
 } from '../models/index.js';
 import { generateDocument, ageFromBirth } from './documentGenerator.js';
 
@@ -91,8 +91,15 @@ async function scanCodeMap() {
 }
 
 export async function getPrimaryConclusion(recipientId) {
+  const primary = await DiagnosticSession.findAll({
+    where: { recipientId, kind: 'primary' },
+    attributes: ['id']
+  });
+  const ids = primary.map((s) => s.id);
+  if (!ids.length) return null;
+
   return DiagnosticConclusion.findOne({
-    where: { recipientId },
+    where: { recipientId, sessionId: { [Op.in]: ids } },
     order: [['issuedAt', 'ASC'], ['id', 'ASC']]
   });
 }
