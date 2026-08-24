@@ -55,7 +55,7 @@
                 <td><span class="doc-tag">{{ d.docType }}</span></td>
                 <td>{{ d.docSeries }} {{ d.docNumber }}</td>
                 <td>{{ d.snils || '—' }}</td>
-                <td :class="{ 'mse-expired': isExpired(d.mseValidDate) }">{{ formatDate(d.mseValidDate) }}</td>
+                <td :class="{ 'mse-expired': !d.mseIndefinite && isExpired(d.mseValidDate) }">{{ mseValidText(d) }}</td>
                 <td class="td-addr" :title="d.regAddress">{{ d.regAddress || '—' }}</td>
                 <td class="td-actions">
                   <button class="btn-ghost-sm" @click="openEditModal(d)">Редактировать</button>
@@ -85,7 +85,7 @@
           <div class="doc-row"><span class="doc-key">Дата выдачи</span><span class="doc-val">{{ formatDate(doc.docIssuerDate) }}</span></div>
           <div class="doc-row"><span class="doc-key">СНИЛС</span><span class="doc-val">{{ doc.snils || '—' }}</span></div>
           <div class="doc-row"><span class="doc-key">МСЭ выдана</span><span class="doc-val">{{ formatDate(doc.mseIssueDate) }}</span></div>
-          <div class="doc-row"><span class="doc-key">МСЭ действительна до</span><span class="doc-val">{{ formatDate(doc.mseValidDate) }}</span></div>
+          <div class="doc-row"><span class="doc-key">МСЭ действительна до</span><span class="doc-val">{{ mseValidText(doc) }}</span></div>
           <div class="doc-row"><span class="doc-key">Адрес регистрации</span><span class="doc-val">{{ doc.regAddress || '—' }}</span></div>
           <div class="doc-row"><span class="doc-key">Адрес проживания</span><span class="doc-val">{{ doc.factSameReg ? doc.regAddress : (doc.factAddress || '—') }}</span></div>
           <div class="doc-row"><span class="doc-key">Место обучения</span><span class="doc-val">{{ doc.educationPlace || '—' }}</span></div>
@@ -124,7 +124,10 @@
         <div class="form-group"><label>СНИЛС</label><input v-model="form.snils" maxlength="14" placeholder="000-000-000 00" required></div>
         <div class="form-row">
           <div class="form-group"><label>МСЭ выдана</label><input type="date" v-model="form.mseIssueDate" required></div>
-          <div class="form-group"><label>МСЭ до</label><input type="date" v-model="form.mseValidDate" required></div>
+          <div class="form-group" v-if="!form.mseIndefinite"><label>МСЭ до</label><input type="date" v-model="form.mseValidDate" required></div>
+        </div>
+        <div class="form-group">
+          <label><input type="checkbox" v-model="form.mseIndefinite"> Справка МСЭ бессрочная</label>
         </div>
         <div class="form-group"><label>Адрес регистрации</label><input v-model="form.regAddress" required></div>
         <div class="form-group">
@@ -133,6 +136,10 @@
         <div class="form-group" v-if="!form.factSameReg"><label>Адрес проживания</label><input v-model="form.factAddress"></div>
         <div class="form-group"><label>Место обучения</label><input v-model="form.educationPlace" required></div>
         <div class="form-group"><label>Особые отметки</label><textarea v-model="form.specialNote"></textarea></div>
+        <div class="form-group" v-if="editingDoc">
+          <label>Причина обновления</label>
+          <input v-model="form.reason" required minlength="3" placeholder="Например: получена новая справка МСЭ">
+        </div>
         <div class="modal-buttons">
           <button type="button" class="btn-secondary" @click="modalVisible = false">Отмена</button>
           <button type="submit" class="btn-primary">Сохранить</button>
@@ -167,8 +174,9 @@ const search = ref('');
 const emptyForm = () => ({
   recipientId: null,
   docType: 'Свидетельство', docSeries: '', docNumber: '', docIssuer: '', docIssuerDate: '',
-  snils: '', mseIssueDate: '', mseValidDate: '', regAddress: '', factAddress: '',
-  factSameReg: false, educationPlace: '', specialNote: ''
+  snils: '', mseIssueDate: '', mseValidDate: '', mseIndefinite: false,
+  regAddress: '', factAddress: '',
+  factSameReg: false, educationPlace: '', specialNote: '', reason: ''
 });
 const form = ref(emptyForm());
 
@@ -185,6 +193,7 @@ const isExpired = (d) => {
   const dt = new Date(d);
   return !isNaN(dt) && dt < new Date();
 };
+const mseValidText = (d) => (d?.mseIndefinite ? 'Бессрочно' : formatDate(d?.mseValidDate));
 
 const filteredDocs = computed(() => {
   const q = search.value.trim().toLowerCase();
@@ -246,6 +255,7 @@ const openEditModal = (d) => {
 
 const saveDoc = async () => {
   const payload = { ...form.value };
+  if (payload.mseIndefinite) payload.mseValidDate = null;
   try {
     const editing = !!editingDoc.value;
     if (editing) {
@@ -258,7 +268,7 @@ const saveDoc = async () => {
     notifySaved(editing ? 'Документ сохранён' : 'Документ добавлен');
   } catch (err) {
     console.error(err);
-    alert('Ошибка при сохранении документа');
+    alert(err?.response?.data?.message || 'Ошибка при сохранении документа');
   }
 };
 
@@ -389,24 +399,38 @@ onUnmounted(() => {
   outline: none; border-color: #5F7E45; box-shadow: 0 0 0 3px rgba(95, 126, 69, 0.18);
 }
 .form-group input:disabled { background: #F3EEE4; color: #6E7368; }
+.form-group label:has(input[type="checkbox"]) {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-weight: 500; font-size: 0.92rem; cursor: pointer;
+}
+.form-group input[type="checkbox"] {
+  width: 1rem; height: 1rem; flex: 0 0 1rem;
+  padding: 0; accent-color: #5F7E45; cursor: pointer;
+}
 .modal-buttons { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; }
 
 .btn-primary {
   display: inline-flex; align-items: center; gap: 0.45rem;
-  background: #2F4A2F; color: #F4F8EC; border: none;
+  background: var(--btn-primary-bg); color: var(--btn-primary-fg);
+  border: 1px solid var(--btn-primary-bg);
   padding: 0.6rem 1.1rem; border-radius: 0.7rem; font-weight: 600; cursor: pointer;
-  font-family: inherit; transition: background 0.15s;
+  font-family: inherit; transition: background 0.15s, border-color 0.15s;
 }
-.btn-primary:hover { background: #24391F; transform: none; }
+.btn-primary:hover {
+  background: var(--btn-primary-bg-hover); border-color: var(--btn-primary-bg-hover); transform: none;
+}
 .add-btn svg { width: 16px; height: 16px; }
 .btn-secondary {
-  background: #F3EEE4; color: #1a211a; border: 1px solid #E4DECF;
+  background: var(--btn-secondary-bg); color: var(--btn-secondary-fg);
+  border: 1px solid var(--btn-secondary-border);
   padding: 0.6rem 1.1rem; border-radius: 0.7rem; font-weight: 600; cursor: pointer;
-  font-family: inherit; transition: background 0.15s;
+  font-family: inherit; transition: background 0.15s, border-color 0.15s;
 }
-.btn-secondary:hover { background: #EBE4D5; }
-.btn-ghost-sm { background: none; border: none; cursor: pointer; color: #2F4A2F; font-weight: 600; font-family: inherit; padding: 0.25rem 0.4rem; border-radius: 0.5rem; }
-.btn-ghost-sm:hover { background: #EEF4E2; }
-.btn-ghost-sm.danger { color: #B0533F; }
-.btn-ghost-sm.danger:hover { background: #FAE9E0; }
+.btn-secondary:hover {
+  background: var(--btn-secondary-bg-hover); border-color: var(--btn-secondary-border-hover);
+}
+.btn-ghost-sm { background: none; border: none; cursor: pointer; color: var(--btn-ghost-fg); font-weight: 600; font-family: inherit; padding: 0.25rem 0.4rem; border-radius: 0.5rem; transition: background 0.15s, color 0.15s; }
+.btn-ghost-sm:hover { background: var(--btn-ghost-bg-hover); color: var(--btn-ghost-fg-hover); }
+.btn-ghost-sm.danger { color: var(--btn-danger-fg); }
+.btn-ghost-sm.danger:hover { background: var(--btn-danger-bg-hover); color: var(--btn-danger-fg); }
 </style>

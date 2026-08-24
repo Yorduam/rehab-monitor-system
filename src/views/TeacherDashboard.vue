@@ -482,12 +482,12 @@ onUnmounted(() => {
   border: 0.0625rem solid transparent; transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .btn svg { width: 0.9375rem; height: 0.9375rem; flex: 0 0 0.9375rem; }
-.btn-primary { background: var(--sage-900); color: #F4F8EC; border-color: var(--sage-900); }
-.btn-primary:not(:disabled):hover { background: var(--sage-700); border-color: var(--sage-700); }
-.btn-secondary { background: var(--paper); color: var(--ink-strong); border-color: var(--line-strong); }
-.btn-secondary:not(:disabled):hover { background: var(--paper-soft); border-color: var(--ink-muted); }
-.btn-ghost { background: none; color: var(--ink-muted); border-color: transparent; }
-.btn-ghost:not(:disabled):hover { background: var(--paper-soft); color: var(--ink-strong); }
+.btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: var(--btn-primary-bg); }
+.btn-primary:not(:disabled):hover { background: var(--btn-primary-bg-hover); border-color: var(--btn-primary-bg-hover); }
+.btn-secondary { background: var(--btn-secondary-bg); color: var(--btn-secondary-fg); border-color: var(--btn-secondary-border); }
+.btn-secondary:not(:disabled):hover { background: var(--btn-secondary-bg-hover); border-color: var(--btn-secondary-border-hover); }
+.btn-ghost { background: none; color: var(--btn-ghost-fg); border-color: transparent; }
+.btn-ghost:not(:disabled):hover { background: var(--btn-ghost-bg-hover); color: var(--btn-ghost-fg-hover); }
 .btn-sm { min-height: 2.25rem; padding: 0.4375rem 0.75rem; font-size: var(--fs-14); }
 .btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
 

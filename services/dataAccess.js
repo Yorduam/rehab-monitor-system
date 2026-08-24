@@ -103,7 +103,7 @@ const RECIPIENT_FIELDS = {
 const DOC_FIELDS = {
   passport: ['docSeries', 'docNumber', 'docIssuer', 'docIssuerDate', 'snils'],
   contacts: ['regAddress', 'factAddress'],
-  medical: ['mseIssueDate', 'mseValidDate', 'specialNote']
+  medical: ['mseIssueDate', 'mseValidDate', 'mseIndefinite', 'specialNote']
 };
 
 const REP_FIELDS = {

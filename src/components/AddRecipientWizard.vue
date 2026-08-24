@@ -34,7 +34,7 @@
       </div>
     </div>
 
-    <div class="rw-scroll">
+    <div class="rw-scroll" ref="scrollBox">
       <div class="rw-content">
 
         <div class="rw-page-head">
@@ -803,6 +803,23 @@ const steps = [
   { label: 'Документы' },
 ];
 
+const scrollBox = ref(null);
+const stepScroll = new Map();
+let skipScrollRestore = false;
+
+watch(step, (next, prev) => {
+  const box = scrollBox.value;
+  if (!box) return;
+  stepScroll.set(prev, box.scrollTop);
+  if (skipScrollRestore) {
+    skipScrollRestore = false;
+    return;
+  }
+  nextTick(() => {
+    if (scrollBox.value) scrollBox.value.scrollTop = stepScroll.get(next) || 0;
+  });
+});
+
 const invOptions = [
   { v: 'child', l: 'Ребёнок-инвалид' },
   { v: '1',     l: 'I группа'        },
@@ -1218,7 +1235,10 @@ const flashField = (el) => {
 
 const gotoField = async (item) => {
   missingOpen.value = false;
-  if (step.value !== item.step) step.value = item.step;
+  if (step.value !== item.step) {
+    skipScrollRestore = true;
+    step.value = item.step;
+  }
   await nextTick();
   const el = document.querySelector(item.a);
   if (!el) return;
@@ -1362,6 +1382,7 @@ const clearDraft = () => {
   uploads.value = {};
   signedUploads.value = {};
   docsGenerated.value = false;
+  stepScroll.clear();
   step.value = 1;
   try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
   forgetDraftSavedAt();
@@ -2752,12 +2773,12 @@ onUnmounted(() => {
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .rw-btn svg { width: 0.9375rem; height: 0.9375rem; flex: 0 0 0.9375rem; }
-.rw-btn-primary { background: var(--rw-sage-900); color: #F4F8EC; border-color: var(--rw-sage-900); }
-.rw-btn-primary:hover:not(:disabled) { background: var(--rw-sage-800); border-color: var(--rw-sage-800); }
-.rw-btn-secondary { background: var(--rw-paper); color: var(--rw-ink); border-color: var(--rw-line-strong); }
-.rw-btn-secondary:hover:not(:disabled) { background: var(--rw-paper-soft); border-color: var(--rw-ink-muted); }
-.rw-btn-ghost { color: var(--rw-ink-muted); background: none; border-color: transparent; }
-.rw-btn-ghost:hover { background: var(--rw-paper-soft); color: var(--rw-ink); }
+.rw-btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: var(--btn-primary-bg); }
+.rw-btn-primary:hover:not(:disabled) { background: var(--btn-primary-bg-hover); border-color: var(--btn-primary-bg-hover); }
+.rw-btn-secondary { background: var(--btn-secondary-bg); color: var(--btn-secondary-fg); border-color: var(--btn-secondary-border); }
+.rw-btn-secondary:hover:not(:disabled) { background: var(--btn-secondary-bg-hover); border-color: var(--btn-secondary-border-hover); }
+.rw-btn-ghost { color: var(--btn-ghost-fg); background: none; border-color: transparent; }
+.rw-btn-ghost:hover { background: var(--btn-ghost-bg-hover); color: var(--btn-ghost-fg-hover); }
 .rw-btn-sm { padding: 0.4375rem 0.75rem; min-height: 2.125rem; font-size: 0.875rem; }
 .rw-btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .rw-savebar {

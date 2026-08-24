@@ -234,7 +234,7 @@
                   </div>
                   <div v-if="doc" class="kv">
                     <dt class="kv-key">Справка МСЭ до</dt>
-                    <dd class="kv-val"><span class="kv-text">{{ formatDate(doc.mseValidDate) }}</span></dd>
+                    <dd class="kv-val"><span class="kv-text">{{ mseValidText(doc) }}</span></dd>
                   </div>
                 </dl>
               </div>
@@ -473,7 +473,7 @@
                   <div class="kv kv-full"><dt class="kv-key">Диагноз</dt><dd class="kv-val"><span class="kv-text">{{ recipient.diagnosis || '—' }}</span></dd></div>
                   <div class="kv kv-full"><dt class="kv-key">Нозология (МКБ-10)</dt><dd class="kv-val"><span class="kv-text"><span v-if="recipient.nozologyRef?.class" class="code">{{ recipient.nozologyRef.class }}</span>{{ nozologyName }}</span></dd></div>
                   <div class="kv"><dt class="kv-key">МСЭ выдана</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(doc?.mseIssueDate) }}</span></dd></div>
-                  <div class="kv"><dt class="kv-key">МСЭ действительна до</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(doc?.mseValidDate) }}</span></dd></div>
+                  <div class="kv"><dt class="kv-key">МСЭ действительна до</dt><dd class="kv-val"><span class="kv-text">{{ mseValidText(doc) }}</span></dd></div>
                   <div class="kv kv-full"><dt class="kv-key">Особые отметки</dt><dd class="kv-val"><span class="kv-text">{{ doc?.specialNote || '—' }}</span></dd></div>
                 </dl>
               </LockedBlock>
@@ -1124,9 +1124,13 @@
                 <span class="du-key">МСЭ выдана</span>
                 <input type="date" v-model="docForm.mseIssueDate" class="du-input" />
               </label>
-              <label class="du-field">
+              <label class="du-field" v-if="!docForm.mseIndefinite">
                 <span class="du-key">МСЭ действительна до</span>
                 <input type="date" v-model="docForm.mseValidDate" class="du-input" :class="{ 'is-expired': mseExpired }" />
+              </label>
+              <label class="du-check du-field-full">
+                <input type="checkbox" v-model="docForm.mseIndefinite" />
+                <span>Справка МСЭ бессрочная</span>
               </label>
               <label class="du-field">
                 <span class="du-key">Место обучения</span>
@@ -1591,6 +1595,8 @@ function formatDate(d) {
   return `${dt.getDate()} ${m[dt.getMonth()]} ${dt.getFullYear()}`;
 }
 
+const mseValidText = (d) => (d?.mseIndefinite ? 'Бессрочно' : formatDate(d?.mseValidDate));
+
 function formatShort(d) {
   if (!d) return '—';
   const dt = new Date(d);
@@ -1677,7 +1683,7 @@ const loadReadiness = async () => {
 
 const DOC_FORM_FIELDS = [
   'docType', 'docSeries', 'docNumber', 'docIssuer', 'docIssuerDate', 'snils',
-  'mseIssueDate', 'mseValidDate', 'regAddress', 'factAddress', 'factSameReg',
+  'mseIssueDate', 'mseValidDate', 'mseIndefinite', 'regAddress', 'factAddress', 'factSameReg',
   'educationPlace', 'specialNote'
 ];
 
@@ -1690,6 +1696,7 @@ const FIELD_LABELS = {
   snils: 'СНИЛС',
   mseIssueDate: 'МСЭ выдана',
   mseValidDate: 'МСЭ действительна до',
+  mseIndefinite: 'Справка МСЭ бессрочная',
   regAddress: 'Адрес регистрации',
   factAddress: 'Адрес проживания',
   factSameReg: 'Проживание совпадает с регистрацией',
@@ -1712,7 +1719,7 @@ const toInputDate = (v) => (v ? String(v).slice(0, 10) : '');
 
 const reasonValid = computed(() => docReason.value.trim().length >= 3);
 const mseExpired = computed(
-  () => !!docForm.value.mseValidDate && docForm.value.mseValidDate < todayStr
+  () => !docForm.value.mseIndefinite && !!docForm.value.mseValidDate && docForm.value.mseValidDate < todayStr
 );
 
 const docChangedFields = computed(() => {
@@ -1740,6 +1747,7 @@ const openDocUpdate = () => {
     next[key] = /Date$/.test(key) ? toInputDate(d[key]) : (d[key] ?? '');
   }
   next.factSameReg = !!d.factSameReg;
+  next.mseIndefinite = !!d.mseIndefinite;
   docForm.value = next;
   docReason.value = '';
   reasonTouched.value = false;
@@ -2313,10 +2321,10 @@ onMounted(async () => {
   cursor: pointer;
 }
 .btn svg { width: 0.9375rem; height: 0.9375rem; flex: 0 0 0.9375rem; }
-.btn-primary { background: var(--sage-900); color: #F4F8EC; border-color: var(--sage-900); }
-.btn-primary:hover:not(:disabled) { background: var(--sage-800); border-color: var(--sage-800); }
-.btn-secondary { background: var(--paper); color: var(--ink); border-color: var(--line-strong); }
-.btn-secondary:hover:not(:disabled) { background: var(--paper-soft); border-color: var(--ink-muted); }
+.btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: var(--btn-primary-bg); }
+.btn-primary:hover:not(:disabled) { background: var(--btn-primary-bg-hover); border-color: var(--btn-primary-bg-hover); }
+.btn-secondary { background: var(--btn-secondary-bg); color: var(--btn-secondary-fg); border-color: var(--btn-secondary-border); }
+.btn-secondary:hover:not(:disabled) { background: var(--btn-secondary-bg-hover); border-color: var(--btn-secondary-border-hover); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .alert {
@@ -3111,12 +3119,12 @@ onMounted(async () => {
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
 .du-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-.du-btn-ghost { background: var(--paper); color: var(--ink); border-color: var(--line-strong); }
-.du-btn-ghost:hover:not(:disabled) { background: var(--paper-sunken); border-color: var(--ink-muted); }
-.du-btn-primary { background: var(--sage-900); color: #F4F8EC; border-color: var(--sage-900); }
-.du-btn-primary:hover:not(:disabled) { background: var(--sage-800); border-color: var(--sage-800); }
-.du-btn-danger { background: var(--rose-700); color: #FDF3EF; border-color: var(--rose-700); }
-.du-btn-danger:hover:not(:disabled) { background: var(--rose-500); border-color: var(--rose-500); }
+.du-btn-ghost { background: var(--btn-secondary-bg); color: var(--btn-secondary-fg); border-color: var(--btn-secondary-border); }
+.du-btn-ghost:hover:not(:disabled) { background: var(--btn-secondary-bg-hover); border-color: var(--btn-secondary-border-hover); }
+.du-btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: var(--btn-primary-bg); }
+.du-btn-primary:hover:not(:disabled) { background: var(--btn-primary-bg-hover); border-color: var(--btn-primary-bg-hover); }
+.du-btn-danger { background: var(--btn-danger-fg); color: #FDF3EF; border-color: var(--btn-danger-fg); }
+.du-btn-danger:hover:not(:disabled) { background: #96422F; border-color: #96422F; }
 
 @media (max-width: 75rem) {
   .grid { grid-template-columns: 1fr; }

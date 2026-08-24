@@ -147,6 +147,19 @@ onUnmounted(() => {
   --red-text: #8b2f2f;
   --purple: #6c9ebf;
   --purple-soft: #eef4fa;
+  --btn-primary-bg: #1E2F1E;
+  --btn-primary-bg-hover: #2F4A2F;
+  --btn-primary-fg: #F4F8EC;
+  --btn-secondary-bg: #FFFFFF;
+  --btn-secondary-bg-hover: #F3EEE4;
+  --btn-secondary-border: #D6CFBE;
+  --btn-secondary-border-hover: #B9B09A;
+  --btn-secondary-fg: #131713;
+  --btn-ghost-fg: #4F564A;
+  --btn-ghost-fg-hover: #131713;
+  --btn-ghost-bg-hover: #F3EEE4;
+  --btn-danger-fg: #B0533F;
+  --btn-danger-bg-hover: #FAE9E0;
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
@@ -192,34 +205,69 @@ input, select, textarea, button { font-family: inherit; }
 .fade-enter-from { opacity: 0; transform: translateY(8px); }
 .fade-leave-to { opacity: 0; transform: translateY(-8px); }
 .btn-primary {
-  background: var(--accent);
-  color: white;
-  border: none;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  border: 1px solid var(--btn-primary-bg);
   padding: 0.5rem 1rem;
   border-radius: var(--radius-md);
   font-weight: 600;
   cursor: pointer;
-  transition: all var(--transition);
+  transition: background var(--transition), border-color var(--transition), color var(--transition);
 }
-.btn-primary:hover {
-  background: var(--accent-hover);
-  transform: translateY(-1px);
+.btn-primary:hover:not(:disabled) {
+  background: var(--btn-primary-bg-hover);
+  border-color: var(--btn-primary-bg-hover);
 }
 .btn-secondary {
-  background: var(--bg-surface);
-  border: 1px solid var(--border);
-  color: var(--text-primary);
+  background: var(--btn-secondary-bg);
+  border: 1px solid var(--btn-secondary-border);
+  color: var(--btn-secondary-fg);
   padding: 0.5rem 1rem;
   border-radius: var(--radius-md);
+  font-weight: 600;
   cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--btn-secondary-bg-hover);
+  border-color: var(--btn-secondary-border-hover);
 }
 .btn-ghost {
   background: transparent;
-  border: none;
-  color: var(--text-secondary);
+  border: 1px solid transparent;
+  color: var(--btn-ghost-fg);
   cursor: pointer;
   padding: 0.3rem 0.6rem;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition), color var(--transition);
 }
+.btn-ghost:hover:not(:disabled) {
+  background: var(--btn-ghost-bg-hover);
+  color: var(--btn-ghost-fg-hover);
+}
+.btn-danger {
+  background: var(--btn-danger-fg);
+  color: #FFFFFF;
+  border: 1px solid var(--btn-danger-fg);
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  cursor: pointer;
+  transition: background var(--transition), border-color var(--transition);
+}
+.btn-danger:hover:not(:disabled) { background: #96422F; border-color: #96422F; }
+.btn-ghost-danger {
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--btn-danger-fg);
+  cursor: pointer;
+  padding: 0.3rem 0.6rem;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  transition: background var(--transition);
+}
+.btn-ghost-danger:hover:not(:disabled) { background: var(--btn-danger-bg-hover); }
+.btn-primary:disabled, .btn-secondary:disabled, .btn-danger:disabled { opacity: 0.55; cursor: not-allowed; }
 .loading-screen {
   display: flex;
   align-items: center;

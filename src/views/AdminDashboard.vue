@@ -713,12 +713,16 @@ onUnmounted(() => {
 }
 .btn:focus-visible { outline: none; box-shadow: var(--db-focus-ring); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
-.btn-primary { background: var(--db-sage-800); color: #fff; }
-.btn-primary:hover:not(:disabled) { background: var(--db-sage-900); }
+.btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: var(--btn-primary-bg); }
+.btn-primary:hover:not(:disabled) { background: var(--btn-primary-bg-hover); border-color: var(--btn-primary-bg-hover); }
 .btn-secondary {
-  background: var(--db-paper);
-  border-color: var(--db-line);
-  color: var(--db-ink-strong);
+  background: var(--btn-secondary-bg);
+  border-color: var(--btn-secondary-border);
+  color: var(--btn-secondary-fg);
+}
+.btn-secondary:hover:not(:disabled) {
+  background: var(--btn-secondary-bg-hover);
+  border-color: var(--btn-secondary-border-hover);
 }
 .btn-secondary:hover:not(:disabled) { background: var(--db-paper-soft); }
 .btn-sm { padding: 0.375rem 0.8125rem; font-size: 0.8125rem; }

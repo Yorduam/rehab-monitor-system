@@ -101,7 +101,7 @@ const changeLimit = (l) => emit('update:limit', l);
   transition: background 0.12s, color 0.12s;
 }
 .rp-btn:hover:not([disabled]) { background: var(--t-paper-soft, #F2ECDF); color: var(--t-ink-strong, #0A0D0A); }
-.rp-btn.active { background: var(--t-sage-900, #112211); color: #F3F6EA; }
+.rp-btn.active { background: var(--btn-primary-bg); color: var(--btn-primary-fg); }
 .rp-btn[disabled] { opacity: 0.4; cursor: default; }
 .rp-btn svg { width: 0.875rem; height: 0.875rem; }
 

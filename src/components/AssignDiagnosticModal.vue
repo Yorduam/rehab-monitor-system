@@ -54,13 +54,36 @@
           </section>
 
           <section class="ad-section" :class="{ 'is-locked': !formEnabled }">
-            <h4 class="ad-section-title">Дата диагностики</h4>
+            <h4 class="ad-section-title">Дата и бронь приёма</h4>
 
             <div class="ad-grid">
               <label class="ad-field">
                 <span class="ad-key">Дата</span>
                 <input type="date" v-model="form.date" :min="todayStr" class="ad-input" :disabled="!formEnabled || saving" />
               </label>
+
+              <label class="ad-check ad-field-full">
+                <input type="checkbox" v-model="form.reserve" :disabled="!formEnabled || saving" />
+                <span>Забронировать время приёма</span>
+              </label>
+
+              <template v-if="form.reserve">
+                <label class="ad-field">
+                  <span class="ad-key">Бронь с</span>
+                  <input type="time" v-model="form.reservedFrom" step="900" class="ad-input" :disabled="!formEnabled || saving" />
+                </label>
+                <label class="ad-field">
+                  <span class="ad-key">Бронь до</span>
+                  <input type="time" v-model="form.reservedTo" step="900" class="ad-input" :disabled="!formEnabled || saving" />
+                </label>
+                <p class="ad-hint ad-field-full">
+                  Окно закрепляется за реабилитантом: специалисты смогут взять его
+                  только на время внутри брони.
+                </p>
+              </template>
+              <p v-else class="ad-hint ad-field-full">
+                Без брони специалисты выбирают время приёма сами.
+              </p>
 
               <label class="ad-field ad-field-full">
                 <span class="ad-key">Комментарий <span class="ad-opt">(необязательно)</span></span>
@@ -87,7 +110,6 @@
                 <span>{{ b.message }}</span>
               </li>
             </ul>
-            <p v-if="success" class="ad-success">{{ success }}</p>
           </section>
 
         </template>
@@ -99,7 +121,7 @@
 
       <footer class="ad-foot">
         <button type="button" class="ad-btn ad-btn-ghost" :disabled="saving" @click="tryClose">
-          {{ success ? 'Закрыть' : 'Отмена' }}
+          Отмена
         </button>
         <button type="button" class="ad-btn ad-btn-primary" :disabled="!canSubmit || saving" @click="submit">
           {{ saving ? 'Создание заявки…' : 'Назначить диагностику' }}
@@ -115,7 +137,7 @@ import { ref, computed, onMounted } from 'vue';
 import api from '../api';
 import { usePageStore } from '../stores/page';
 import { useAuthStore } from '../stores/auth';
-import { notifySaved } from '../utils/toast';
+import { notify, notifySaved } from '../utils/toast';
 
 const props = defineProps({
   recipientId: { type: [Number, String], required: true },
@@ -130,7 +152,6 @@ const checking = ref(true);
 const saving = ref(false);
 const readiness = ref(null);
 const error = ref('');
-const success = ref('');
 const serverBlockers = ref([]);
 const forceConfirm = ref(false);
 const conflict = ref(null);
@@ -147,8 +168,16 @@ const humanDate = (v) => {
 const todayStr = localDate();
 const form = ref({
   date: todayStr,
+  reserve: false,
+  reservedFrom: '09:00',
+  reservedTo: '13:00',
   note: ''
 });
+
+const toMin = (t) => {
+  const [h, m] = String(t || '').split(':');
+  return parseInt(h, 10) * 60 + parseInt(m, 10);
+};
 
 const isAdmin = computed(() => authStore.isAdmin);
 const recipientLabel = computed(() =>
@@ -162,8 +191,15 @@ const formEnabled = computed(() => {
   return true;
 });
 
+const reservationValid = computed(() => {
+  const f = form.value;
+  if (!f.reserve) return true;
+  if (!f.reservedFrom || !f.reservedTo) return false;
+  return toMin(f.reservedTo) - toMin(f.reservedFrom) >= 15;
+});
+
 const canSubmit = computed(() =>
-  formEnabled.value && !success.value && !!form.value.date
+  formEnabled.value && !!form.value.date && reservationValid.value
 );
 
 const loadReadiness = async () => {
@@ -191,12 +227,19 @@ const submit = async () => {
     const { data } = await api.post('/schedule/sessions', {
       recipientId: Number(props.recipientId),
       date: form.value.date,
+      reservedFrom: form.value.reserve ? form.value.reservedFrom : null,
+      reservedTo: form.value.reserve ? form.value.reservedTo : null,
       note: form.value.note || null,
       force: forceConfirm.value
     });
-    success.value = 'Заявка на диагностику создана. Специалисты увидят её в списке свободных заявок и возьмут реабилитанта сами.';
-    notifySaved(`Диагностика назначена на дату — ${humanDate(data?.date || form.value.date)}`);
+    const when = humanDate(data?.date || form.value.date);
+    const slot = form.value.reserve ? `, бронь ${form.value.reservedFrom}–${form.value.reservedTo}` : '';
+    notify(
+      `Запись на диагностику открыта: ${recipientLabel.value}, ${when}${slot}. Специалисты увидят заявку в списке свободных.`,
+      { ms: 6000, key: 'diagnostic-assigned' }
+    );
     emit('assigned', data);
+    emit('close');
   } catch (err) {
     console.error('assignDiagnostic', err);
     const res = err?.response;
@@ -342,8 +385,14 @@ onMounted(() => {
 .ad-input:disabled { opacity: .6; cursor: not-allowed; }
 .ad-textarea { resize: vertical; min-height: 52px; }
 
+.ad-check {
+  display: flex; align-items: center; gap: .5rem;
+  font-size: .84rem; font-weight: 600; color: var(--text-secondary); cursor: pointer;
+}
+.ad-check input { width: 1rem; height: 1rem; flex: 0 0 1rem; accent-color: var(--accent); cursor: pointer; }
+.ad-hint { font-size: .78rem; line-height: 1.45; color: var(--text-tertiary); }
+
 .ad-error { margin-top: .7rem; font-size: .82rem; color: #a3341d; }
-.ad-success { margin-top: .7rem; font-size: .82rem; color: var(--accent-text); font-weight: 600; }
 
 .ad-foot {
   display: flex; justify-content: flex-end; gap: .6rem;
@@ -356,10 +405,10 @@ onMounted(() => {
   border: 1px solid transparent; transition: background .15s ease, border-color .15s ease;
 }
 .ad-btn:disabled { opacity: .5; cursor: not-allowed; }
-.ad-btn-ghost { background: var(--bg-surface); border-color: var(--border); color: var(--text-secondary); }
-.ad-btn-ghost:hover:not(:disabled) { background: var(--bg-app); color: var(--text-primary); }
-.ad-btn-primary { background: var(--accent); color: #fff; }
-.ad-btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+.ad-btn-ghost { background: var(--btn-secondary-bg); border-color: var(--btn-secondary-border); color: var(--btn-secondary-fg); }
+.ad-btn-ghost:hover:not(:disabled) { background: var(--btn-secondary-bg-hover); border-color: var(--btn-secondary-border-hover); }
+.ad-btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: var(--btn-primary-bg); }
+.ad-btn-primary:hover:not(:disabled) { background: var(--btn-primary-bg-hover); border-color: var(--btn-primary-bg-hover); }
 .ad-btn-danger { background: #a3341d; color: #fff; }
 .ad-btn-danger:hover:not(:disabled) { background: #832a17; }
 

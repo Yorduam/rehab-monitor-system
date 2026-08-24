@@ -754,10 +754,10 @@ onUnmounted(() => {
 
 .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.4375rem; min-height: var(--tap-min); padding: 0.6875rem 1.125rem; border-radius: 0.625rem; font-size: var(--fs-15); font-weight: 500; white-space: nowrap; border: 0.0625rem solid transparent; transition: background 0.15s, border-color 0.15s, color 0.15s; }
 .btn svg { width: 0.9375rem; height: 0.9375rem; flex: 0 0 0.9375rem; }
-.btn-primary { background: var(--sage-900); color: #F4F8EC; border-color: var(--sage-900); }
-.btn-primary:hover { background: var(--sage-700); border-color: var(--sage-700); }
-.btn-secondary { background: var(--paper); color: var(--ink-strong); border-color: var(--line-strong); }
-.btn-secondary:hover { background: var(--paper-soft); border-color: var(--ink-muted); }
+.btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: var(--btn-primary-bg); }
+.btn-primary:hover { background: var(--btn-primary-bg-hover); border-color: var(--btn-primary-bg-hover); }
+.btn-secondary { background: var(--btn-secondary-bg); color: var(--btn-secondary-fg); border-color: var(--btn-secondary-border); }
+.btn-secondary:hover { background: var(--btn-secondary-bg-hover); border-color: var(--btn-secondary-border-hover); }
 .btn-sm { min-height: 2.25rem; padding: 0.4375rem 0.75rem; font-size: var(--fs-14); }
 
 .grid { display: grid; gap: var(--space-5); align-items: start; }

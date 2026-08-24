@@ -799,8 +799,10 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
         CRGMain: crgId
       }, { transaction: t });
 
+      const mseIndefinite = doc.mseIndefinite === true || doc.mseIndefinite === 'true';
       const docReady = doc.snils && doc.docSeries && doc.docNumber && doc.docIssuer &&
-        doc.docIssuerDate && doc.mseIssueDate && doc.mseValidDate && doc.regAddress && doc.educationPlace;
+        doc.docIssuerDate && doc.mseIssueDate && (doc.mseValidDate || mseIndefinite) &&
+        doc.regAddress && doc.educationPlace;
       if (docReady) {
         await RecipientDoc.create({
           recipientId: created.id,
@@ -811,7 +813,8 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
           docIssuerDate: doc.docIssuerDate,
           snils: doc.snils,
           mseIssueDate: doc.mseIssueDate,
-          mseValidDate: doc.mseValidDate,
+          mseValidDate: mseIndefinite ? null : doc.mseValidDate,
+          mseIndefinite,
           regAddress: doc.regAddress,
           factAddress: doc.factSameReg ? doc.regAddress : (doc.factAddress || doc.regAddress),
           factSameReg: !!doc.factSameReg,

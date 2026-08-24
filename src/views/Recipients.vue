@@ -17,7 +17,7 @@
           <div class="t-page-actions">
             <button class="t-btn t-btn-primary" @click.stop="openAddModal">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
-              Добавить
+              Добавить реабилитанта
             </button>
           </div>
         </div>
@@ -1569,10 +1569,8 @@ onUnmounted(() => {
 }
 .t-page-header {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 1.5rem;
+  flex-direction: column;
+  gap: 1.25rem;
   margin-bottom: 1.5rem;
 }
 .t-page-title {
@@ -1589,7 +1587,14 @@ onUnmounted(() => {
   margin-top: 0.5rem;
 }
 .t-page-sub strong { color: var(--t-ink-strong); font-weight: 500; }
-.t-page-actions { display: flex; gap: 0.5rem; }
+.t-page-actions { display: flex; gap: 0.5rem; justify-content: flex-start; }
+.t-page-actions .t-btn {
+  min-height: 3rem;
+  padding: 0.75rem 1.5rem;
+  gap: 0.625rem;
+  font-size: 0.9375rem;
+}
+.t-page-actions .t-btn svg { width: 1rem; height: 1rem; flex: 0 0 1rem; }
 
 .t-tabs {
   display: flex; gap: 0.25rem;
@@ -1725,13 +1730,13 @@ onUnmounted(() => {
 }
 .t-btn svg { width: 0.875rem; height: 0.875rem; flex: 0 0 0.875rem; }
 .t-btn-primary {
-  background: var(--t-sage-900); color: #F3F6EA; border-color: var(--t-sage-900);
+  background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: var(--btn-primary-bg);
 }
-.t-btn-primary:hover { background: var(--t-sage-700); border-color: var(--t-sage-700); }
+.t-btn-primary:hover { background: var(--btn-primary-bg-hover); border-color: var(--btn-primary-bg-hover); }
 .t-btn-secondary {
-  background: var(--t-paper); color: var(--t-ink-strong); border-color: var(--t-line-strong);
+  background: var(--btn-secondary-bg); color: var(--btn-secondary-fg); border-color: var(--btn-secondary-border);
 }
-.t-btn-secondary:hover { background: var(--t-paper-soft); }
+.t-btn-secondary:hover { background: var(--btn-secondary-bg-hover); border-color: var(--btn-secondary-border-hover); }
 .t-controls {
   display: grid;
   grid-template-columns: minmax(0,1fr) auto;
@@ -1780,7 +1785,7 @@ onUnmounted(() => {
   background: none; border: none;
 }
 .t-view-btn:hover { background: var(--t-paper-soft); color: var(--t-ink-strong); }
-.t-view-btn.active { background: var(--t-sage-900); color: #F3F6EA; }
+.t-view-btn.active { background: var(--btn-primary-bg); color: var(--btn-primary-fg); }
 .t-view-btn svg { width: 1rem; height: 1rem; }
 .t-sort-wrap { position: relative; }
 .t-sort-trigger { white-space: nowrap; }
@@ -1824,7 +1829,7 @@ onUnmounted(() => {
   cursor: pointer; transition: all 150ms;
 }
 .t-chip:hover { border-color: var(--t-ink-muted); background: var(--t-paper-soft); }
-.t-chip.active { background: var(--t-sage-900); color: #F3F6EA; border-color: var(--t-sage-900); }
+.t-chip.active { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: var(--btn-primary-bg); }
 .t-chip-count {
   background: rgba(255,255,255,.2); color: inherit;
   padding: 0 0.4375rem; border-radius: 999px;
@@ -2386,7 +2391,6 @@ onUnmounted(() => {
   }
   .t-selection-toolbar.visible { transform: translateY(0); }
   .t-selection-info { flex: 1; border-right: none; padding-right: 0; }
-  .t-page-header { flex-direction: column; align-items: stretch; }
   .t-page-title { font-size: 1.75rem; }
 }
 @media (max-width: 30rem) {
@@ -2510,15 +2514,17 @@ onUnmounted(() => {
   background: var(--bg-surface); color: var(--text-primary);
 }
 .btn-primary {
-  background: #2F4A2F; color: #F4F8EC; border: 1px solid #2F4A2F;
+  background: var(--btn-primary-bg); color: var(--btn-primary-fg); border: 1px solid var(--btn-primary-bg);
   padding: .5rem 1rem; border-radius: var(--radius-md); cursor: pointer;
   font-weight: 600; transition: background .15s ease, border-color .15s ease;
 }
-.btn-primary:hover { background: #24391F; border-color: #24391F; transform: none; }
+.btn-primary:hover { background: var(--btn-primary-bg-hover); border-color: var(--btn-primary-bg-hover); transform: none; }
 .btn-secondary {
-  background: #FFFFFF; border: 1px solid #D6CFBE; color: #131713;
+  background: var(--btn-secondary-bg); border: 1px solid var(--btn-secondary-border); color: var(--btn-secondary-fg);
   padding: .5rem 1rem; border-radius: var(--radius-md); cursor: pointer;
+  font-weight: 600; transition: background .15s ease, border-color .15s ease;
 }
+.btn-secondary:hover { background: var(--btn-secondary-bg-hover); border-color: var(--btn-secondary-border-hover); }
 
 .form-group-photo { grid-column: span 2; }
 @media (max-width: 640px) { .form-group-photo { grid-column: span 1; } }
@@ -2536,18 +2542,18 @@ onUnmounted(() => {
 .btn-upload {
   display: inline-flex; align-items: center; gap: .4rem;
   padding: .45rem .8rem; border-radius: var(--radius-md); cursor: pointer;
-  background: #FFFFFF; border: 1px solid #D6CFBE; color: #131713;
+  background: var(--btn-secondary-bg); border: 1px solid var(--btn-secondary-border); color: var(--btn-secondary-fg);
   font-size: .8rem; font-weight: 600; transition: background .15s ease, border-color .15s ease;
 }
-.btn-upload:hover { background: #F3EEE4; border-color: #3F6E3F; }
+.btn-upload:hover { background: var(--btn-secondary-bg-hover); border-color: var(--btn-secondary-border-hover); }
 .btn-upload.is-busy { opacity: .6; pointer-events: none; }
 .btn-upload svg { flex: 0 0 15px; }
 .btn-clear-photo {
   padding: .45rem .8rem; border-radius: var(--radius-md); cursor: pointer;
-  background: transparent; border: 1px solid transparent; color: #B14B39;
+  background: transparent; border: 1px solid transparent; color: var(--btn-danger-fg);
   font-size: .8rem; font-weight: 600;
 }
-.btn-clear-photo:hover { background: #FAE9E0; }
+.btn-clear-photo:hover { background: var(--btn-danger-bg-hover); }
 .photo-field-hint { font-size: .72rem; color: var(--text-secondary, #6E7368); }
 .photo-field-error { font-size: .72rem; color: #B14B39; font-weight: 600; }
 

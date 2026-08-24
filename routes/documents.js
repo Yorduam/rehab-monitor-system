@@ -45,7 +45,7 @@ router.get('/', authMiddleware, roleMiddleware('admin', 'teacher'), async (req, 
 
 const DOC_FIELDS = [
   'recipientId', 'docType', 'docSeries', 'docNumber', 'docIssuer', 'docIssuerDate',
-  'snils', 'mseIssueDate', 'mseValidDate', 'regAddress', 'factAddress',
+  'snils', 'mseIssueDate', 'mseValidDate', 'mseIndefinite', 'regAddress', 'factAddress',
   'factSameReg', 'educationPlace', 'specialNote'
 ];
 
@@ -54,6 +54,11 @@ function pickFields(body) {
   for (const key of DOC_FIELDS) {
     if (body[key] !== undefined) out[key] = body[key];
   }
+  if (out.mseIndefinite !== undefined) {
+    out.mseIndefinite = out.mseIndefinite === true || out.mseIndefinite === 'true' || out.mseIndefinite === 1;
+    if (out.mseIndefinite) out.mseValidDate = null;
+  }
+  if (out.mseValidDate === '') out.mseValidDate = null;
   return out;
 }
 

@@ -97,7 +97,7 @@
                 <div class="ed-row"><span>Тип</span><b>{{ d.docType }}</b></div>
                 <div class="ed-row"><span>Серия / номер</span><b>{{ d.docSeries }} {{ d.docNumber }}</b></div>
                 <div class="ed-row"><span>СНИЛС</span><b>{{ d.snils || '—' }}</b></div>
-                <div class="ed-row"><span>МСЭ действительна до</span><b>{{ formatDate(d.mseValidDate) }}</b></div>
+                <div class="ed-row"><span>МСЭ действительна до</span><b>{{ mseValidText(d) }}</b></div>
               </div>
             </div>
             <div v-else class="ed-muted">Документы не заполнены</div>
@@ -154,6 +154,7 @@ const formatDate = (d) => {
   if (isNaN(date)) return d;
   return date.toLocaleDateString('ru-RU', { day: '2-digit', month: '2-digit', year: 'numeric' });
 };
+const mseValidText = (d) => (d?.mseIndefinite ? 'Бессрочно' : formatDate(d?.mseValidDate));
 const statusLabel = (s) => ({ active: 'Активный', draft: 'Черновик', archived: 'В архиве' }[s] || s || '—');
 
 const loadRecipients = async () => {
@@ -207,7 +208,7 @@ const buildHtml = () => {
         <tr><td>Дата выдачи</td><th>${esc(formatDate(doc.docIssuerDate))}</th></tr>
         <tr><td>СНИЛС</td><th>${esc(doc.snils)}</th></tr>
         <tr><td>МСЭ выдана</td><th>${esc(formatDate(doc.mseIssueDate))}</th></tr>
-        <tr><td>МСЭ действительна до</td><th>${esc(formatDate(doc.mseValidDate))}</th></tr>
+        <tr><td>МСЭ действительна до</td><th>${esc(mseValidText(doc))}</th></tr>
         <tr><td>Адрес регистрации</td><th>${esc(doc.regAddress)}</th></tr>
         <tr><td>Место обучения</td><th>${esc(doc.educationPlace)}</th></tr>
       </table>`).join('')

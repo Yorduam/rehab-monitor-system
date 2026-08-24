@@ -6964,19 +6964,19 @@ onUnmounted(() => {
     }
     .diagnostics-page .btn svg{ width: 0.9375rem; height: 0.9375rem; flex: 0 0 0.9375rem; }
     .diagnostics-page .btn-primary{
-      background: var(--sage-900);
-      color: #F4F8EC;
-      border-color: var(--sage-900);
+      background: var(--btn-primary-bg);
+      color: var(--btn-primary-fg);
+      border-color: var(--btn-primary-bg);
     }
-    .diagnostics-page .btn-primary:hover{ background: var(--sage-800); border-color: var(--sage-800); }
+    .diagnostics-page .btn-primary:hover{ background: var(--btn-primary-bg-hover); border-color: var(--btn-primary-bg-hover); }
     .diagnostics-page .btn-secondary{
-      background: var(--paper);
-      color: var(--ink);
-      border-color: var(--line-strong);
+      background: var(--btn-secondary-bg);
+      color: var(--btn-secondary-fg);
+      border-color: var(--btn-secondary-border);
     }
-    .diagnostics-page .btn-secondary:hover{ background: var(--paper-soft); border-color: var(--ink-muted); }
-    .diagnostics-page .btn-ghost{ color: var(--ink-muted); }
-    .diagnostics-page .btn-ghost:hover{ background: var(--paper-soft); color: var(--ink); }
+    .diagnostics-page .btn-secondary:hover{ background: var(--btn-secondary-bg-hover); border-color: var(--btn-secondary-border-hover); }
+    .diagnostics-page .btn-ghost{ color: var(--btn-ghost-fg); }
+    .diagnostics-page .btn-ghost:hover{ background: var(--btn-ghost-bg-hover); color: var(--btn-ghost-fg-hover); }
     .diagnostics-page .btn-sm{ padding: 0.4375rem 0.75rem; min-height: 2.125rem; font-size: 0.8125rem; }
     .diagnostics-page .save-bar{
       position: fixed;

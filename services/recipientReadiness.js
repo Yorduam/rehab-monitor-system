@@ -246,7 +246,7 @@ export async function getRecipientReadiness(recipientId) {
       key: 'documents',
       label: 'Документы',
       done: !!doc && filled(doc.snils) && filled(doc.docSeries) && filled(doc.docNumber) &&
-            filled(doc.mseValidDate),
+            (filled(doc.mseValidDate) || !!doc.mseIndefinite),
       hint: 'СНИЛС, документ личности и справка МСЭ'
     },
     {

@@ -530,8 +530,8 @@ onUnmounted(() => {
 .data-table tbody tr:last-child td { border-bottom: none; }
 
 .row-actions { display: flex; align-items: center; gap: 0.15rem; flex-wrap: wrap; }
-.btn-ghost-danger { color: #B0533F; }
-.btn-ghost-danger:hover { background: #FAE9E0; }
+.btn-ghost-danger { color: var(--btn-danger-fg); }
+.btn-ghost-danger:hover { background: var(--btn-danger-bg-hover); }
 .form-hint { display: block; margin-top: 0.3rem; font-size: 0.75rem; color: #6E7368; }
 
 .perm-check {
@@ -555,24 +555,30 @@ select:disabled { background: #F3EEE4; color: #6E7368; cursor: not-allowed; }
 
 .btn-primary {
   display: inline-flex; align-items: center; gap: 0.45rem;
-  background: #2F4A2F; color: #F4F8EC; border: none;
+  background: var(--btn-primary-bg); color: var(--btn-primary-fg);
+  border: 1px solid var(--btn-primary-bg);
   padding: 0.6rem 1.1rem; border-radius: 0.7rem; font-weight: 600; cursor: pointer;
-  font-family: inherit; transition: background 0.15s;
+  font-family: inherit; transition: background 0.15s, border-color 0.15s;
 }
-.btn-primary:hover { background: #24391F; transform: none; }
+.btn-primary:hover {
+  background: var(--btn-primary-bg-hover); border-color: var(--btn-primary-bg-hover); transform: none;
+}
 .add-btn svg { width: 16px; height: 16px; }
 .btn-secondary {
-  background: #F3EEE4; color: #1a211a; border: 1px solid #E4DECF;
+  background: var(--btn-secondary-bg); color: var(--btn-secondary-fg);
+  border: 1px solid var(--btn-secondary-border);
   padding: 0.55rem 1.1rem; border-radius: 0.7rem; font-weight: 600; cursor: pointer;
-  font-family: inherit; transition: background 0.15s;
+  font-family: inherit; transition: background 0.15s, border-color 0.15s;
 }
-.btn-secondary:hover { background: #EBE4D5; }
+.btn-secondary:hover {
+  background: var(--btn-secondary-bg-hover); border-color: var(--btn-secondary-border-hover);
+}
 .btn-ghost-sm {
   background: none; border: none; cursor: pointer; margin: 0 0.25rem;
-  color: #2F4A2F; font-weight: 600; border-radius: 0.5rem; padding: 0.25rem 0.4rem;
-  transition: background 0.15s;
+  color: var(--btn-ghost-fg); font-weight: 600; border-radius: 0.5rem; padding: 0.25rem 0.4rem;
+  transition: background 0.15s, color 0.15s;
 }
-.btn-ghost-sm:hover { background: #EEF4E2; }
+.btn-ghost-sm:hover { background: var(--btn-ghost-bg-hover); color: var(--btn-ghost-fg-hover); }
 
 .modal-buttons { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 1.25rem; }
 .form-row { display: flex; gap: 0.75rem; }

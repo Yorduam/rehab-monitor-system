@@ -83,13 +83,13 @@ h2 {
 .btn-primary {
   width: 100%;
   margin-top: 0.5rem;
-  background: var(--sage-700);
-  border: 1px solid var(--sage-700);
-  color: #F4F8EC;
+  background: var(--btn-primary-bg);
+  border: 1px solid var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
 }
 .btn-primary:hover:not(:disabled) {
-  background: var(--sage-900);
-  border-color: var(--sage-900);
+  background: var(--btn-primary-bg-hover);
+  border-color: var(--btn-primary-bg-hover);
 }
 .btn-primary:disabled {
   opacity: 0.65;

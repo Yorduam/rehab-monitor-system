@@ -627,9 +627,9 @@ onUnmounted(() => {
 }
 .btn-primary {
   display: inline-flex; align-items: center; gap: 0.45rem;
-  background: #2F4A2F;
-  color: #F4F8EC;
-  border: 1px solid #2F4A2F;
+  background: var(--btn-primary-bg);
+  color: var(--btn-primary-fg);
+  border: 1px solid var(--btn-primary-bg);
   padding: 0.55rem 1.1rem;
   border-radius: 0.7rem;
   font-weight: 600;
@@ -637,17 +637,17 @@ onUnmounted(() => {
   font-family: inherit;
   transition: background 0.15s, border-color 0.15s;
 }
-.btn-primary:hover { background: #24391F; border-color: #24391F; }
+.btn-primary:hover { background: var(--btn-primary-bg-hover); border-color: var(--btn-primary-bg-hover); }
 .btn-secondary {
-  background: #F3EEE4;
-  border: 1px solid #E4DECF;
-  color: #131713;
+  background: var(--btn-secondary-bg);
+  border: 1px solid var(--btn-secondary-border);
+  color: var(--btn-secondary-fg);
   padding: 0.55rem 1.1rem;
   border-radius: 0.7rem;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
-  transition: background 0.15s;
+  transition: background 0.15s, border-color 0.15s;
 }
-.btn-secondary:hover { background: #EBE4D5; }
+.btn-secondary:hover { background: var(--btn-secondary-bg-hover); border-color: var(--btn-secondary-border-hover); }
 </style>

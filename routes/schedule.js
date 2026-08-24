@@ -55,6 +55,32 @@ function intervalsOverlap(aStart, aEnd, bStart, bEnd) {
   return toMinutes(aStart) < toMinutes(bEnd) && toMinutes(bStart) < toMinutes(aEnd);
 }
 
+function hhmm(t) {
+  return t ? String(t).slice(0, 5) : '';
+}
+
+const MIN_RESERVATION_MINUTES = 15;
+
+const TIME_RE = /^([01]\d|2[0-3]):[0-5]\d(:[0-5]\d)?$/;
+
+function parseReservation(body) {
+  const rawFrom = String(body?.reservedFrom ?? '').trim();
+  const rawTo = String(body?.reservedTo ?? '').trim();
+  if (!rawFrom && !rawTo) return { from: null, to: null };
+  if (!rawFrom || !rawTo) {
+    return { error: 'Для брони укажите и начало, и окончание приёма' };
+  }
+  if (!TIME_RE.test(rawFrom) || !TIME_RE.test(rawTo)) {
+    return { error: 'Время брони указано неверно' };
+  }
+  const from = normTime(rawFrom);
+  const to = normTime(rawTo);
+  if (toMinutes(to) - toMinutes(from) < MIN_RESERVATION_MINUTES) {
+    return { error: `Окно брони должно длиться не меньше ${MIN_RESERVATION_MINUTES} минут` };
+  }
+  return { from, to };
+}
+
 async function findConflict(specialistUserId, date, startTime, endTime, excludeEventId = null) {
   const where = {
     specialistUserId,
@@ -344,6 +370,8 @@ function serializeSession(s, viewer) {
     kindLabel: KIND_LABELS[s.kind] || KIND_LABELS.primary,
     observation,
     date: s.date,
+    reservedFrom: s.reservedFrom || null,
+    reservedTo: s.reservedTo || null,
     status: s.status,
     note: s.note || null,
     createdBy: s.createdBy,
@@ -383,6 +411,11 @@ router.post('/sessions', authMiddleware, roleMiddleware('admin', 'employee'), as
       return res.status(400).json({ message: 'Дата диагностики не может быть в прошлом' });
     }
 
+    const reservation = parseReservation(req.body);
+    if (reservation.error) {
+      return res.status(400).json({ message: reservation.error, field: 'reservedFrom' });
+    }
+
     const active = await DiagnosticSession.findOne({
       where: { recipientId, status: { [Op.in]: ['open', 'in_progress'] } }
     });
@@ -415,10 +448,24 @@ router.post('/sessions', authMiddleware, roleMiddleware('admin', 'employee'), as
       });
     }
 
+    if (reservation.from) {
+      const busy = await findRecipientSlotConflict(recipientId, date, reservation.from, reservation.to);
+      if (busy) {
+        const who = busy.specialist?.fullName || '';
+        return res.status(409).json({
+          message: `Окно ${hhmm(reservation.from)}–${hhmm(reservation.to)} занято: реабилитант уже занят ` +
+                   `${hhmm(busy.startTime)}–${hhmm(busy.endTime)}${who ? ' (' + who + ')' : ''}`,
+          field: 'reservedFrom'
+        });
+      }
+    }
+
     const created = await DiagnosticSession.create({
       recipientId,
       kind: 'primary',
       date,
+      reservedFrom: reservation.from,
+      reservedTo: reservation.to,
       status: 'open',
       note: note?.trim() || null,
       createdBy: req.user.id
@@ -660,6 +707,21 @@ router.post('/sessions/:id/claim', authMiddleware, roleMiddleware('teacher'), as
     if (toMinutes(endTime) <= toMinutes(startTime)) {
       await t.rollback();
       return res.status(400).json({ message: 'Время окончания должно быть позже начала' });
+    }
+
+    if (session.reservedFrom && session.reservedTo) {
+      const insideReservation =
+        toMinutes(startTime) >= toMinutes(session.reservedFrom) &&
+        toMinutes(endTime) <= toMinutes(session.reservedTo);
+      if (!insideReservation) {
+        await t.rollback();
+        return res.status(409).json({
+          message: `Приём забронирован на ${hhmm(session.reservedFrom)}–${hhmm(session.reservedTo)} — ` +
+                   'выберите время внутри брони',
+          reservedFrom: session.reservedFrom,
+          reservedTo: session.reservedTo
+        });
+      }
     }
 
     const conflict = await findConflict(req.user.id, session.date, startTime, endTime);

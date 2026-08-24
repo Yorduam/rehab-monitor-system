@@ -80,8 +80,9 @@
     <div v-else-if="tab === 'pool'" class="sch-pool">
       <p class="sch-pool-lead">
         <template v-if="canClaim">
-          Заявки создаёт ресепшн — только датой. Возьмите реабилитанта себе:
-          направление подставится из вашего профиля, время вы выбираете сами.
+          Заявки создаёт ресепшн. Возьмите реабилитанта себе: направление подставится
+          из вашего профиля, время вы выбираете сами — а если у заявки есть бронь,
+          то внутри забронированного окна.
         </template>
         <template v-else>
           Заявки на диагностику, которые сейчас разбирают специалисты.
@@ -103,6 +104,10 @@
               <h3 class="sch-pcard-name">{{ s.recipient ? fullName(s.recipient) : 'Реабилитант #' + s.recipientId }}</h3>
               <div class="sch-pcard-meta">
                 <span class="sch-pcard-date">{{ formatDate(String(s.date).slice(0, 10)) }}</span>
+                <template v-if="s.reservedFrom">
+                  <span class="sch-pdot" aria-hidden="true">·</span>
+                  <span class="sch-pres">бронь {{ hhmm(s.reservedFrom) }}–{{ hhmm(s.reservedTo) }}</span>
+                </template>
                 <span class="sch-pdot" aria-hidden="true">·</span>
                 <span :class="['sch-pstatus', s.status]">{{ statusLabel(s.status) }}</span>
                 <template v-if="s.authorName">
@@ -227,21 +232,40 @@
             <div class="sch-detail-row">
               <span>Дата</span><b>{{ formatDate(String(claimSession.date).slice(0, 10)) }}</b>
             </div>
+            <div class="sch-detail-row" v-if="claimSession.reservedFrom">
+              <span>Бронь приёма</span>
+              <b>{{ hhmm(claimSession.reservedFrom) }}–{{ hhmm(claimSession.reservedTo) }}</b>
+            </div>
             <div class="sch-detail-row">
               <span>Ваше направление</span><b>{{ myProfile || 'не указано' }}</b>
             </div>
           </div>
           <p class="sch-claim-hint">
-            Направление берётся из вашего профиля — выберите только удобное вам время.
+            <template v-if="claimSession.reservedFrom">
+              Ресепшн забронировал приём на
+              {{ hhmm(claimSession.reservedFrom) }}–{{ hhmm(claimSession.reservedTo) }} —
+              выберите время внутри этого окна.
+            </template>
+            <template v-else>
+              Направление берётся из вашего профиля — выберите только удобное вам время.
+            </template>
           </p>
           <div class="sch-field-row">
             <label class="sch-field">
               <span>Начало</span>
-              <input type="time" v-model="claimForm.startTime" step="900" class="sch-input" />
+              <input
+                type="time" v-model="claimForm.startTime" step="900" class="sch-input"
+                :min="hhmm(claimSession.reservedFrom) || null"
+                :max="hhmm(claimSession.reservedTo) || null"
+              />
             </label>
             <label class="sch-field">
               <span>Окончание</span>
-              <input type="time" v-model="claimForm.endTime" step="900" class="sch-input" />
+              <input
+                type="time" v-model="claimForm.endTime" step="900" class="sch-input"
+                :min="hhmm(claimSession.reservedFrom) || null"
+                :max="hhmm(claimSession.reservedTo) || null"
+              />
             </label>
           </div>
           <p v-if="claimError" class="sch-error">{{ claimError }}</p>
@@ -299,9 +323,10 @@
 
           <template v-if="createMode === 'assignment'">
             <p class="sch-assign-hint">
-              Диагностика назначается только датой. Направление и специалиста
-              выбирать не нужно — заявка попадёт во вкладку «Заявки на диагностику»,
-              и специалисты возьмут реабилитанта сами.
+              Направление и специалиста выбирать не нужно — заявка попадёт во вкладку
+              «Заявки на диагностику», и специалисты возьмут реабилитанта сами.
+              Можно забронировать окно приёма — тогда взять реабилитанта получится
+              только на время внутри брони.
             </p>
             <label class="sch-field">
               <span>Реабилитант</span>
@@ -350,10 +375,26 @@
             </template>
           </div>
 
-          <label v-if="createMode === 'assignment'" class="sch-field">
-            <span>Комментарий для специалистов (необязательно)</span>
-            <textarea v-model="form.comment" rows="2" class="sch-input"></textarea>
-          </label>
+          <template v-if="createMode === 'assignment'">
+            <label class="sch-check">
+              <input type="checkbox" v-model="form.reserve" />
+              <span>Забронировать время приёма</span>
+            </label>
+            <div v-if="form.reserve" class="sch-field-row sch-field-row--pair">
+              <label class="sch-field">
+                <span>Бронь с</span>
+                <input type="time" v-model="form.reservedFrom" step="900" class="sch-input" />
+              </label>
+              <label class="sch-field">
+                <span>Бронь до</span>
+                <input type="time" v-model="form.reservedTo" step="900" class="sch-input" />
+              </label>
+            </div>
+            <label class="sch-field">
+              <span>Комментарий для специалистов (необязательно)</span>
+              <textarea v-model="form.comment" rows="2" class="sch-input"></textarea>
+            </label>
+          </template>
 
           <p v-if="createError" class="sch-error">{{ createError }}</p>
         </div>
@@ -421,7 +462,8 @@ const directions = ref([]);
 const specialists = ref([]);
 const form = reactive({
   recipientId: null, directionId: null, specialistUserId: null,
-  title: '', date: currentDate.value, startTime: '09:00', endTime: '09:30', comment: ''
+  title: '', date: currentDate.value, startTime: '09:00', endTime: '09:30', comment: '',
+  reserve: false, reservedFrom: '09:00', reservedTo: '13:00'
 });
 
 function pad(n) { return String(n).padStart(2, '0'); }
@@ -433,6 +475,7 @@ function humanDate(v) {
   return y && m && d ? `${d}.${m}.${y}` : String(v || '');
 }
 function toMin(t) { const [h, m] = String(t).split(':'); return parseInt(h, 10) * 60 + parseInt(m, 10); }
+function minToHhmm(m) { return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`; }
 
 const WEEK = ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'];
 const WEEK_FULL = ['Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота', 'Воскресенье'];
@@ -557,8 +600,12 @@ async function loadDirections() {
 
 function openClaim(s) {
   claimError.value = '';
-  claimForm.startTime = '09:00';
-  claimForm.endTime = '09:30';
+  const from = hhmm(s.reservedFrom);
+  const to = hhmm(s.reservedTo);
+  claimForm.startTime = from || '09:00';
+  claimForm.endTime = from
+    ? minToHhmm(Math.min(toMin(from) + 30, toMin(to)))
+    : '09:30';
   claimSession.value = s;
 }
 function closeClaim() {
@@ -571,6 +618,12 @@ async function submitClaim() {
   if (!claimForm.startTime || !claimForm.endTime) { claimError.value = 'Укажите время.'; return; }
   if (toMin(claimForm.endTime) <= toMin(claimForm.startTime)) {
     claimError.value = 'Окончание должно быть позже начала.'; return;
+  }
+  const resFrom = hhmm(claimSession.value.reservedFrom);
+  const resTo = hhmm(claimSession.value.reservedTo);
+  if (resFrom && (toMin(claimForm.startTime) < toMin(resFrom) || toMin(claimForm.endTime) > toMin(resTo))) {
+    claimError.value = `Приём забронирован на ${resFrom}–${resTo} — выберите время внутри брони.`;
+    return;
   }
   claiming.value = true;
   try {
@@ -700,16 +753,31 @@ async function submitCreate() {
       if (!form.recipientId) {
         createError.value = 'Выберите реабилитанта.'; submitting.value = false; return;
       }
+      if (form.reserve) {
+        if (!form.reservedFrom || !form.reservedTo) {
+          createError.value = 'Укажите время брони.'; submitting.value = false; return;
+        }
+        if (toMin(form.reservedTo) - toMin(form.reservedFrom) < 15) {
+          createError.value = 'Окно брони должно длиться не меньше 15 минут.'; submitting.value = false; return;
+        }
+      }
+      const reserved = form.reserve ? { from: form.reservedFrom, to: form.reservedTo } : null;
       const { data: session } = await api.post('/schedule/sessions', {
         recipientId: form.recipientId,
         date: form.date,
+        reservedFrom: reserved?.from || null,
+        reservedTo: reserved?.to || null,
         note: form.comment || null
       });
       const when = session?.date || form.date;
       createOpen.value = false;
       resetForm();
       await switchToPool();
-      notifySaved(`Диагностика назначена на дату — ${humanDate(when)}`);
+      notifySaved(
+        reserved
+          ? `Диагностика назначена на ${humanDate(when)}, забронировано ${reserved.from}–${reserved.to}`
+          : `Диагностика назначена на дату — ${humanDate(when)}`
+      );
       return;
     }
 
@@ -740,6 +808,7 @@ async function submitCreate() {
 function resetForm() {
   form.recipientId = null; form.directionId = null; form.specialistUserId = null;
   form.title = ''; form.comment = ''; form.startTime = '09:00'; form.endTime = '09:30';
+  form.reserve = false; form.reservedFrom = '09:00'; form.reservedTo = '13:00';
 }
 
 onMounted(() => {
@@ -793,6 +862,7 @@ onUnmounted(() => {
 .sch-pcard-meta { margin-top: 0.25rem; font-size: 0.78rem; color: #6E7368; display: flex; flex-wrap: wrap; gap: 0.3rem; align-items: center; }
 .sch-pcard-date { font-weight: 600; color: #4F564A; }
 .sch-pdot { color: #C4BFB2; }
+.sch-pres { font-weight: 600; color: #2F4A2F; }
 .sch-pstatus { font-weight: 600; }
 .sch-pstatus.open { color: #B97718; }
 .sch-pstatus.in_progress { color: #2F4A2F; }
@@ -825,6 +895,14 @@ onUnmounted(() => {
   margin: 0 0 0.35rem; padding: 0.6rem 0.7rem; border-radius: 0.6rem;
   background: #EEF4E2; border: 1px dashed #CBDDB4; color: #2F4A2F;
   font-size: 0.82rem; line-height: 1.45;
+}
+.sch-check {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.85rem; font-weight: 600; color: #4F564A; cursor: pointer;
+}
+.sch-check input {
+  width: 1rem; height: 1rem; flex: 0 0 1rem;
+  accent-color: var(--btn-primary-bg); cursor: pointer;
 }
 
 .sch-nav { display: inline-flex; align-items: center; gap: 0.4rem; }
@@ -935,6 +1013,7 @@ onUnmounted(() => {
 .sch-field { display: flex; flex-direction: column; gap: 0.3rem; }
 .sch-field > span { font-size: 0.78rem; font-weight: 600; color: #4F564A; }
 .sch-field-row { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 0.6rem; }
+.sch-field-row--pair { grid-template-columns: 1fr 1fr; }
 .sch-input { border: 1px solid #D6CFBE; border-radius: 0.55rem; padding: 0.5rem 0.65rem; font-family: inherit; font-size: 0.88rem; color: #131713; background: #FBF9F3; width: 100%; }
 .sch-input:focus { outline: none; border-color: #5F7E45; box-shadow: 0 0 0 3px rgba(95,126,69,0.18); }
 textarea.sch-input { resize: vertical; }

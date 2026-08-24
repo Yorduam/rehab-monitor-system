@@ -6,6 +6,8 @@ const DiagnosticSession = sequelize.define('DiagnosticSession', {
   recipientId: { type: DataTypes.INTEGER, allowNull: false },
   kind: { type: DataTypes.STRING(10), allowNull: false, defaultValue: 'primary' },
   date: { type: DataTypes.DATEONLY, allowNull: false },
+  reservedFrom: { type: DataTypes.TIME, allowNull: true },
+  reservedTo: { type: DataTypes.TIME, allowNull: true },
   status: { type: DataTypes.STRING(20), allowNull: false, defaultValue: 'open' },
   note: { type: DataTypes.TEXT, allowNull: true },
   createdBy: { type: DataTypes.INTEGER, allowNull: true },
