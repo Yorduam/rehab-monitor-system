@@ -6,6 +6,7 @@ const LegalRepresentative = sequelize.define('LegalRepresentative', {
   firstName: { type: DataTypes.STRING(50), allowNull: false },
   middleName: { type: DataTypes.STRING(50), allowNull: false },
   lastName: { type: DataTypes.STRING(50), allowNull: false },
+  relation: { type: DataTypes.STRING(64), allowNull: true },
   telephone: { type: DataTypes.STRING(20), allowNull: false, unique: true },
   email: { type: DataTypes.STRING(50), allowNull: false, unique: true },
   passportSeries: { type: DataTypes.CHAR(4), allowNull: false },

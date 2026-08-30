@@ -2,8 +2,14 @@
 
   <aside
     v-if="authStore.isTeacher"
+    ref="drawerEl"
     class="sidebar-teacher"
+    :class="{ open: ui.drawerOpen, dragging }"
     aria-label="Основная навигация"
+    @touchstart.passive="onDrawerTouchStart"
+    @touchmove="onDrawerTouchMove"
+    @touchend="onDrawerTouchEnd"
+    @touchcancel="onDrawerTouchEnd"
   >
 
     <div class="s-brand">
@@ -112,8 +118,14 @@
 
   <aside
     v-else-if="authStore.isAdmin"
+    ref="drawerEl"
     class="sidebar-teacher"
+    :class="{ open: ui.drawerOpen, dragging }"
     aria-label="Основная навигация"
+    @touchstart.passive="onDrawerTouchStart"
+    @touchmove="onDrawerTouchMove"
+    @touchend="onDrawerTouchEnd"
+    @touchcancel="onDrawerTouchEnd"
   >
 
     <div class="s-brand">
@@ -131,7 +143,7 @@
         :key="item.id"
         class="s-item"
         :class="{ 's-item--active': pageStore.current === item.id }"
-        @click="pageStore.setPage(item.id, item.label)"
+        @click="go(item.id, item.label)"
       >
         <span class="s-icon" v-html="item.icon"></span>
         {{ item.label }}
@@ -146,7 +158,7 @@
         :key="item.id"
         class="s-item"
         :class="{ 's-item--active': pageStore.current === item.id }"
-        @click="pageStore.setPage(item.id, item.label)"
+        @click="go(item.id, item.label)"
       >
         <span class="s-icon" v-html="item.icon"></span>
         {{ item.label }}
@@ -158,7 +170,7 @@
       <button
         class="s-item"
         :class="{ 's-item--active': pageStore.current === 'documents' }"
-        @click="pageStore.setPage('documents', 'Документы')"
+        @click="go('documents', 'Документы')"
       >
         <span class="s-icon" v-html="documentsIcon"></span>
         Документы
@@ -170,7 +182,7 @@
       <button
         class="s-item"
         :class="{ 's-item--active': pageStore.current === 'admin-users' }"
-        @click="pageStore.setPage('admin-users', 'Пользователи')"
+        @click="go('admin-users', 'Пользователи')"
       >
         <span class="s-icon" v-html="adminIcon"></span>
         Пользователи
@@ -197,8 +209,14 @@
 
   <aside
     v-else-if="authStore.isEmployee"
+    ref="drawerEl"
     class="sidebar-teacher"
+    :class="{ open: ui.drawerOpen, dragging }"
     aria-label="Основная навигация"
+    @touchstart.passive="onDrawerTouchStart"
+    @touchmove="onDrawerTouchMove"
+    @touchend="onDrawerTouchEnd"
+    @touchcancel="onDrawerTouchEnd"
   >
 
     <div class="s-brand">
@@ -279,7 +297,17 @@
     </div>
   </aside>
 
-  <aside v-else class="sidebar" aria-label="Основная навигация">
+  <aside
+    v-else
+    ref="drawerEl"
+    class="sidebar"
+    :class="{ open: ui.drawerOpen, dragging }"
+    aria-label="Основная навигация"
+    @touchstart.passive="onDrawerTouchStart"
+    @touchmove="onDrawerTouchMove"
+    @touchend="onDrawerTouchEnd"
+    @touchcancel="onDrawerTouchEnd"
+  >
     <div class="sidebar-brand">
       <div class="logo">ЦСИ</div>
       <div>
@@ -359,27 +387,72 @@
 </template>
 
 <script setup>
-import { computed, watch } from 'vue';
+import { computed, ref, watch } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { usePageStore } from '../stores/page';
+import { useUiStore } from '../stores/ui';
 
 const authStore = useAuthStore();
 const pageStore = usePageStore();
+const ui = useUiStore();
+
+const drawerEl = ref(null);
+const dragging = ref(false);
+let startX = 0;
+let startY = 0;
+let shift = 0;
+let axis = null;
+
+const onDrawerTouchStart = (e) => {
+  if (!ui.drawerOpen || e.touches.length !== 1) return;
+  startX = e.touches[0].clientX;
+  startY = e.touches[0].clientY;
+  shift = 0;
+  axis = null;
+};
+
+const onDrawerTouchMove = (e) => {
+  if (!ui.drawerOpen || e.touches.length !== 1) return;
+  const dx = e.touches[0].clientX - startX;
+  const dy = e.touches[0].clientY - startY;
+  if (!axis) {
+    if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+    axis = Math.abs(dx) > Math.abs(dy) ? 'x' : 'y';
+    if (axis === 'x') dragging.value = true;
+  }
+  if (axis !== 'x') return;
+  e.preventDefault();
+  shift = Math.min(0, dx);
+  if (drawerEl.value) drawerEl.value.style.transform = `translateX(${shift}px)`;
+};
+
+const onDrawerTouchEnd = () => {
+  const el = drawerEl.value;
+  if (axis === 'x' && el) {
+    dragging.value = false;
+    el.style.transform = '';
+    if (shift < -el.offsetWidth * 0.35) ui.closeDrawer();
+  }
+  axis = null;
+  shift = 0;
+};
 
 const userInitials = computed(() => {
   const email = authStore.user?.email || '';
   return (email.charAt(0) || 'П').toUpperCase();
 });
 
-const go = (id, label) => pageStore.setPage(id, label);
+const go = (id, label) => {
+  pageStore.setPage(id, label);
+  ui.closeDrawer();
+};
 
 const usesTeacherStyle = computed(() => authStore.isTeacher || authStore.isAdmin || authStore.isEmployee);
 
 const updateSidebarWidth = (teacherStyle) => {
-  document.documentElement.style.setProperty(
-    '--sidebar-width',
-    teacherStyle ? '240px' : '260px'
-  );
+  const root = document.documentElement;
+  root.style.setProperty('--sidebar-width', teacherStyle ? '240px' : '260px');
+  root.style.setProperty('--bottom-nav-h', teacherStyle ? '0px' : '4.375rem');
 };
 
 watch(
@@ -508,10 +581,13 @@ const logout = () => {
   position: relative;
   font-family: inherit;
 }
-.s-item:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #F3F6EA;
+@media (hover: hover) {
+  .s-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #F3F6EA;
+  }
 }
+.s-item:active { background: rgba(255, 255, 255, 0.14); color: #F3F6EA; }
 .s-item--active {
   background: #F3F6EA !important;
   color: #112211 !important;
@@ -610,9 +686,11 @@ const logout = () => {
   flex-shrink: 0;
   transition: background 150ms ease, color 150ms ease;
 }
-.s-logout:hover {
-  background: rgba(255, 255, 255, 0.08);
-  color: #F3F6EA;
+@media (hover: hover) {
+  .s-logout:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #F3F6EA;
+  }
 }
 .s-logout:focus-visible {
   outline: 3px solid #F3F6EA;
@@ -621,51 +699,31 @@ const logout = () => {
 .s-logout svg { width: 1rem; height: 1rem; }
 @media (max-width: 768px) {
   .sidebar-teacher {
-    top: auto;
+    top: 0;
     bottom: 0;
     left: 0;
-    right: 0;
-    width: 100% !important;
-    height: auto;
-    flex-direction: row;
-    overflow-x: auto;
-    overflow-y: hidden;
-    padding: 0.375rem 0.5rem;
-    z-index: 50;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-    align-items: center;
-    gap: 0;
-  }
-  .s-brand,
-  .s-section-label,
-  .s-footer { display: none !important; }
-  .s-nav {
-    flex-direction: row;
-    flex: 1;
-    gap: 0;
-  }
-  .s-item {
+    right: auto;
+    width: min(17rem, 84vw);
+    height: 100dvh;
+    z-index: 100;
     flex-direction: column;
-    gap: 0.125rem;
-    flex: 1;
-    min-height: auto;
-    min-width: 3.5rem;
-    font-size: 0.6875rem;
-    padding: 0.375rem 0.25rem;
-    text-align: center;
-    border-radius: 0.5rem;
-    justify-content: center;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding: max(1.25rem, var(--safe-top)) 1rem max(1rem, var(--safe-bottom));
+    padding-left: max(1rem, var(--safe-left));
+    background: #112211;
+    transform: translateX(-100%);
+    will-change: transform;
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
   }
+  .sidebar-teacher.open { transform: translateX(0); }
+  .sidebar-teacher.dragging { transition: none; }
+  .s-brand { margin-bottom: 1.25rem; }
+  .s-section-label { margin-top: 1.25rem; }
+  .s-item { min-height: var(--tap, 2.75rem); font-size: 0.9375rem; }
   .s-item svg { width: 1.125rem; height: 1.125rem; }
-  .s-badge {
-    position: absolute;
-    top: 0.125rem;
-    right: 0.25rem;
-    margin: 0;
-    font-size: 0.625rem;
-    padding: 0 0.3rem;
-    min-width: 1rem;
-  }
 }
 
 .sidebar {
@@ -719,7 +777,10 @@ const logout = () => {
   cursor: pointer;
   transition: 0.2s;
 }
-.sidebar nav button:hover   { background: rgba(255,255,255,0.1); }
+@media (hover: hover) {
+  .sidebar nav button:hover { background: rgba(255,255,255,0.1); }
+}
+.sidebar nav button:active  { background: rgba(255,255,255,0.16); }
 .sidebar nav button.active  { background: rgba(255,255,255,0.15); color: white; }
 .badge {
   margin-left: auto;
@@ -759,9 +820,25 @@ const logout = () => {
   display: flex; align-items: center; gap: 0.5rem;
   cursor: pointer; font-size: 0.8rem;
 }
-.logout-btn:hover { background: rgba(255,255,255,0.1); }
+@media (hover: hover) {
+  .logout-btn:hover { background: rgba(255,255,255,0.1); }
+}
 @media (max-width: 768px) {
-  .sidebar { transform: translateX(-100%); }
+  .sidebar {
+    transform: translateX(-100%);
+    width: min(17rem, 85vw);
+    height: 100dvh;
+    z-index: 100;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    padding-top: max(1rem, var(--safe-top));
+    padding-bottom: max(1rem, var(--safe-bottom));
+    padding-left: var(--safe-left);
+    will-change: transform;
+    transition: transform 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+  }
   .sidebar.open { transform: translateX(0); }
+  .sidebar.dragging { transition: none; }
 }
 </style>

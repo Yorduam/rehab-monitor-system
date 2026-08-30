@@ -22,15 +22,32 @@ const navItems = [
 <style scoped>
 .bottom-nav {
   position: fixed; bottom: 0; left: 0; right: 0;
-  background: var(--bg-surface); border-top: 1px solid var(--border);
-  display: flex; justify-content: space-around; padding: 0.5rem 0.5rem env(safe-area-inset-bottom);
+  border-top: 1px solid var(--border);
+  display: flex; justify-content: space-around;
+  padding: 0.25rem max(0.5rem, var(--safe-right)) calc(0.25rem + var(--safe-bottom))
+           max(0.5rem, var(--safe-left));
   z-index: 100;
+  background: color-mix(in srgb, var(--bg-surface) 85%, transparent);
+  -webkit-backdrop-filter: saturate(180%) blur(18px);
+  backdrop-filter: saturate(180%) blur(18px);
+}
+@supports not (background: color-mix(in srgb, red 50%, transparent)) {
+  .bottom-nav { background: var(--bg-surface); }
 }
 .bottom-nav button {
-  display: flex; flex-direction: column; align-items: center; background: none; border: none;
-  color: var(--text-secondary); font-size: 0.7rem; gap: 0.2rem; padding: 0.3rem;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: none; border: none;
+  color: var(--text-tertiary); font-size: 0.625rem; line-height: 1.1; gap: 0.1875rem;
+  padding: 0.375rem 0.125rem;
+  flex: 1; min-width: 3.25rem; min-height: 2.875rem;
   border-radius: var(--radius-md);
+  -webkit-tap-highlight-color: transparent;
 }
-.bottom-nav button.active { color: var(--accent); }
+.bottom-nav button svg { width: 1.375rem; height: 1.375rem; }
+.bottom-nav button span:last-child {
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.bottom-nav button.active { color: var(--accent); font-weight: 600; }
+.bottom-nav button:active { background: var(--bg-surface-sunken); }
 @media (min-width: 769px) { .bottom-nav { display: none; } }
 </style>

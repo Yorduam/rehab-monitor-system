@@ -1557,10 +1557,15 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   min-height: calc(100vh - 64px - 3.5rem);
+  min-height: calc(100dvh - 64px - 3.5rem);
   padding-bottom: 4rem;
 }
 @media (max-width: 768px) {
-  .erp-r-teacher { min-height: calc(100vh - 64px - 2rem - 70px); }
+  .erp-r-teacher {
+    min-height: calc(100vh - 64px - 2rem - 70px);
+    min-height: calc(100dvh - 64px - 2rem - 70px);
+    padding-bottom: 1.5rem;
+  }
 }
 .sr-only {
   position: absolute; width: 1px; height: 1px;
@@ -2384,8 +2389,10 @@ onUnmounted(() => {
 }
 @media (max-width: 48rem) {
   .t-selection-toolbar {
-    left: 0.75rem; right: 0.75rem; transform: translateY(150%);
-    max-width: none; bottom: 5.5rem;
+    left: max(0.75rem, var(--safe-left, 0px)); right: max(0.75rem, var(--safe-right, 0px));
+    transform: translateY(150%);
+    max-width: none;
+    bottom: calc(var(--bottom-nav-h, 4.375rem) + var(--safe-bottom, 0px) + 0.75rem);
     flex-wrap: wrap; padding: 0.75rem;
     border-radius: var(--t-r-lg);
   }
@@ -2621,4 +2628,15 @@ onUnmounted(() => {
 
 .added-pop-enter-active, .added-pop-leave-active { transition: opacity .2s ease, transform .2s ease; }
 .added-pop-enter-from, .added-pop-leave-to { opacity: 0; transform: translateY(8px); }
+
+@media (max-width: 768px) {
+  .added-pop {
+    left: max(0.75rem, var(--safe-left, 0px));
+    right: max(0.75rem, var(--safe-right, 0px));
+    bottom: calc(var(--bottom-nav-h, 4.375rem) + var(--safe-bottom, 0px) + 0.75rem);
+    width: auto;
+  }
+  .added-pop-close { width: var(--tap, 2.75rem); height: var(--tap, 2.75rem); top: .1rem; right: .1rem; }
+  .added-pop-btn { min-height: var(--tap, 2.75rem); font-size: .9rem; }
+}
 </style>

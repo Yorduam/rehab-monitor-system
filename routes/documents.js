@@ -46,7 +46,7 @@ router.get('/', authMiddleware, roleMiddleware('admin', 'teacher'), async (req, 
 const DOC_FIELDS = [
   'recipientId', 'docType', 'docSeries', 'docNumber', 'docIssuer', 'docIssuerDate',
   'snils', 'mseIssueDate', 'mseValidDate', 'mseIndefinite', 'regAddress', 'factAddress',
-  'factSameReg', 'educationPlace', 'specialNote'
+  'factSameReg', 'district', 'area', 'educationPlace', 'specialNote'
 ];
 
 function pickFields(body) {

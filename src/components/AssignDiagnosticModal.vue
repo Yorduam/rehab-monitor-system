@@ -138,6 +138,10 @@ import api from '../api';
 import { usePageStore } from '../stores/page';
 import { useAuthStore } from '../stores/auth';
 import { notify, notifySaved } from '../utils/toast';
+import { useScrollLock } from '../utils/scrollLock';
+
+useScrollLock();
+
 
 const props = defineProps({
   recipientId: { type: [Number, String], required: true },
@@ -426,5 +430,31 @@ onMounted(() => {
 
 @media (max-width: 560px) {
   .ad-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 768px) {
+  .ad-overlay { padding: 0; align-items: stretch; }
+  .ad-modal {
+    max-width: none;
+    height: calc(100dvh - var(--kb));
+    max-height: calc(100dvh - var(--kb));
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+  }
+  .ad-head { padding: calc(1rem + var(--safe-top)) 1rem 1rem; }
+  .ad-body {
+    padding: 1rem;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  .ad-grid { grid-template-columns: 1fr; }
+  .ad-foot {
+    padding: 0.875rem 1rem calc(0.875rem + var(--safe-bottom));
+    flex-direction: column-reverse;
+  }
+  .ad-foot > * { width: 100%; }
 }
 </style>

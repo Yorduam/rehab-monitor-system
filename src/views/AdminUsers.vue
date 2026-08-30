@@ -70,13 +70,13 @@
                 </td>
               </tr>
               <tr>
-                <td>{{ row.user.id }}</td>
-                <td>{{ row.user.lastName || '—' }}</td>
-                <td>{{ row.user.firstName || '—' }}</td>
-                <td>{{ row.user.email }}</td>
-                <td>{{ row.user.phone || '—' }}</td>
-                <td>{{ row.user.cabinet || '—' }}</td>
-                <td>
+                <td class="cell-id" data-label="ID">{{ row.user.id }}</td>
+                <td class="cell-name" data-label="Фамилия">{{ row.user.lastName || '—' }}</td>
+                <td class="cell-name" data-label="Имя">{{ row.user.firstName || '—' }}</td>
+                <td data-label="Email">{{ row.user.email }}</td>
+                <td data-label="Телефон">{{ row.user.phone || '—' }}</td>
+                <td data-label="Кабинет">{{ row.user.cabinet || '—' }}</td>
+                <td data-label="Роль">
                   <select v-model="row.user.role" @change="updateRole(row.user)" :disabled="row.user.id === authStore.user?.id">
                     <option value="admin">Администратор</option>
                     <option value="teacher">Преподаватель</option>
@@ -84,7 +84,7 @@
                     <option value="recipient">Реабилитант</option>
                   </select>
                  </td>
-                <td>
+                <td class="cell-actions" data-label="Действия">
                   <div class="row-actions">
                     <button class="btn-ghost-sm" @click="openEditModal(row.user)">Изменить</button>
                     <button class="btn-ghost-sm" @click="resetPassword(row.user)">Сброс пароля</button>
@@ -604,4 +604,109 @@ select:disabled { background: #F3EEE4; color: #6E7368; cursor: not-allowed; }
 }
 .password-toggle:hover { color: #2F4A2F; background: #EEF4E2; }
 .password-toggle svg { width: 18px; height: 18px; }
+
+@media (max-width: 768px) {
+  .users-head { flex-direction: column; align-items: stretch; margin-bottom: 1.25rem; }
+  .users-title { font-size: 1.375rem; }
+  .users-toolbar { flex-direction: column; align-items: stretch; }
+  .users-search { width: 100%; }
+  .users-search input { width: 100%; }
+  .add-btn { width: 100%; justify-content: center; }
+
+  .role-tabs {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .role-tabs::-webkit-scrollbar { display: none; }
+  .role-tab { white-space: nowrap; flex: 0 0 auto; }
+
+  .table-container { max-height: none; overflow-x: visible; overflow-y: visible; }
+  .data-table { min-width: 0; }
+  .data-table thead { display: none; }
+  .data-table,
+  .data-table tbody,
+  .data-table tr,
+  .data-table td { display: block; width: auto; }
+
+  .data-table tbody tr {
+    border: 1px solid #E4DECF;
+    border-radius: 0.85rem;
+    background: #FFFFFF;
+    padding: 0.75rem 0.875rem;
+    margin: 0.625rem 0.875rem;
+  }
+  .data-table tbody tr:hover { background: #FFFFFF; }
+  .data-table td,
+  .data-table td:not(:last-child) {
+    border: none;
+    border-bottom: 1px solid #F1ECE0;
+    padding: 0.5rem 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    min-height: var(--tap, 2.75rem);
+    word-break: break-word;
+  }
+  .data-table td::before {
+    content: attr(data-label);
+    flex: 0 0 auto;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: #6E7368;
+  }
+  .data-table tbody tr td:last-child { border-bottom: none; }
+
+  .data-table td.cell-id {
+    justify-content: flex-start;
+    gap: 0.3rem;
+    min-height: 0;
+    padding: 0 0 0.375rem;
+    font-size: 0.75rem;
+    color: #6E7368;
+  }
+  .data-table td.cell-name {
+    display: inline;
+    border: none;
+    padding: 0;
+    min-height: 0;
+    font-family: 'Lora', Georgia, serif;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: #0F140F;
+  }
+  .data-table td.cell-name::before { content: none; }
+  .data-table td.cell-name + td:not(.cell-name) { margin-top: 0.5rem; border-top: 1px solid #F1ECE0; }
+
+  .data-table td[data-label="Роль"] select { flex: 1 1 auto; min-width: 0; max-width: 60%; }
+  .data-table td.cell-actions { flex-wrap: wrap; align-items: flex-start; }
+  .data-table td.cell-actions::before { flex: 1 1 100%; }
+
+  .group-row { margin: 0 !important; padding: 0 !important; border: none !important; }
+  .group-row td { padding: 0.5rem 0.875rem; display: block; min-height: 0; }
+  .group-row td::before { content: none; }
+
+  .empty-row { border: none !important; margin: 0 !important; }
+  .empty-row td { display: block; min-height: 0; }
+  .empty-row td::before { content: none; }
+
+  .card-header { padding: 0.875rem 1rem; }
+  .form-row { flex-direction: column; gap: 0; }
+  .modal-buttons { flex-direction: column-reverse; }
+  .modal-buttons > * { width: 100%; }
+  .row-actions { display: flex; flex-wrap: wrap; gap: 0.375rem; }
+  .row-actions .btn-ghost-sm {
+    margin: 0;
+    flex: 1 1 auto;
+    border: 1px solid #E4DECF;
+    border-radius: 0.6rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.85rem;
+  }
+  .row-actions .btn-ghost-danger { flex: 0 0 auto; border-color: #EFD9D0; }
+}
 </style>

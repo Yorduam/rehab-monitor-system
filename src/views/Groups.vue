@@ -650,4 +650,21 @@ onUnmounted(() => {
   transition: background 0.15s, border-color 0.15s;
 }
 .btn-secondary:hover { background: var(--btn-secondary-bg-hover); border-color: var(--btn-secondary-border-hover); }
+
+@media (max-width: 768px) {
+  .g-title { font-size: 1.375rem; }
+  .toolbar { flex-direction: column; align-items: stretch; gap: 0.75rem; }
+  .search-field { width: 100%; }
+  .search-field input, .form-input, .assign-select { width: 100%; }
+  .top { flex-direction: column; align-items: stretch; gap: 0.75rem; }
+  .top .btn-primary, .top .btn-secondary { width: 100%; }
+
+  .items-grid { grid-template-columns: 1fr; }
+  .assign-row { flex-direction: column; }
+  .assign-btn { width: 100%; }
+  .detail-row { flex-direction: column; gap: 0.125rem; }
+  .modal-footer { flex-direction: column-reverse; }
+  .modal-footer > * { width: 100%; }
+  .participant-item { flex-wrap: wrap; }
+}
 </style>

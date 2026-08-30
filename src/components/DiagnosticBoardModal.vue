@@ -193,6 +193,10 @@ import { useAuthStore } from '../stores/auth';
 import { fullName } from '../utils/recipient';
 import { notifySaved } from '../utils/toast';
 import { SCALE, getBlock, profileLabel, averageScore } from '../utils/diagnosticBlocks';
+import { useScrollLock } from '../utils/scrollLock';
+
+useScrollLock();
+
 
 const POLL_MS = 15000;
 
@@ -541,4 +545,41 @@ onUnmounted(() => { if (poller) clearInterval(poller); });
 .dm-btn--primary:hover:not(:disabled) { background: #24391F; transform: translateY(-1px); }
 .dm-btn--danger { background: transparent; border-color: #E0B6A8; color: #8A3A28; margin-right: auto; }
 .dm-btn--danger:hover:not(:disabled) { background: #FAE9E0; }
+
+@media (max-width: 768px) {
+  .db-overlay { padding: 0; align-items: stretch; overflow: hidden; }
+  .db-modal {
+    max-width: none;
+    height: calc(100dvh - var(--kb));
+    border-radius: 0;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+  }
+  .db-head {
+    padding: calc(1rem + var(--safe-top)) 1rem 1rem;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .db-head-side { width: 100%; flex-wrap: wrap; }
+  .db-body {
+    padding: 1rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  .db-foot {
+    flex: 0 0 auto;
+    padding: 0.875rem 1rem calc(0.875rem + var(--safe-bottom));
+    flex-direction: column-reverse;
+    align-items: stretch;
+  }
+  .db-foot > * { width: 100%; }
+  .db-block { padding: 0.85rem 0.9rem; }
+}
 </style>

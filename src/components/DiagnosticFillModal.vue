@@ -155,6 +155,10 @@ import { useAuthStore } from '../stores/auth';
 import { fullName } from '../utils/recipient';
 import { notifySaved } from '../utils/toast';
 import { SCALE, getBlock, profileLabel, averageScore } from '../utils/diagnosticBlocks';
+import { useScrollLock } from '../utils/scrollLock';
+
+useScrollLock();
+
 
 const authStore = useAuthStore();
 const hideOwnBlock = computed(() => authStore.isTeacher);
@@ -496,4 +500,39 @@ onUnmounted(() => { if (poller) clearInterval(poller); });
 .dm-btn--secondary:hover:not(:disabled) { background: #E9E2D3; }
 .dm-btn--primary { background: #2F4A2F; color: #FFFFFF; }
 .dm-btn--primary:hover:not(:disabled) { background: #24391F; transform: translateY(-1px); }
+
+@media (max-width: 768px) {
+  .dm-overlay { padding: 0; align-items: stretch; overflow: hidden; }
+  .dm-modal {
+    max-width: none;
+    height: calc(100dvh - var(--kb));
+    border-radius: 0;
+    border: none;
+    display: flex;
+    flex-direction: column;
+    padding-left: var(--safe-left);
+    padding-right: var(--safe-right);
+  }
+  .dm-head { padding: calc(1rem + var(--safe-top)) 1rem 1rem; flex: 0 0 auto; }
+  .dm-body {
+    padding: 1rem;
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  .dm-foot {
+    flex: 0 0 auto;
+    padding: 0.875rem 1rem calc(0.875rem + var(--safe-bottom));
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .dm-foot-actions { width: 100%; }
+  .dm-foot-actions > * { flex: 1 1 auto; }
+
+  .dm-crit { flex-direction: column; align-items: stretch; gap: 0.4rem; }
+  .dm-scale { display: grid; grid-template-columns: repeat(5, 1fr); gap: 0.3rem; }
+  .dm-tick { width: 100%; height: 2.75rem; }
+}
 </style>

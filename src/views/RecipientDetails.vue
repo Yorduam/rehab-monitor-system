@@ -18,62 +18,58 @@
         <span class="current">{{ fullName(recipient) }}</span>
       </nav>
 
-      <div v-if="doc && doc.specialNote" class="alert" role="note">
-        <div class="alert-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        </div>
+      <div v-if="alertCount" class="alert" role="alert">
+        <span class="alert-ic" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        </span>
         <div class="alert-body">
-          <div class="alert-title">Особенности и сигналы поддержки</div>
-          <div class="alert-text">{{ doc.specialNote }}</div>
-        </div>
-      </div>
-
-      <div v-if="docAlertCount" class="alert alert-docs" role="alert">
-        <div class="alert-icon" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="12" x2="12" y2="16"/><line x1="12" y1="18.5" x2="12.01" y2="18.5"/></svg>
-        </div>
-        <div class="alert-body">
-          <div class="alert-title">{{ docAlertLabel }}</div>
+          <div class="alert-title">{{ alertLabel }}</div>
           <div class="alert-text">
             <template v-if="expiredDocs.length">
               Просрочено: {{ expiredDocs.map(d => `${d.label} (до ${formatDate(d.date)})`).join(', ') }}.
             </template>
-            <template v-if="missingScans.length">
-              Не загружены: {{ missingScans.map(m => m.name).join(', ') }}.
+            <template v-if="allMissingNames.length">
+              Не загружены: {{ allMissingNames.join(', ') }}.
             </template>
           </div>
         </div>
-        <button v-if="canEditDocs" type="button" class="alert-action" @click="openDocUpdate">
+        <button v-if="canEditDocs" type="button" class="btn btn-primary" @click="goFixDocs">
           Обновить документы
         </button>
       </div>
 
       <section class="hero" aria-label="Сводка по реабилитанту">
-        <div class="hero-banner" aria-hidden="true"></div>
         <div class="hero-body">
           <button
-            v-if="photoUrl" type="button" class="hero-avatar-btn"
+            v-if="photoUrl" type="button" class="hero-ava-btn"
             @click="heroPhotoOpen = true" aria-label="Открыть фото на весь экран"
           >
-            <img :src="photoUrl" class="hero-avatar-img" alt="" />
-            <span class="hero-avatar-zoom" aria-hidden="true">
+            <img :src="photoUrl" class="hero-ava" alt="" />
+            <span class="hero-ava-zoom" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
             </span>
           </button>
-          <div v-else class="hero-avatar" aria-hidden="true">{{ initials(recipient) }}</div>
+          <div v-else class="hero-ava" aria-hidden="true">{{ initials(recipient) }}</div>
 
-          <div class="hero-identity">
-            <div class="hero-id-row">
+          <div>
+            <div class="hero-id">
               <span class="id-chip">R-{{ recipientCode }}</span>
-              <span class="status-dot" :class="statusDotClass" aria-hidden="true"></span>
-              <span class="status-label" :class="statusDotClass">{{ statusLabel(recipient.status) }}</span>
+              <span class="status" :class="statusDotClass">{{ statusLabel(recipient.status) }}</span>
               <span v-if="stageChip" class="stage-chip">{{ stageChip }}</span>
             </div>
-            <h1 class="hero-name">{{ fullName(recipient) }}</h1>
+
+            <div class="hero-name-row">
+              <h1 class="hero-name">{{ fullName(recipient) }}</h1>
+              <button v-if="canEditCard" type="button" class="icon-btn" @click="openCardEdit"
+                      aria-label="Редактировать карточку" title="Редактировать карточку">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+              </button>
+            </div>
+
             <div class="hero-tags">
               <span v-if="age != null" class="tag tag-neutral">{{ age }} {{ yearsWord(age) }}<template v-if="recipient.birthDate"> · род. {{ formatDate(recipient.birthDate) }}</template></span>
-              <span v-if="recipient.diagnosis" class="tag tag-blue">{{ recipient.diagnosis }}</span>
               <span v-if="crgShort" class="tag tag-sage">ЦРГ {{ crgShort }}</span>
+              <span v-if="cycleTag" class="tag tag-cycle">{{ cycleTag }}</span>
             </div>
           </div>
 
@@ -89,72 +85,31 @@
           </div>
         </div>
 
-
-        <div class="stage-track">
-          <div class="stage-track-head">
-            <div class="stage-track-label">Маршрут реабилитанта</div>
-            <span v-if="lifecycle" class="stage-track-state" :class="lifecycle.complete ? 'ok' : 'cur'">
-              <template v-if="lifecycle.complete">Маршрут пройден · {{ lifecycle.doneCount }} / 6</template>
-              <template v-else>Этап {{ lifecycle.current.num }} · {{ lifecycle.current.label }}</template>
+        <div class="route">
+          <div class="route-head">
+            <span class="route-label">Маршрут реабилитанта</span>
+            <span v-if="lifecycleStages.length" class="route-done">
+              Пройдено {{ lifecycle.doneCount }} из {{ lifecycleStages.length }}
             </span>
           </div>
 
-          <ol v-if="lifecycleStages.length" class="stage-steps">
-            <li v-for="s in lifecycleStages" :key="s.key"
-                class="stage-step"
-                :class="[s.state, { warn: s.warn }]">
+          <ol v-if="lifecycleStages.length" class="steps">
+            <li v-for="s in lifecycleStages" :key="s.key" class="step" :class="[s.state, { warn: s.warn }]">
               <span class="step-num">{{ s.num }}</span>
-              <button type="button"
-                      class="step-name step-name-link"
+              <button type="button" class="step-name"
                       :title="`${s.hint} — открыть «${stageTabLabel(s.key)}»`"
                       @click="goStage(s.key)">
                 {{ s.label }}
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
-              <span class="step-hint">{{ s.hint }}</span>
+              <span v-if="s.state === 'current'" class="step-mark">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12.5"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                Нужно действие
+              </span>
             </li>
           </ol>
-          <div v-else class="stage-track-load">
+          <div v-else class="route-load">
             {{ readinessLoading ? 'Считаем маршрут…' : 'Маршрут пока не рассчитан' }}
-          </div>
-
-          <div v-if="readiness" class="stage-track-actions">
-            <button v-if="canAssignDiagnostic"
-                    type="button"
-                    class="stage-assign-btn"
-                    :class="{ 'is-blocked': !readiness.canAssign }"
-                    @click="openAssign">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M12 14v4M10 16h4"/>
-              </svg>
-              Назначить диагностику
-            </button>
-            <span v-if="canAssignDiagnostic && !readiness.canAssign" class="stage-assign-note">
-              {{ readiness.errors.length }} {{ blockerWord(readiness.errors.length) }} к назначению
-            </span>
-          </div>
-        </div>
-
-        <div class="mini-stats">
-          <div class="mini-stat">
-            <div class="label">Возраст</div>
-            <div class="value">{{ age != null ? age : '—' }}<span v-if="age != null" class="value-unit"> {{ yearsWord(age) }}</span></div>
-            <div class="trend neutral">{{ recipient.birthDate ? 'род. ' + formatDate(recipient.birthDate) : 'дата рождения не указана' }}</div>
-          </div>
-          <div class="mini-stat">
-            <div class="label">В программе</div>
-            <div class="value">{{ inProgramDays != null ? inProgramDays : '—' }}<span v-if="inProgramDays != null" class="value-unit"> дн.</span></div>
-            <div class="trend neutral">{{ firstEventDate ? 'первое занятие ' + formatDate(firstEventDate) : 'по данным расписания' }}</div>
-          </div>
-          <div class="mini-stat" :class="{ active: !!groupName }">
-            <div class="label">Группа</div>
-            <div class="value value-text">{{ groupName || 'Без группы' }}</div>
-            <div class="trend neutral">{{ curatorName ? 'куратор: ' + curatorName : 'куратор не назначен' }}</div>
-          </div>
-          <div class="mini-stat">
-            <div class="label">Следующий контроль</div>
-            <div class="value value-text">{{ nextControl ? formatShort(nextControl.date) : '—' }}</div>
-            <div class="trend neutral">{{ nextControl ? (nextControl.title || 'Диагностика') : 'диагностик не запланировано' }}</div>
           </div>
         </div>
       </section>
@@ -166,7 +121,7 @@
           @click="activeTab = t.id">
           {{ t.label }}
           <span
-            v-if="docAlertCount && (t.id === 'overview' || t.id === 'profile')"
+            v-if="t.id === 'profile' && docAlertCount"
             class="tab-alert"
             role="img"
             :aria-label="docAlertLabel"
@@ -178,22 +133,30 @@
             </svg>
             {{ docAlertCount }}
           </span>
-          <span v-else-if="t.id === 'diagnostics' && diagCount" class="tab-count">{{ diagCount }}</span>
+          <span
+            v-else-if="t.id === 'enrollment' && enrollAlertCount"
+            class="tab-alert"
+            role="img"
+            :aria-label="enrollAlertLabel"
+            :title="enrollAlertLabel"
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+              <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+            </svg>
+            {{ enrollAlertCount }}
+          </span>
           <span v-else-if="t.id === 'lessons' && lessonsCount" class="tab-count">{{ lessonsCount }}</span>
+          <span v-else-if="t.id === 'diagnostics' && diagCount" class="tab-count">{{ diagCount }}</span>
           <span v-else-if="t.id === 'documents' && scans.length" class="tab-count">{{ scans.length }}</span>
         </button>
       </div>
 
       <div v-if="activeTab === 'overview'" class="tabpanel">
         <div class="grid">
-          <div>
+          <div class="col">
             <section class="card">
-              <div class="card-head">
-                <div>
-                  <h2 class="card-title">Ключевые сведения</h2>
-                  <div class="card-sub">Первичные данные карточки · подробности — во вкладках ниже</div>
-                </div>
-              </div>
+              <div class="card-head"><h2 class="card-title">Ключевые сведения</h2></div>
               <div class="card-body">
                 <dl class="kv-grid">
                   <div class="kv">
@@ -201,109 +164,71 @@
                     <dd class="kv-val"><span class="kv-text">{{ formatDate(recipient.birthDate) }}<template v-if="age != null"> · {{ age }} {{ yearsWord(age) }}</template></span></dd>
                   </div>
                   <div class="kv">
-                    <dt class="kv-key">Телефон</dt>
-                    <dd class="kv-val"><span class="kv-text">{{ recipient.telephone || '—' }}</span></dd>
-                  </div>
-                  <div class="kv">
-                    <dt class="kv-key">E-mail</dt>
-                    <dd class="kv-val"><span class="kv-text">{{ recipient.email || recipient.user?.email || '—' }}</span></dd>
-                  </div>
-                  <div v-if="doc" class="kv">
-                    <dt class="kv-key">СНИЛС</dt>
-                    <dd class="kv-val"><span class="kv-text">{{ doc.snils || '—' }}</span></dd>
+                    <dt class="kv-key">Группа инвалидности</dt>
+                    <dd class="kv-val"><span class="kv-text">{{ recipient.disableGroup || '—' }}</span></dd>
                   </div>
                   <div class="kv kv-full">
                     <dt class="kv-key">Целевая реабилитационная группа (ЦРГ)</dt>
                     <dd class="kv-val"><span class="kv-text"><span v-if="recipient.crgMain?.code" class="code">{{ recipient.crgMain.code }}</span>{{ recipient.crgMain?.name || crgText }}</span></dd>
                   </div>
                   <div class="kv kv-full">
-                    <dt class="kv-key">Нозология (МКБ-10)</dt>
-                    <dd class="kv-val"><span class="kv-text"><span v-if="recipient.nozologyRef?.class" class="code">{{ recipient.nozologyRef.class }}</span>{{ nozologyName }}</span></dd>
-                  </div>
-                  <div class="kv kv-full">
-                    <dt class="kv-key">Диагноз</dt>
-                    <dd class="kv-val"><span class="kv-text">{{ recipient.diagnosis || '—' }}</span></dd>
-                  </div>
-                  <div v-if="doc" class="kv kv-full">
                     <dt class="kv-key">Место обучения</dt>
-                    <dd class="kv-val"><span class="kv-text">{{ doc.educationPlace || '—' }}</span></dd>
+                    <dd class="kv-val"><span class="kv-text">{{ doc?.educationPlace || '—' }}</span></dd>
                   </div>
                   <div class="kv">
-                    <dt class="kv-key">Группа инвалидности</dt>
-                    <dd class="kv-val"><span class="kv-text">{{ recipient.disableGroup || '—' }}</span></dd>
+                    <dt class="kv-key">Округ проживания</dt>
+                    <dd class="kv-val"><span class="kv-text"><span v-if="district?.code" class="code">{{ district.code }}</span>{{ district?.name || '—' }}</span></dd>
                   </div>
-                  <div v-if="doc" class="kv">
-                    <dt class="kv-key">Справка МСЭ до</dt>
-                    <dd class="kv-val"><span class="kv-text">{{ mseValidText(doc) }}</span></dd>
+                  <div class="kv">
+                    <dt class="kv-key">Группа</dt>
+                    <dd class="kv-val"><span class="kv-text">{{ groupName || 'Не зачислен в группу' }}</span></dd>
+                  </div>
+                  <div class="kv">
+                    <dt class="kv-key">Куратор</dt>
+                    <dd class="kv-val"><span class="kv-text">{{ curatorName || '—' }}</span></dd>
+                  </div>
+
+                  <div class="kv kv-full" :class="{ 'is-secret': isLocked('medical') }">
+                    <dt class="kv-key">Диагноз</dt>
+                    <dd class="kv-val">
+                      <template v-if="isLocked('medical')">
+                        <span class="kv-mask">••••••••••••</span>
+                        <span class="kv-tools">
+                          <button type="button" class="kv-tool" title="Показать данные"
+                                  aria-label="Показать диагноз — с указанием причины"
+                                  @click="openReveal('medical')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                          </button>
+                        </span>
+                      </template>
+                      <span v-else class="kv-text">{{ recipient.diagnosis || '—' }}</span>
+                    </dd>
                   </div>
                 </dl>
               </div>
-              <button class="card-foot-link" type="button" @click="activeTab = 'profile'">
-                Анкета и медкарта
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-            </section>
-
-            <section class="card">
-              <div class="card-head">
-                <div>
-                  <h2 class="card-title-sans">Последние занятия</h2>
-                  <div class="card-sub">По данным расписания</div>
-                </div>
-              </div>
-              <div class="card-body">
-                <div v-if="agendaLoading" class="rd-loading" style="min-height:90px"><div class="spinner"></div></div>
-                <div v-else-if="!recentEvents.length" class="rd-inline-empty">Проведённых занятий пока нет</div>
-                <div v-else class="lesson-list">
-                  <div v-for="e in recentEvents" :key="e.id" class="lesson-card">
-                    <div class="lesson-head">
-                      <span class="lesson-type" :class="e.type === 'diagnostic' ? 'is-diag' : 'is-lesson'">{{ typeLabel(e) }}</span>
-                      <span class="lesson-title">{{ eventTitle(e) }}</span>
-                    </div>
-                    <div class="lesson-meta">
-                      <span>{{ formatDay(e.date) }}</span>
-                      <span v-if="formatTime(e.startTime)" class="sep-dot">·</span>
-                      <span v-if="formatTime(e.startTime)">{{ formatTime(e.startTime) }}</span>
-                      <template v-if="e.specialist">
-                        <span class="sep-dot">·</span>
-                        <span>{{ e.specialist.fullName || fullName(e.specialist) }}</span>
-                      </template>
-                    </div>
-                  </div>
-                </div>
-              </div>
-              <button class="card-foot-link" type="button" @click="activeTab = 'lessons'">
-                Все занятия и группа
+              <button type="button" class="card-foot" @click="activeTab = 'profile'">Анкета и медкарта
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
             </section>
           </div>
 
-          <aside>
+          <aside class="col">
             <section class="card">
-              <div class="card-head"><h2 class="card-title-sans">Команда сопровождения</h2></div>
+              <div class="card-head"><h2 class="card-title-sans">Законный представитель</h2></div>
               <div class="card-body">
-                <div v-if="agendaLoading && !team.length" class="rd-loading" style="min-height:90px"><div class="spinner"></div></div>
-                <div v-else-if="!team.length" class="rd-inline-empty">Специалисты пока не назначены</div>
-                <div v-else>
-                  <div v-for="m in team" :key="m.id" class="person">
-                    <div class="person-avatar" :class="m.isCurator ? 'sage' : 'amber'" aria-hidden="true">{{ initialsFromName(m.name) }}</div>
-                    <div class="person-info">
-                      <div class="person-name">
-                        {{ m.name }}
-                        <span v-if="m.isCurator" class="rd-curator-badge">куратор</span>
-                      </div>
-                      <div class="person-role rd-team-role">{{ m.roles.join(' · ') || 'Специалист' }}</div>
-                    </div>
-                    <div class="person-actions">
-                      <a v-if="m.phone" class="person-action" :href="'tel:' + String(m.phone).replace(/[^\d+]/g, '')" :aria-label="'Позвонить: ' + m.name"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.86 19.86 0 0 1 3.09 4.18 2 2 0 0 1 5.07 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L9.09 10a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a>
-                      <a v-if="m.email" class="person-action" :href="'mailto:' + m.email" :aria-label="'Написать: ' + m.name"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 5L2 7"/></svg></a>
-                    </div>
+                <div v-if="!recipient.representative" class="empty">Представитель не указан</div>
+                <div v-else class="person">
+                  <div class="person-ava" aria-hidden="true">{{ initials(recipient.representative) }}</div>
+                  <div class="person-info">
+                    <div class="person-name">{{ fullName(recipient.representative) }}</div>
+                    <div class="person-role">{{ repRoleLine }}</div>
                   </div>
+                  <a v-if="repPhoneHref" class="icon-btn icon-btn-sm" :href="repPhoneHref" aria-label="Позвонить представителю">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.86 19.86 0 0 1 3.09 4.18 2 2 0 0 1 5.07 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L9.09 10a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                  </a>
                 </div>
               </div>
-              <button class="card-foot-link" type="button" @click="activeTab = 'lessons'">
-                Занятия и группа
+              <button v-if="recipient.representative" type="button" class="card-foot" @click="activeTab = 'representative'">Данные представителя
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
             </section>
@@ -311,11 +236,11 @@
             <section class="card">
               <div class="card-head"><h2 class="card-title-sans">Ближайшие события</h2></div>
               <div class="card-body">
-                <div v-if="agendaLoading && !upcoming.length" class="rd-loading" style="min-height:90px"><div class="spinner"></div></div>
-                <div v-else-if="!upcoming.length" class="rd-inline-empty">Запланированных событий нет</div>
-                <div v-else class="event-list">
-                  <div v-for="(ev, i) in upcoming" :key="i" class="event-row">
-                    <div class="event-date" :class="{ mse: ev.kind === 'mse' }">
+                <div v-if="agendaLoading && !upcoming.length" class="rd-loading" style="min-height:5.625rem"><div class="spinner"></div></div>
+                <div v-else-if="!upcoming.length" class="empty">Запланированных событий нет</div>
+                <template v-else>
+                  <div v-for="(ev, i) in upcoming" :key="i" class="event">
+                    <div class="event-date" :class="{ 'is-cycle': ev.type === 'diagnostic' }">
                       <span class="event-day">{{ dayNum(ev.date) }}</span>
                       <span class="event-mon">{{ monthShort(ev.date) }}</span>
                     </div>
@@ -324,44 +249,31 @@
                       <div class="event-meta">{{ ev.meta }}</div>
                     </div>
                   </div>
-                </div>
-              </div>
-            </section>
-
-            <section v-if="canMarkAttendance" class="card">
-              <div class="card-head"><h2 class="card-title-sans">Отметка посещения сегодня</h2></div>
-              <div class="card-body">
-                <div class="rd-att">
-                  <div class="rd-att-toggle" role="group" aria-label="Статус посещения">
-                    <button type="button" class="rd-att-btn is-yes" :class="{ active: attStatus === 'present' }" @click="attStatus = 'present'">Был</button>
-                    <button type="button" class="rd-att-btn is-partial" :class="{ active: attStatus === 'absent' }" @click="attStatus = 'absent'">Частично</button>
-                    <button type="button" class="rd-att-btn is-no" :class="{ active: attStatus === 'left' }" @click="attStatus = 'left'">Не был</button>
-                  </div>
-                  <button class="btn btn-primary rd-att-save" :disabled="!attDirty || attSaving" @click="saveAttendance">
-                    {{ attSaving ? 'Сохранение…' : 'Подтвердить' }}
-                  </button>
-                </div>
-                <div v-if="attSavedStatus" class="rd-att-hint">Сегодня отмечено: <strong>{{ attSavedStatus === 'present' ? 'Был' : attSavedStatus === 'absent' ? 'Частично' : 'Не был' }}</strong></div>
+                </template>
               </div>
             </section>
 
             <section class="card">
-              <div class="card-head"><h2 class="card-title-sans">Законный представитель</h2></div>
-              <div class="card-body">
-                <div v-if="!recipient.representative" class="rd-inline-empty">Представитель не указан</div>
-                <div v-else class="person">
-                  <div class="person-avatar rose" aria-hidden="true">{{ initials(recipient.representative) }}</div>
-                  <div class="person-info">
-                    <div class="person-name">{{ fullName(recipient.representative) }}</div>
-                    <div class="person-role">{{ recipient.representative.telephone || 'Телефон не указан' }}</div>
-                  </div>
-                  <div class="person-actions">
-                    <a v-if="repPhoneHref" class="person-action" :href="repPhoneHref" aria-label="Позвонить представителю"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.86 19.86 0 0 1 3.09 4.18 2 2 0 0 1 5.07 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L9.09 10a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg></a>
-                  </div>
-                </div>
+              <div class="card-head">
+                <h2 class="card-title-sans">История диагностики</h2>
+                <span v-if="diagHistoryRows.length" class="badge">{{ diagHistoryRows.length }}</span>
               </div>
-              <button v-if="recipient.representative" class="card-foot-link" type="button" @click="activeTab = 'representative'">
-                Данные представителя
+              <div class="card-body">
+                <div v-if="!diagHistoryRows.length" class="empty">Диагностик пока не было</div>
+                <template v-else>
+                  <div v-for="r in diagHistoryRows" :key="r.id" class="event">
+                    <div class="event-date is-cycle">
+                      <span class="event-day">{{ dayNum(r.date) }}</span>
+                      <span class="event-mon">{{ monthShort(r.date) }}</span>
+                    </div>
+                    <div class="event-info">
+                      <div class="event-title">{{ r.title }}</div>
+                      <div class="event-meta"><span class="pill" :class="r.pill">{{ r.pillText }}</span></div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+              <button type="button" class="card-foot" @click="activeTab = 'diagnostics'">Все циклы и результаты
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
             </section>
@@ -370,601 +282,805 @@
       </div>
 
       <div v-else-if="activeTab === 'profile'" class="tabpanel">
-        <section class="card">
-          <div class="card-head">
-            <div>
+        <div class="split">
+
+          <section class="card">
+            <div class="card-head">
               <h2 class="card-title">Личные данные</h2>
-              <div class="card-sub">Контакты и адреса реабилитанта</div>
+              <button v-if="canEditCard" type="button" class="icon-btn icon-btn-sm"
+                      aria-label="Редактировать карточку" title="Редактировать карточку" @click="openCardEdit">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+              </button>
             </div>
-          </div>
-          <div class="card-body">
-            <dl class="kv-grid">
-              <div class="kv kv-full"><dt class="kv-key">ФИО</dt><dd class="kv-val"><span class="kv-text">{{ fullName(recipient) || '—' }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">Дата рождения</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(recipient.birthDate) }}<template v-if="age != null"> · {{ age }} {{ yearsWord(age) }}</template></span></dd></div>
-              <div class="kv"><dt class="kv-key">Группа инвалидности</dt><dd class="kv-val"><span class="kv-text">{{ recipient.disableGroup || '—' }}</span></dd></div>
-              <div class="kv"><dt class="kv-key">Место обучения</dt><dd class="kv-val"><span class="kv-text">{{ doc?.educationPlace || '—' }}</span></dd></div>
-            </dl>
-
-            <LockedBlock
-              class="rd-locked"
-              :locked="isLocked('contacts')" category="contacts" :recipient-id="recipientId"
-              title="Адреса и телефоны" short-title="контакты"
-              :fields="['Телефон', 'E-mail', 'Адрес регистрации', 'Адрес проживания']"
-              @unlocked="onUnlocked"
-            >
+            <div class="card-body">
               <dl class="kv-grid">
-                <div class="kv"><dt class="kv-key">Телефон</dt><dd class="kv-val"><span class="kv-text">{{ recipient.telephone || '—' }}</span></dd></div>
-                <div class="kv"><dt class="kv-key">E-mail</dt><dd class="kv-val"><span class="kv-text">{{ recipient.email || recipient.user?.email || '—' }}</span></dd></div>
-                <div class="kv kv-full"><dt class="kv-key">Адрес регистрации</dt><dd class="kv-val"><span class="kv-text">{{ doc?.regAddress || '—' }}</span></dd></div>
-                <div class="kv kv-full"><dt class="kv-key">Адрес проживания</dt><dd class="kv-val"><span class="kv-text">{{ (doc?.factSameReg ? doc?.regAddress : doc?.factAddress) || '—' }}</span></dd></div>
-              </dl>
-            </LockedBlock>
+                <div class="kv kv-full"><dt class="kv-key">ФИО</dt><dd class="kv-val"><span class="kv-text">{{ fullName(recipient) || '—' }}</span></dd></div>
+                <div class="kv"><dt class="kv-key">Дата рождения</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(recipient.birthDate) }}<template v-if="age != null"> · {{ age }} {{ yearsWord(age) }}</template></span></dd></div>
+                <div class="kv"><dt class="kv-key">Группа инвалидности</dt><dd class="kv-val"><span class="kv-text">{{ recipient.disableGroup || '—' }}</span></dd></div>
+                <div class="kv kv-full"><dt class="kv-key">Место обучения</dt><dd class="kv-val"><span class="kv-text">{{ doc?.educationPlace || '—' }}</span></dd></div>
 
-            <LockedBlock
-              class="rd-locked"
-              :locked="isLocked('passport')" category="passport" :recipient-id="recipientId"
-              title="Паспортные данные и СНИЛС" short-title="СНИЛС"
-              :fields="['СНИЛС']"
-              @unlocked="onUnlocked"
-            >
+                <div class="kv" :class="{ 'is-secret': isLocked('contacts') }">
+                  <dt class="kv-key">Телефон</dt>
+                  <dd class="kv-val">
+                    <template v-if="isLocked('contacts')">
+                      <span class="kv-mask">••• ••• •• ••</span>
+                      <span class="kv-tools">
+                        <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать телефон — с указанием причины" @click="openReveal('contacts')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </span>
+                    </template>
+                    <span v-else class="kv-text">{{ recipient.telephone || '—' }}</span>
+                  </dd>
+                </div>
+                <div class="kv" :class="{ 'is-secret': isLocked('contacts') }">
+                  <dt class="kv-key">E-mail</dt>
+                  <dd class="kv-val">
+                    <template v-if="isLocked('contacts')">
+                      <span class="kv-mask">•••••••••••</span>
+                      <span class="kv-tools">
+                        <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать e-mail — с указанием причины" @click="openReveal('contacts')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </span>
+                    </template>
+                    <span v-else class="kv-text">{{ recipient.email || recipient.user?.email || '—' }}</span>
+                  </dd>
+                </div>
+                <div class="kv kv-full" :class="{ 'is-secret': isLocked('contacts') }">
+                  <dt class="kv-key">Адрес регистрации</dt>
+                  <dd class="kv-val">
+                    <template v-if="isLocked('contacts')">
+                      <span class="kv-mask">••••••••••••••••••</span>
+                      <span class="kv-tools">
+                        <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать адрес регистрации — с указанием причины" @click="openReveal('contacts')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </span>
+                    </template>
+                    <span v-else class="kv-text">{{ doc?.regAddress || '—' }}</span>
+                  </dd>
+                </div>
+                <div class="kv kv-full" :class="{ 'is-secret': isLocked('contacts') }">
+                  <dt class="kv-key">Адрес проживания</dt>
+                  <dd class="kv-val">
+                    <template v-if="isLocked('contacts')">
+                      <span class="kv-mask">••••••••••••••••••</span>
+                      <span class="kv-tools">
+                        <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать адрес проживания — с указанием причины" @click="openReveal('contacts')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </span>
+                    </template>
+                    <span v-else class="kv-text">{{ doc?.factSameReg ? 'Совпадает с адресом регистрации' : (doc?.factAddress || '—') }}</span>
+                  </dd>
+                </div>
+
+                <div class="kv"><dt class="kv-key">Округ проживания</dt><dd class="kv-val"><span class="kv-text"><span v-if="district?.code" class="code">{{ district.code }}</span>{{ district?.name || '—' }}</span></dd></div>
+                <div class="kv"><dt class="kv-key">Район</dt><dd class="kv-val"><span class="kv-text">{{ doc?.area || '—' }}</span></dd></div>
+              </dl>
+
+              <p class="subtitle" style="margin-top:1.25rem;">Документ, удостоверяющий личность</p>
+              <div v-if="isLocked('passport')" class="pd-note">
+                <span class="pd-note-ic" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </span>
+                <span class="pd-note-text">Паспортные данные и СНИЛС закрыты по 152-ФЗ. Доступ открывается на {{ revealMinutes }} минут, причина попадает в журнал.</span>
+                <button type="button" class="pd-note-btn" @click="openReveal('passport')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                  Показать
+                </button>
+              </div>
+
               <dl class="kv-grid">
-                <div class="kv"><dt class="kv-key">СНИЛС</dt><dd class="kv-val"><span class="kv-text">{{ doc?.snils || '—' }}</span></dd></div>
+                <div class="kv"><dt class="kv-key">Тип документа</dt><dd class="kv-val"><span class="kv-text">{{ doc?.docType || '—' }}</span></dd></div>
+
+                <div class="kv" :class="{ 'is-secret': isLocked('passport') }">
+                  <dt class="kv-key">Серия / номер</dt>
+                  <dd class="kv-val">
+                    <span v-if="isLocked('passport')" class="kv-mask">•••• ••••••</span>
+                    <span v-else class="kv-text">{{ [doc?.docSeries, doc?.docNumber].filter(Boolean).join(' ') || '—' }}</span>
+                    <span class="kv-tools">
+                      <button v-if="isLocked('passport')" type="button" class="kv-tool" title="Показать данные" aria-label="Показать серию и номер — с указанием причины" @click="openReveal('passport')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </button>
+                      <button type="button" class="kv-tool" title="Открыть документ" aria-label="Открыть скан документа, удостоверяющего личность" @click="openScanByCode('birth')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </button>
+                    </span>
+                  </dd>
+                </div>
+
+                <div class="kv kv-full" :class="{ 'is-secret': isLocked('passport') }">
+                  <dt class="kv-key">Кем выдан</dt>
+                  <dd class="kv-val">
+                    <template v-if="isLocked('passport')">
+                      <span class="kv-mask">••••••••••••••••••</span>
+                      <span class="kv-tools">
+                        <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать, кем выдан документ — с указанием причины" @click="openReveal('passport')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </span>
+                    </template>
+                    <span v-else class="kv-text">{{ doc?.docIssuer || '—' }}<template v-if="doc?.docIssuerDate"> · {{ formatDate(doc.docIssuerDate) }}</template></span>
+                  </dd>
+                </div>
+
+                <div class="kv kv-full" :class="{ 'is-secret': isLocked('passport') }">
+                  <dt class="kv-key">СНИЛС</dt>
+                  <dd class="kv-val">
+                    <span v-if="isLocked('passport')" class="kv-mask">•••-•••-••• ••</span>
+                    <span v-else class="kv-text">{{ doc?.snils || '—' }}</span>
+                    <span class="kv-tools">
+                      <button v-if="isLocked('passport')" type="button" class="kv-tool" title="Показать данные" aria-label="Показать СНИЛС — с указанием причины" @click="openReveal('passport')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </button>
+                      <button type="button" class="kv-tool" title="Открыть документ" aria-label="Открыть скан СНИЛС" @click="openScanByCode('snils')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </button>
+                    </span>
+                  </dd>
+                </div>
               </dl>
-            </LockedBlock>
-          </div>
-        </section>
+            </div>
+          </section>
 
-        <section class="card" style="margin-top: 1.25rem;">
-          <div class="card-head">
-            <div>
-              <h2 class="card-title">Статус семьи</h2>
-              <div class="card-sub">Категории, дающие право на льготы и особый порядок работы</div>
+          <section class="card">
+            <div class="card-head">
+              <h2 class="card-title">Медкарта и документы</h2>
+              <button v-if="canEditDocs && doc" type="button" class="icon-btn icon-btn-sm"
+                      aria-label="Обновить документы" title="Обновить документы" @click="openDocUpdate">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
+              </button>
             </div>
-          </div>
-          <div class="card-body">
-            <div v-if="!recipient.representative" class="rd-inline-empty">
-              Представитель не указан, статус семьи определить не по чему
-            </div>
-            <div v-else-if="!familyStatuses.length" class="rd-inline-empty">
-              Статус семьи не отмечен
-            </div>
-            <template v-else>
-              <ul class="rd-fs-list">
-                <li v-for="s in familyStatuses" :key="s.id" class="rd-fs-item">
-                  <span class="rd-fs-name">{{ s.name }}</span>
-                  <span v-if="s.hint" class="rd-fs-hint">{{ s.hint }}</span>
-                </li>
-              </ul>
-              <p class="rd-fs-note">
-                Статус относится к семье целиком и хранится у законного представителя,
-                поэтому он одинаков во всех карточках его подопечных.
-              </p>
-            </template>
-          </div>
-        </section>
-
-        <section class="card" style="margin-top: 1.25rem;">
-          <div class="card-head">
-            <div>
-              <h2 class="card-title">Медкарта и документ</h2>
-              <div class="card-sub">Диагноз, нозология, МСЭ и удостоверяющий документ</div>
-            </div>
-            <button v-if="canEditDocs && doc" type="button" class="rd-head-btn" @click="openDocUpdate">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
-              Обновить документы
-            </button>
-          </div>
-          <div class="card-body">
-            <div v-if="!doc && !recipient.diagnosis && !recipient.crgMain && !recipient.nozologyRef && !hiddenCategories.length" class="rd-inline-empty">Медкарта не заполнена</div>
-            <template v-else>
+            <div class="card-body">
               <dl class="kv-grid">
                 <div class="kv kv-full"><dt class="kv-key">Целевая реабилитационная группа (ЦРГ)</dt><dd class="kv-val"><span class="kv-text"><span v-if="recipient.crgMain?.code" class="code">{{ recipient.crgMain.code }}</span>{{ recipient.crgMain?.name || crgText }}</span></dd></div>
-                <div class="kv"><dt class="kv-key">Тип документа</dt><dd class="kv-val"><span class="kv-text">{{ doc?.docType || '—' }}</span></dd></div>
+                <div class="kv kv-full"><dt class="kv-key">Тип документа</dt><dd class="kv-val"><span class="kv-text">{{ doc?.docType || '—' }}</span></dd></div>
               </dl>
 
-              <LockedBlock
-                class="rd-locked"
-                :locked="isLocked('medical')" category="medical" :recipient-id="recipientId"
-                title="Диагноз и медицинские сведения" short-title="медданные"
-                :fields="['Диагноз', 'Нозология (МКБ-10)', 'МСЭ выдана', 'МСЭ действительна до', 'Особые отметки']"
-                @unlocked="onUnlocked"
-              >
-                <dl class="kv-grid">
-                  <div class="kv kv-full"><dt class="kv-key">Диагноз</dt><dd class="kv-val"><span class="kv-text">{{ recipient.diagnosis || '—' }}</span></dd></div>
-                  <div class="kv kv-full"><dt class="kv-key">Нозология (МКБ-10)</dt><dd class="kv-val"><span class="kv-text"><span v-if="recipient.nozologyRef?.class" class="code">{{ recipient.nozologyRef.class }}</span>{{ nozologyName }}</span></dd></div>
-                  <div class="kv"><dt class="kv-key">МСЭ выдана</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(doc?.mseIssueDate) }}</span></dd></div>
-                  <div class="kv"><dt class="kv-key">МСЭ действительна до</dt><dd class="kv-val"><span class="kv-text">{{ mseValidText(doc) }}</span></dd></div>
-                  <div class="kv kv-full"><dt class="kv-key">Особые отметки</dt><dd class="kv-val"><span class="kv-text">{{ doc?.specialNote || '—' }}</span></dd></div>
-                </dl>
-              </LockedBlock>
+              <div v-if="isLocked('medical')" class="pd-note" style="margin-top:.75rem;">
+                <span class="pd-note-ic" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </span>
+                <span class="pd-note-text">Сведения о здоровье — специальная категория персональных данных (ст. 10 152-ФЗ). Показываются по запросу с указанием причины.</span>
+                <button type="button" class="pd-note-btn" @click="openReveal('medical')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                  Показать медданные
+                </button>
+              </div>
 
-              <LockedBlock
-                class="rd-locked"
-                :locked="isLocked('passport')" category="passport" :recipient-id="recipientId"
-                title="Паспортные данные" short-title="паспорт"
-                :fields="['Серия / номер', 'Кем выдан']"
-                @unlocked="onUnlocked"
-              >
-                <dl class="kv-grid">
-                  <div class="kv"><dt class="kv-key">Серия / номер</dt><dd class="kv-val"><span class="kv-text">{{ [doc?.docSeries, doc?.docNumber].filter(Boolean).join(' ') || '—' }}</span></dd></div>
-                  <div class="kv kv-full"><dt class="kv-key">Кем выдан</dt><dd class="kv-val"><span class="kv-text">{{ doc?.docIssuer || '—' }}<template v-if="doc?.docIssuerDate"> · {{ formatDate(doc.docIssuerDate) }}</template></span></dd></div>
-                </dl>
-              </LockedBlock>
-            </template>
-          </div>
-          <button class="card-foot-link" type="button" @click="activeTab = 'documents'">
-            Прикреплённые файлы
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-        </section>
+              <dl class="kv-grid">
+                <div class="kv kv-full" :class="{ 'is-secret': isLocked('medical') }">
+                  <dt class="kv-key">Диагноз</dt>
+                  <dd class="kv-val">
+                    <span v-if="isLocked('medical')" class="kv-mask">••••••••••••••</span>
+                    <span v-else class="kv-text">{{ recipient.diagnosis || '—' }}</span>
+                    <span class="kv-tools">
+                      <button v-if="isLocked('medical')" type="button" class="kv-tool" title="Показать данные" aria-label="Показать диагноз — с указанием причины" @click="openReveal('medical')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </button>
+                      <button type="button" class="kv-tool" title="Открыть документ" aria-label="Открыть медицинскую справку" @click="openScanByCode('med')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </button>
+                    </span>
+                  </dd>
+                </div>
 
-        <section v-if="doc" class="card" style="margin-top: 1.25rem;">
-          <div class="card-head">
-            <div>
-              <h2 class="card-title">История обновлений документов</h2>
-              <div class="card-sub">Кто, когда и по какой причине менял данные</div>
+                <div class="kv kv-full" :class="{ 'is-secret': isLocked('medical') }">
+                  <dt class="kv-key">Нозология (МКБ-10)</dt>
+                  <dd class="kv-val">
+                    <template v-if="isLocked('medical')">
+                      <span class="kv-mask">••• ••••••••</span>
+                      <span class="kv-tools">
+                        <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать нозологию — с указанием причины" @click="openReveal('medical')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </span>
+                    </template>
+                    <span v-else class="kv-text"><span v-if="recipient.nozologyRef?.class" class="code">{{ recipient.nozologyRef.class }}</span>{{ nozologyName }}</span>
+                  </dd>
+                </div>
+
+                <div class="kv" :class="{ 'is-secret': isLocked('medical') }">
+                  <dt class="kv-key">МСЭ, дата выдачи</dt>
+                  <dd class="kv-val">
+                    <span v-if="isLocked('medical')" class="kv-mask">••.••.••••</span>
+                    <span v-else class="kv-text">{{ formatDate(doc?.mseIssueDate) }}</span>
+                    <span class="kv-tools">
+                      <button v-if="isLocked('medical')" type="button" class="kv-tool" title="Показать данные" aria-label="Показать дату выдачи МСЭ — с указанием причины" @click="openReveal('medical')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                      </button>
+                      <button type="button" class="kv-tool" title="Открыть документ" aria-label="Открыть справку МСЭ" @click="openScanByCode('mse')">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                      </button>
+                    </span>
+                  </dd>
+                </div>
+
+                <div class="kv" :class="{ 'is-secret': isLocked('medical') }">
+                  <dt class="kv-key">МСЭ, срок действия</dt>
+                  <dd class="kv-val">
+                    <template v-if="isLocked('medical')">
+                      <span class="kv-mask">••.••.••••</span>
+                      <span class="kv-tools">
+                        <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать срок действия МСЭ — с указанием причины" @click="openReveal('medical')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </span>
+                    </template>
+                    <span v-else class="kv-text">{{ mseValidText(doc) }}</span>
+                  </dd>
+                </div>
+
+                <div class="kv kv-full" :class="{ 'is-secret': isLocked('medical') }">
+                  <dt class="kv-key">Особые отметки</dt>
+                  <dd class="kv-val">
+                    <template v-if="isLocked('medical')">
+                      <span class="kv-mask">••••••••••••••</span>
+                      <span class="kv-tools">
+                        <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать особые отметки — с указанием причины" @click="openReveal('medical')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </span>
+                    </template>
+                    <span v-else class="kv-text">{{ doc?.specialNote || '—' }}</span>
+                  </dd>
+                </div>
+              </dl>
             </div>
-            <span v-if="docHistory.length" class="rd-scan-badge">{{ docHistory.length }}</span>
+            <button type="button" class="card-foot" @click="activeTab = 'documents'">Прикреплённые файлы
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+            </button>
+          </section>
+        </div>
+      </div>
+
+      <div v-else-if="activeTab === 'documents'" class="tabpanel">
+        <div class="subtabs" role="tablist" aria-label="Разделы документов">
+          <button type="button" class="subtab" role="tab" :aria-selected="docSub === 'files'" @click="docSub = 'files'">Файлы</button>
+          <button type="button" class="subtab" role="tab" :aria-selected="docSub === 'history'" @click="docSub = 'history'">Журнал изменений</button>
+        </div>
+
+        <div v-if="docSub === 'files'">
+          <div v-if="canUploadScans && !scansLocked" class="docs-add">
+            <button type="button" class="btn btn-primary" @click="openUpload(null)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Загрузить документ
+            </button>
           </div>
-          <div class="card-body">
-            <div v-if="historyLoading" class="rd-loading" style="min-height:80px"><div class="spinner"></div></div>
-            <div v-else-if="!docHistory.length" class="rd-inline-empty">Документы ещё не обновлялись</div>
-            <ol v-else class="rd-history">
-              <li v-for="h in docHistory" :key="h.id" class="rd-history-item">
-                <div class="rd-history-head">
-                  <span class="rd-history-date">{{ formatDateTime(h.changedAt) }}</span>
-                  <span class="rd-history-author">{{ h.authorName || 'Автор не указан' }}</span>
+
+          <div v-if="scansLoading && !docGroups.length" class="rd-loading" style="min-height:7.5rem"><div class="spinner"></div></div>
+
+          <section v-else-if="scansLocked" class="card">
+            <div class="card-head"><h2 class="card-title">Сканы документов</h2></div>
+            <div class="card-body">
+              <div class="pd-note">
+                <span class="pd-note-ic" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </span>
+                <span class="pd-note-text">Сканы документов закрыты по 152-ФЗ. Доступ открывается на {{ revealMinutes }} минут, причина попадает в журнал.</span>
+                <button type="button" class="pd-note-btn" @click="openReveal('scans')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                  Показать
+                </button>
+              </div>
+            </div>
+          </section>
+
+          <div v-else-if="!docGroups.length" class="empty">Список типов документов не загружен</div>
+
+          <div v-else class="split">
+            <div class="col">
+              <section v-for="g in docGroupsLeft" :key="g.key" class="card">
+                <div class="card-head">
+                  <h2 class="card-title-sans">{{ g.title }}</h2>
+                  <span class="pill" :class="groupPill(g).cls">{{ groupPill(g).text }}</span>
                 </div>
-                <div class="rd-history-reason">{{ h.reason }}</div>
-                <div v-if="h.changedFields?.length" class="rd-history-fields">
-                  Изменено: {{ h.changedFields.map(fieldLabel).join(', ') }}
-                </div>
-                <details v-if="h.snapshot" class="rd-history-prev">
-                  <summary>Прежние значения</summary>
-                  <dl class="rd-history-kv">
-                    <div v-for="f in (h.changedFields || [])" :key="f" class="rd-history-kv-row">
-                      <dt>{{ fieldLabel(f) }}</dt>
-                      <dd>{{ snapshotValue(h.snapshot, f) }}</dd>
+                <div class="card-body">
+                  <dl class="doc-table">
+                    <div v-for="r in g.rows" :key="r.code" class="doc-tr" :class="{ 'is-missing': !r.scan && r.required }">
+                      <dt class="doc-k">
+                        <span class="doc-name">{{ r.name }}</span>
+                        <span class="doc-req">{{ r.required ? 'обязательный' : 'по желанию' }}</span>
+                      </dt>
+                      <dd class="doc-v">
+                        <div class="doc-state">
+                          <span class="pill" :class="r.state.cls">{{ r.state.text }}</span>
+                          <span v-if="r.versions > 1" class="doc-ver">вер. {{ r.versions }}</span>
+                          <div v-if="r.term" class="doc-term">{{ r.term }}</div>
+                        </div>
+                        <div v-if="r.scan" class="doc-file">
+                          {{ r.scan.originalName }} · {{ formatSize(r.scan.sizeBytes) }}<template v-if="r.scan.uploadedAt"> · {{ formatDate(r.scan.uploadedAt) }}</template>, {{ uploaderName(r.scan) }}
+                        </div>
+                        <div class="doc-acts">
+                          <template v-if="r.scan">
+                            <button type="button" class="doc-act" :aria-label="'Открыть: ' + r.name" @click="openScanDoc(r.scan)">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                              Открыть
+                            </button>
+                            <button v-if="canEditDocs" type="button" class="doc-act" :aria-label="'Новая версия: ' + r.name" @click="openUpload(r)">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                              {{ r.state.cls === 'pill-ok' ? 'Новая версия' : 'Продлить срок' }}
+                            </button>
+                            <button type="button" class="doc-act" :aria-label="'История: ' + r.name" @click="openScanHistory(r.scan)">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                              История
+                            </button>
+                          </template>
+                          <template v-else>
+                            <button v-if="r.blank" type="button" class="btn btn-secondary btn-sm"
+                                    :disabled="enrollBusy === r.blank" @click="downloadEnrollDoc({ key: r.blank, title: r.name })">
+                              {{ enrollBusy === r.blank ? 'Готовим…' : 'Скачать бланк' }}
+                            </button>
+                            <button v-if="canUploadRow(r)" type="button" class="btn btn-primary btn-sm" @click="openUpload(r)">
+                              {{ r.blank ? 'Загрузить скан' : 'Загрузить' }}
+                            </button>
+                          </template>
+                        </div>
+                      </dd>
                     </div>
                   </dl>
-                </details>
+                </div>
+              </section>
+            </div>
+
+            <div class="col">
+              <section v-for="g in docGroupsRight" :key="g.key" class="card">
+                <div class="card-head">
+                  <h2 class="card-title-sans">{{ g.title }}</h2>
+                  <span class="pill" :class="groupPill(g).cls">{{ groupPill(g).text }}</span>
+                </div>
+                <div class="card-body">
+                  <dl class="doc-table">
+                    <div v-for="r in g.rows" :key="r.code" class="doc-tr" :class="{ 'is-missing': !r.scan && r.required }">
+                      <dt class="doc-k">
+                        <span class="doc-name">{{ r.name }}</span>
+                        <span class="doc-req">{{ r.required ? 'обязательный' : 'по желанию' }}</span>
+                      </dt>
+                      <dd class="doc-v">
+                        <div class="doc-state">
+                          <span class="pill" :class="r.state.cls">{{ r.state.text }}</span>
+                          <span v-if="r.versions > 1" class="doc-ver">вер. {{ r.versions }}</span>
+                          <div v-if="r.term" class="doc-term">{{ r.term }}</div>
+                        </div>
+                        <div v-if="r.scan" class="doc-file">
+                          {{ r.scan.originalName }} · {{ formatSize(r.scan.sizeBytes) }}<template v-if="r.scan.uploadedAt"> · {{ formatDate(r.scan.uploadedAt) }}</template>, {{ uploaderName(r.scan) }}
+                        </div>
+                        <div class="doc-acts">
+                          <template v-if="r.scan">
+                            <button type="button" class="doc-act" :aria-label="'Открыть: ' + r.name" @click="openScanDoc(r.scan)">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                              Открыть
+                            </button>
+                            <button v-if="canEditDocs" type="button" class="doc-act" :aria-label="'Новая версия: ' + r.name" @click="openUpload(r)">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                              {{ r.state.cls === 'pill-ok' ? 'Новая версия' : 'Продлить срок' }}
+                            </button>
+                            <button type="button" class="doc-act" :aria-label="'История: ' + r.name" @click="openScanHistory(r.scan)">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                              История
+                            </button>
+                          </template>
+                          <template v-else>
+                            <button v-if="r.blank" type="button" class="btn btn-secondary btn-sm"
+                                    :disabled="enrollBusy === r.blank" @click="downloadEnrollDoc({ key: r.blank, title: r.name })">
+                              {{ enrollBusy === r.blank ? 'Готовим…' : 'Скачать бланк' }}
+                            </button>
+                            <button v-if="canUploadRow(r)" type="button" class="btn btn-primary btn-sm" @click="openUpload(r)">
+                              {{ r.blank ? 'Загрузить скан' : 'Загрузить' }}
+                            </button>
+                          </template>
+                        </div>
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+
+        <section v-else class="card">
+          <div class="card-head">
+            <h2 class="card-title">Журнал изменений по всем документам</h2>
+            <span v-if="docJournal.length" class="badge">{{ docJournal.length }}</span>
+          </div>
+          <div class="card-body">
+            <div v-if="historyLoading && !docJournal.length" class="rd-loading" style="min-height:5rem"><div class="spinner"></div></div>
+            <div v-else-if="!docJournal.length" class="empty">Документы ещё не изменялись</div>
+            <ol v-else class="hist">
+              <li v-for="h in docJournal" :key="h.key" class="hist-item">
+                <div class="hist-head">
+                  <span class="hist-date">{{ formatDateTime(h.at) }}</span>
+                  <span class="hist-author">{{ h.author }}</span>
+                </div>
+                <div class="hist-reason">{{ h.reason }}</div>
+                <div v-if="h.fields" class="hist-fields">{{ h.fields }}</div>
               </li>
             </ol>
           </div>
         </section>
       </div>
 
-      <div v-else-if="activeTab === 'documents'" class="tabpanel">
-
-        <section class="card" style="margin-top: 1.25rem;">
-          <div class="card-head">
-            <div>
-              <h2 class="card-title">Прикреплённые файлы</h2>
-            </div>
-            <span v-if="scans.length" class="rd-scan-badge">{{ scans.length }}</span>
-          </div>
-          <div class="card-body">
-            <div v-if="scansLoading" class="rd-loading" style="min-height:120px"><div class="spinner"></div></div>
-            <LockedBlock
-              v-else-if="scansLocked"
-              :locked="true" category="scans" :recipient-id="recipientId"
-              title="Сканы документов" short-title="сканы"
-              @unlocked="onUnlocked"
-            />
-            <div v-else-if="!scans.length" class="rd-inline-empty">Нет прикреплённых файлов</div>
-            <div v-else class="rd-scan-grid">
-              <div v-for="s in scans" :key="s.id" class="rd-scan">
-                <button v-if="isImage(s)" type="button" class="rd-scan-thumb" @click="openLightbox(s)" :title="'Открыть: ' + scanLabel(s)">
-                  <img :src="scanFileUrl(s)" :alt="scanLabel(s)" loading="lazy" />
-                </button>
-                <a v-else class="rd-scan-thumb rd-scan-file" :href="scanFileUrl(s)" target="_blank" rel="noopener" :title="'Открыть: ' + scanLabel(s)">
-                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  <span class="rd-scan-ext">{{ fileExt(s) }}</span>
-                </a>
-                <span v-if="versionCount(s) > 1" class="rd-scan-ver" title="Файл заменялся">
-                  вер. {{ versionCount(s) }}
-                </span>
-                <div class="rd-scan-meta">
-                  <div class="rd-scan-name" :title="scanLabel(s)">{{ scanLabel(s) }}</div>
-                  <div class="rd-scan-sub" :title="s.originalName">{{ s.originalName }} · {{ formatSize(s.sizeBytes) }}</div>
-                  <div class="rd-scan-actions">
-                    <a :href="scanFileUrl(s)" target="_blank" rel="noopener" class="rd-scan-open">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                      Открыть
-                    </a>
-                    <button v-if="canEditDocs" type="button" class="rd-scan-act" @click="openScanReplace(s)" title="Загрузить новую версию файла">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0 1 15-6.7L21 8"/><path d="M3 22v-6h6"/><path d="M21 12a9 9 0 0 1-15 6.7L3 16"/></svg>
-                      Заменить
-                    </button>
-                    <button type="button" class="rd-scan-act" @click="openScanHistory(s)" title="Кто, когда и почему менял этот файл">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
-                      История<template v-if="versionCount(s) > 1"> ({{ versionCount(s) }})</template>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        <div v-if="replaceScan" class="du-overlay" @click.self="closeScanReplace">
-          <div class="du-modal du-modal-sm" role="dialog" aria-modal="true" aria-labelledby="rs-title">
-            <header class="du-head">
-              <div>
-                <h3 class="du-title" id="rs-title">Замена файла</h3>
-                <p class="du-sub">Прежняя версия не удаляется — она останется в истории с автором и датой</p>
-              </div>
-              <button type="button" class="du-close" aria-label="Закрыть" @click="closeScanReplace">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </header>
-
-            <div class="du-body">
-              <div class="rs-current">
-                <div class="rs-current-key">Заменяемый документ</div>
-                <div class="rs-current-name">{{ scanLabel(replaceScan) }}</div>
-                <div class="rs-current-sub">
-                  {{ replaceScan.originalName }} · {{ formatSize(replaceScan.sizeBytes) }}
-                  <template v-if="replaceScan.uploadedAt"> · загружен {{ formatDateTime(replaceScan.uploadedAt) }}</template>
-                </div>
-              </div>
-
-              <label class="du-field du-field-full" style="margin-top: 0.875rem;">
-                <span class="du-key">Новый файл <span class="du-req">— обязательно</span></span>
-                <input
-                  ref="fileInputRef"
-                  type="file"
-                  class="rs-file"
-                  accept="image/*,application/pdf"
-                  :disabled="replaceSaving || !!replaceOk"
-                  @change="pickReplaceFile"
-                />
-              </label>
-              <p class="rs-hint">Изображение или PDF, не больше {{ MAX_SCAN_MB }} МБ</p>
-
-              <div v-if="replaceFile" class="rs-picked">
-                <img v-if="replacePreview" :src="replacePreview" alt="" class="rs-preview" />
-                <div class="rs-picked-meta">
-                  <div class="rs-picked-name">{{ replaceFile.name }}</div>
-                  <div class="rs-picked-sub">{{ formatSize(replaceFile.size) }}</div>
-                </div>
-              </div>
-
-              <div class="du-reason">
-                <label class="du-field du-field-full">
-                  <span class="du-key">Причина замены <span class="du-req">— обязательно</span></span>
-                  <textarea
-                    v-model="replaceReason"
-                    class="du-input du-textarea"
-                    :class="{ 'is-invalid': replaceTouched && !replaceReasonValid }"
-                    rows="2"
-                    placeholder="Например: прежний скан нечитаемый, загружен качественный"
-                    :disabled="replaceSaving || !!replaceOk"
-                    @blur="replaceTouched = true"
-                  ></textarea>
-                </label>
-                <p v-if="replaceTouched && !replaceReasonValid" class="du-error">
-                  Укажите причину замены (не менее 3 символов)
-                </p>
-              </div>
-
-              <p v-if="replaceError" class="du-error">{{ replaceError }}</p>
-              <p v-if="replaceOk" class="du-success">{{ replaceOk }}</p>
-            </div>
-
-            <footer class="du-foot">
-              <button type="button" class="du-btn du-btn-ghost" :disabled="replaceSaving" @click="closeScanReplace">
-                {{ replaceOk ? 'Закрыть' : 'Отмена' }}
-              </button>
-              <button type="button" class="du-btn du-btn-primary" :disabled="!canSaveReplace || replaceSaving" @click="saveScanReplace">
-                {{ replaceSaving ? 'Загрузка…' : 'Заменить файл' }}
-              </button>
-            </footer>
-          </div>
-        </div>
-
-        <div v-if="historyScan" class="du-overlay" @click.self="closeScanHistory">
-          <div class="du-modal du-modal-sm" role="dialog" aria-modal="true" aria-labelledby="sh-title">
-            <header class="du-head">
-              <div>
-                <h3 class="du-title" id="sh-title">История файла</h3>
-                <p class="du-sub">{{ scanLabel(historyScan) }} · версий: {{ scanHistoryRows.length }}</p>
-              </div>
-              <button type="button" class="du-close" aria-label="Закрыть" @click="closeScanHistory">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </header>
-
-            <div class="du-body">
-              <ol class="rd-history rd-history-flat">
-                <li v-for="(v, i) in scanHistoryRows" :key="v.id" class="rd-history-item">
-                  <div class="rd-history-head">
-                    <span class="rd-history-date">{{ v.uploadedAt ? formatDateTime(v.uploadedAt) : 'Дата не записана' }}</span>
-                    <span class="rd-history-author">{{ uploaderName(v) }}</span>
-                    <span class="rs-ver-tag" :class="v.isCurrent !== false ? 'is-cur' : ''">
-                      {{ v.isCurrent !== false ? 'Актуальная' : 'Заменена' }}
-                    </span>
-                  </div>
-                  <div class="rd-history-reason">{{ scanReasonText(v) }}</div>
-                  <div class="rd-history-fields">
-                    Версия {{ scanHistoryRows.length - i }} · {{ v.originalName }} · {{ formatSize(v.sizeBytes) }}
-                    <a :href="scanFileUrl(v)" target="_blank" rel="noopener" class="rs-ver-open">Открыть</a>
-                  </div>
-                </li>
-              </ol>
-            </div>
-
-            <footer class="du-foot">
-              <button type="button" class="du-btn du-btn-ghost" @click="closeScanHistory">Закрыть</button>
-              <button v-if="canEditDocs" type="button" class="du-btn du-btn-primary" @click="openScanReplace(historyScan); closeScanHistory()">
-                Заменить файл
-              </button>
-            </footer>
-          </div>
-        </div>
-
-        <div v-if="lightbox" class="rd-lightbox" @click="lightbox = null">
-          <img :src="lightbox" alt="" @click.stop />
-          <button type="button" class="rd-lightbox-close" @click="lightbox = null" aria-label="Закрыть">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-      </div>
-
       <div v-else-if="activeTab === 'lessons'" class="tabpanel">
-        <section class="card" style="margin-bottom: 1.25rem;">
-          <div class="card-head">
-            <div>
-              <h2 class="card-title">Занятия и диагностики</h2>
-              <div class="card-sub">Всего записей в расписании: {{ lessonsCount }}</div>
-            </div>
-          </div>
-          <div class="card-body">
-            <div v-if="agendaLoading" class="rd-loading" style="min-height:100px"><div class="spinner"></div></div>
-            <div v-else-if="!allEventsDesc.length" class="rd-inline-empty">В расписании пока нет занятий</div>
-            <div v-else class="lesson-list">
-              <div v-for="e in allEventsDesc" :key="e.id" class="lesson-card">
-                <div class="lesson-head">
-                  <span class="lesson-type" :class="e.type === 'diagnostic' ? 'is-diag' : 'is-lesson'">{{ typeLabel(e) }}</span>
-                  <span class="lesson-title">{{ eventTitle(e) }}</span>
-                  <span v-if="e.status === 'completed'" class="doc-status sage">Проведено</span>
-                  <span v-else class="doc-status amber">Запланировано</span>
-                </div>
-                <div class="lesson-meta">
-                  <span>{{ formatDay(e.date) }}</span>
-                  <template v-if="formatTime(e.startTime)">
-                    <span class="sep-dot">·</span>
-                    <span>{{ formatTime(e.startTime) }}<template v-if="formatTime(e.endTime)">–{{ formatTime(e.endTime) }}</template></span>
-                  </template>
-                  <template v-if="e.specialist">
-                    <span class="sep-dot">·</span>
-                    <span>{{ e.specialist.fullName || fullName(e.specialist) }}</span>
-                  </template>
-                  <template v-if="e.direction?.name">
-                    <span class="sep-dot">·</span>
-                    <span>{{ e.direction.name }}</span>
-                  </template>
-                </div>
+        <div class="split">
+          <div class="col">
+            <section class="card">
+              <div class="card-head">
+                <h2 class="card-title">{{ groupName ? 'Группа «' + groupName + '»' : 'Группа не назначена' }}</h2>
+                <span v-if="groupMembers.length" class="pill pill-mute">участников: {{ groupMembers.length }}</span>
               </div>
-            </div>
-          </div>
-        </section>
+              <div class="card-body">
+                <dl class="kv-grid">
+                  <div class="kv"><dt class="kv-key">Куратор</dt><dd class="kv-val"><span class="kv-text">{{ curatorName || '—' }}</span></dd></div>
+                  <div class="kv">
+                    <dt class="kv-key">Занятий проведено</dt>
+                    <dd class="kv-val"><span class="kv-text">{{ lessonsDone }} из {{ lessonEvents.length }}</span></dd>
+                  </div>
+                </dl>
 
-        <section class="card">
-          <div class="card-head">
-            <div>
-              <h2 class="card-title">{{ groupName || 'Группа не назначена' }}</h2>
-              <div v-if="curatorName" class="card-sub">Куратор: {{ curatorName }}</div>
-            </div>
+                <div v-if="canEditCard" class="rd-group-select">
+                  <label class="kv-key">Выбрать группу</label>
+                  <div class="rd-gs-row">
+                    <select v-model.number="selectedGroupId" class="rd-input" :disabled="groupsLoading || savingGroup">
+                      <option v-if="groupsLoading" :value="null" disabled>Загрузка групп…</option>
+                      <option v-for="g in allGroups" :key="g.id" :value="g.id">
+                        {{ g.name }}{{ g.curator ? ' · ' + g.curator : '' }}
+                      </option>
+                    </select>
+                    <button class="btn btn-primary" :disabled="!groupChanged || savingGroup" @click="saveGroup">
+                      {{ savingGroup ? 'Сохранение…' : 'Сохранить' }}
+                    </button>
+                  </div>
+                </div>
+
+                <p class="subtitle" style="margin-top:1.25rem;">Ближайшие и прошедшие занятия</p>
+                <div v-if="agendaLoading" class="rd-loading" style="min-height:6rem"><div class="spinner"></div></div>
+                <div v-else-if="!allEventsDesc.length" class="empty">В расписании пока нет занятий</div>
+                <template v-else>
+                  <div v-for="e in allEventsDesc" :key="e.id" class="event">
+                    <div class="event-date" :class="{ 'is-cycle': e.type === 'diagnostic' }">
+                      <span class="event-day">{{ dayNum(e.date) }}</span>
+                      <span class="event-mon">{{ monthShort(e.date) }}</span>
+                    </div>
+                    <div class="event-info">
+                      <div class="event-title">{{ eventTitle(e) }}</div>
+                      <div class="event-meta">
+                        <template v-if="formatTime(e.startTime)">{{ formatTime(e.startTime) }}<template v-if="formatTime(e.endTime)">–{{ formatTime(e.endTime) }}</template> · </template>
+                        <template v-if="e.specialist">{{ e.specialist.fullName || fullName(e.specialist) }} · </template>
+                        <span class="pill" :class="eventPill(e).cls">{{ eventPill(e).text }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </section>
           </div>
-          <div class="card-body">
-            <div class="rd-group-select">
-              <label class="kv-key">Выбрать группу</label>
-              <div class="rd-gs-row">
-                <select v-model.number="selectedGroupId" class="rd-input" :disabled="groupsLoading || savingGroup">
-                  <option v-if="groupsLoading" :value="null" disabled>Загрузка групп…</option>
-                  <option v-for="g in allGroups" :key="g.id" :value="g.id">
-                    {{ g.name }}{{ g.curator ? ' · ' + g.curator : '' }}
-                  </option>
-                </select>
-                <button class="btn btn-primary" :disabled="!groupChanged || savingGroup" @click="saveGroup">
-                  {{ savingGroup ? 'Сохранение…' : 'Сохранить' }}
+
+          <div class="col">
+            <section v-if="canMarkAttendance" class="card">
+              <div class="card-head">
+                <h2 class="card-title-sans">Отметка посещения</h2>
+                <span v-if="attSavedStatus" class="pill" :class="ATT_PILL[attSavedStatus]">{{ ATT_LABELS[attSavedStatus] }}</span>
+              </div>
+              <div class="card-body">
+                <p class="rd-att-hint">Отметка ставится на сегодня — <strong>{{ formatDate(todayStr) }}</strong>.</p>
+                <div class="rd-att-toggle" role="group" aria-label="Статус посещения на сегодня">
+                  <button type="button" class="rd-att-btn is-yes" :class="{ active: attStatus === 'present' }" @click="attStatus = 'present'">Был</button>
+                  <button type="button" class="rd-att-btn is-partial" :class="{ active: attStatus === 'left' }" @click="attStatus = 'left'">Ушёл раньше</button>
+                  <button type="button" class="rd-att-btn is-no" :class="{ active: attStatus === 'absent' }" @click="attStatus = 'absent'">Не был</button>
+                </div>
+                <button type="button" class="btn btn-primary rd-att-save" :disabled="!attDirty || attSaving" @click="saveAttendance">
+                  {{ attSaving ? 'Сохраняем…' : 'Сохранить отметку' }}
                 </button>
               </div>
-            </div>
+            </section>
 
-            <div v-if="!recipient.groupId" class="rd-inline-empty">Реабилитант не состоит в группе</div>
-            <div v-else-if="groupMembersLoading" class="rd-loading" style="min-height:120px"><div class="spinner"></div></div>
-            <div v-else-if="!groupMembers.length" class="rd-inline-empty">В группе пока нет участников</div>
-            <div v-else class="rd-members">
-              <div v-for="m in groupMembers" :key="m.id" class="person" :class="{ 'is-self': m.id == recipientId }">
-                <img v-if="m.photo" :src="m.photo" class="person-avatar-img" alt="" />
-                <div v-else class="person-avatar sage" aria-hidden="true">{{ initials(m) }}</div>
-                <div class="person-info">
-                  <div class="person-name">{{ fullName(m) }}<span v-if="m.id == recipientId" class="self-badge">текущий</span></div>
-                  <div class="person-role">{{ memberMeta(m) }}</div>
+            <section class="card">
+              <div class="card-head">
+                <h2 class="card-title-sans">Команда сопровождения</h2>
+                <span v-if="team.length" class="badge">{{ team.length }}</span>
+              </div>
+              <div class="card-body">
+                <div v-if="!team.length" class="empty">Специалисты пока не назначены</div>
+                <div v-else v-for="m in team" :key="m.id" class="person">
+                  <div class="person-ava sage" aria-hidden="true">{{ initialsFromName(m.name) }}</div>
+                  <div class="person-info">
+                    <div class="person-name">{{ m.name }}<span v-if="m.isCurator" class="rd-curator-badge">куратор</span></div>
+                    <div class="person-role">{{ [...m.roles].join(' · ') }}</div>
+                  </div>
+                  <a v-if="m.phone" class="icon-btn icon-btn-sm" :href="'tel:' + String(m.phone).replace(/[^\d+]/g, '')" :aria-label="'Позвонить: ' + m.name">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.86 19.86 0 0 1 3.09 4.18 2 2 0 0 1 5.07 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L9.09 10a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                  </a>
                 </div>
               </div>
-            </div>
+            </section>
+
+            <section class="card">
+              <div class="card-head">
+                <h2 class="card-title-sans">Участники группы</h2>
+                <span v-if="groupMembers.length" class="badge">{{ groupMembers.length }}</span>
+              </div>
+              <div class="card-body">
+                <div v-if="!recipient.groupId" class="empty">Реабилитант не состоит в группе</div>
+                <div v-else-if="groupMembersLoading" class="rd-loading" style="min-height:6rem"><div class="spinner"></div></div>
+                <div v-else-if="!groupMembers.length" class="empty">В группе пока нет участников</div>
+                <template v-else>
+                  <div v-for="m in groupMembers" :key="m.id" class="person" :class="{ 'is-self': m.id == recipientId }">
+                    <img v-if="m.photo" :src="m.photo" class="person-avatar-img" alt="" />
+                    <div v-else class="person-ava sage" aria-hidden="true">{{ initials(m) }}</div>
+                    <div class="person-info">
+                      <div class="person-name">{{ fullName(m) }}<span v-if="m.id == recipientId" class="self-badge">текущий</span></div>
+                      <div class="person-role">{{ memberMeta(m) }}</div>
+                    </div>
+                  </div>
+                </template>
+              </div>
+            </section>
           </div>
-        </section>
+        </div>
       </div>
 
       <div v-else-if="activeTab === 'representative'" class="tabpanel">
-        <section class="card">
-          <div class="card-head"><h2 class="card-title">Законный представитель</h2></div>
-          <div class="card-body">
-            <div v-if="!recipient.representative" class="rd-inline-empty">Представитель не указан</div>
-            <template v-else>
-              <dl class="kv-grid">
-                <div class="kv kv-full"><dt class="kv-key">ФИО</dt><dd class="kv-val"><span class="kv-text">{{ fullName(recipient.representative) || '—' }}</span></dd></div>
-              </dl>
-
-              <LockedBlock
-                class="rd-locked"
-                :locked="isLocked('contacts')" category="contacts" :recipient-id="recipientId"
-                title="Контакты представителя" short-title="контакты"
-                :fields="['Телефон', 'E-mail', 'Адрес регистрации']"
-                @unlocked="onUnlocked"
-              >
+        <div class="split">
+          <section class="card">
+            <div class="card-head"><h2 class="card-title">Законный представитель</h2></div>
+            <div class="card-body">
+              <div v-if="!recipient.representative" class="empty">Представитель не указан</div>
+              <template v-else>
                 <dl class="kv-grid">
-                  <div class="kv"><dt class="kv-key">Телефон</dt><dd class="kv-val"><span class="kv-text">{{ recipient.representative.telephone || '—' }}</span></dd></div>
-                  <div class="kv"><dt class="kv-key">E-mail</dt><dd class="kv-val"><span class="kv-text">{{ recipient.representative.email || '—' }}</span></dd></div>
-                  <div class="kv kv-full"><dt class="kv-key">Адрес регистрации</dt><dd class="kv-val"><span class="kv-text">{{ recipient.representative.passportReg || '—' }}</span></dd></div>
-                </dl>
-              </LockedBlock>
+                  <div class="kv kv-full"><dt class="kv-key">ФИО</dt><dd class="kv-val"><span class="kv-text">{{ fullName(recipient.representative) || '—' }}</span></dd></div>
+                  <div class="kv"><dt class="kv-key">Степень родства</dt><dd class="kv-val"><span class="kv-text">{{ recipient.representative.relation || '—' }}</span></dd></div>
 
-              <LockedBlock
-                class="rd-locked"
-                :locked="isLocked('passport')" category="passport" :recipient-id="recipientId"
-                title="Паспорт представителя" short-title="паспорт"
-                :fields="['Паспорт серия / номер', 'Код подразделения', 'Кем выдан']"
-                @unlocked="onUnlocked"
-              >
-                <dl class="kv-grid">
-                  <div class="kv"><dt class="kv-key">Паспорт серия / номер</dt><dd class="kv-val"><span class="kv-text">{{ [recipient.representative.passportSeries, recipient.representative.passportNumber].filter(Boolean).join(' ') || '—' }}</span></dd></div>
-                  <div class="kv"><dt class="kv-key">Код подразделения</dt><dd class="kv-val"><span class="kv-text">{{ recipient.representative.passportDeptCode || '—' }}</span></dd></div>
-                  <div class="kv kv-full"><dt class="kv-key">Кем выдан</dt><dd class="kv-val"><span class="kv-text">{{ recipient.representative.passportIssuer || '—' }}<template v-if="recipient.representative.passportIssuerDate"> · {{ formatDate(recipient.representative.passportIssuerDate) }}</template></span></dd></div>
+                  <div class="kv" :class="{ 'is-secret': isLocked('contacts') }">
+                    <dt class="kv-key">Телефон</dt>
+                    <dd class="kv-val">
+                      <template v-if="isLocked('contacts')">
+                        <span class="kv-mask">••• ••• •• ••</span>
+                        <span class="kv-tools">
+                          <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать телефон представителя — с указанием причины" @click="openReveal('contacts')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                          </button>
+                        </span>
+                      </template>
+                      <span v-else class="kv-text">{{ recipient.representative.telephone || '—' }}</span>
+                    </dd>
+                  </div>
+
+                  <div class="kv kv-full" :class="{ 'is-secret': isLocked('contacts') }">
+                    <dt class="kv-key">E-mail</dt>
+                    <dd class="kv-val">
+                      <template v-if="isLocked('contacts')">
+                        <span class="kv-mask">•••••••••••</span>
+                        <span class="kv-tools">
+                          <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать e-mail представителя — с указанием причины" @click="openReveal('contacts')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                          </button>
+                        </span>
+                      </template>
+                      <span v-else class="kv-text">{{ recipient.representative.email || '—' }}</span>
+                    </dd>
+                  </div>
+
+                  <div class="kv kv-full" :class="{ 'is-secret': isLocked('contacts') }">
+                    <dt class="kv-key">Адрес регистрации</dt>
+                    <dd class="kv-val">
+                      <template v-if="isLocked('contacts')">
+                        <span class="kv-mask">••••••••••••••••••</span>
+                        <span class="kv-tools">
+                          <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать адрес регистрации представителя — с указанием причины" @click="openReveal('contacts')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                          </button>
+                        </span>
+                      </template>
+                      <span v-else class="kv-text">{{ recipient.representative.passportReg || '—' }}</span>
+                    </dd>
+                  </div>
                 </dl>
-              </LockedBlock>
-            </template>
-          </div>
-        </section>
+
+                <div v-if="isLocked('passport')" class="pd-note" style="margin-top:1rem;">
+                  <span class="pd-note-ic" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  </span>
+                  <span class="pd-note-text">Паспорт представителя закрыт по 152-ФЗ.</span>
+                  <button type="button" class="pd-note-btn" @click="openReveal('passport')">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                    Показать
+                  </button>
+                </div>
+
+                <dl class="kv-grid">
+                  <div class="kv" :class="{ 'is-secret': isLocked('passport') }">
+                    <dt class="kv-key">Паспорт серия / номер</dt>
+                    <dd class="kv-val">
+                      <span v-if="isLocked('passport')" class="kv-mask">•••• ••••••</span>
+                      <span v-else class="kv-text">{{ [recipient.representative.passportSeries, recipient.representative.passportNumber].filter(Boolean).join(' ') || '—' }}</span>
+                      <span class="kv-tools">
+                        <button v-if="isLocked('passport')" type="button" class="kv-tool" title="Показать данные" aria-label="Показать паспорт представителя — с указанием причины" @click="openReveal('passport')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                        <button type="button" class="kv-tool" title="Открыть документ" aria-label="Открыть скан паспорта представителя" @click="openScanByCode('rep-pass')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        </button>
+                      </span>
+                    </dd>
+                  </div>
+
+                  <div class="kv" :class="{ 'is-secret': isLocked('passport') }">
+                    <dt class="kv-key">Код подразделения</dt>
+                    <dd class="kv-val">
+                      <template v-if="isLocked('passport')">
+                        <span class="kv-mask">•••-•••</span>
+                        <span class="kv-tools">
+                          <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать код подразделения — с указанием причины" @click="openReveal('passport')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                          </button>
+                        </span>
+                      </template>
+                      <span v-else class="kv-text">{{ recipient.representative.passportDeptCode || '—' }}</span>
+                    </dd>
+                  </div>
+
+                  <div class="kv kv-full" :class="{ 'is-secret': isLocked('passport') }">
+                    <dt class="kv-key">Кем выдан</dt>
+                    <dd class="kv-val">
+                      <template v-if="isLocked('passport')">
+                        <span class="kv-mask">••••••••••••••••••</span>
+                        <span class="kv-tools">
+                          <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать, кем выдан паспорт представителя — с указанием причины" @click="openReveal('passport')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                          </button>
+                        </span>
+                      </template>
+                      <span v-else class="kv-text">{{ recipient.representative.passportIssuer || '—' }}<template v-if="recipient.representative.passportIssuerDate"> · {{ formatDate(recipient.representative.passportIssuerDate) }}</template></span>
+                    </dd>
+                  </div>
+                </dl>
+              </template>
+            </div>
+          </section>
+
+          <section class="card">
+            <div class="card-head"><h2 class="card-title">Статус семьи</h2></div>
+            <div class="card-body">
+              <p style="margin:0 0 .75rem;font-size:.875rem;color:var(--ink-muted);">Категории, дающие право на льготы и особый порядок работы. Статус хранится у представителя и одинаков во всех карточках его подопечных.</p>
+              <div v-if="!recipient.representative" class="empty">Представитель не указан, статус семьи определить не по чему</div>
+              <div v-else-if="!familyStatuses.length" class="empty">Статус семьи не отмечен</div>
+              <ul v-else class="fs-list">
+                <li v-for="s in familyStatuses" :key="s.id" class="fs-item">
+                  <span class="fs-name">{{ s.name }}</span>
+                  <span v-if="s.hint" class="fs-hint">{{ s.hint }}</span>
+                </li>
+              </ul>
+            </div>
+          </section>
+        </div>
       </div>
 
       <div v-else-if="activeTab === 'diagnostics'" class="tabpanel">
         <section class="card">
-          <div class="card-head"><h2 class="card-title">Диагностика и развитие</h2></div>
+          <div class="card-head">
+            <h2 class="card-title">Циклы реабилитации</h2>
+            <button v-if="canAssignDiagnostic" type="button" class="btn btn-primary" @click="openAssign">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="M12 14v4M10 16h4"/></svg>
+              Назначить диагностику
+            </button>
+          </div>
           <div class="card-body">
-            <h3 class="rd-subtitle">История диагностик</h3>
-            <div v-if="assignmentsLoading" class="rd-loading" style="min-height:80px"><div class="spinner"></div></div>
-            <div v-else-if="!historySessions.length" class="rd-inline-empty">Диагностик пока не было</div>
+            <div v-if="assignmentsLoading && !cycleRows.length" class="rd-loading" style="min-height:7.5rem"><div class="spinner"></div></div>
+            <div v-else-if="!cycleRows.length" class="empty">Диагностик пока не было</div>
+
             <template v-else>
-              <div class="rd-hist-tabs" role="tablist" aria-label="Переключение по диагностикам">
+              <div class="cyc-bar" role="tablist" aria-label="Циклы реабилитации">
                 <button
-                  v-for="s in historySessions"
-                  :key="'hist-' + s.id"
-                  type="button"
-                  role="tab"
-                  class="rd-hist-tab"
-                  :class="{ 'is-active': s.id === selectedHistoryId }"
-                  :aria-selected="s.id === selectedHistoryId"
-                  @click="selectedHistoryId = s.id"
+                  v-for="row in cycleRows" :key="'cyc-' + row.num"
+                  type="button" class="cyc-tab" role="tab"
+                  :class="{ 'is-active': row.active }"
+                  :aria-selected="row.num === activeCycle?.num"
+                  @click="selectedCycle = row.num"
                 >
-                  <span class="rd-hist-kind">{{ s.kindLabel || 'Первичная' }}</span>
-                  <span class="rd-hist-date">{{ formatDate(s.date) }}</span>
+                  <span class="cyc-tab-name">Цикл {{ row.num }} <span v-if="row.active" class="pill pill-ok">активный</span></span>
+                  <span class="cyc-tab-meta">{{ cycleMeta(row) }}</span>
                 </button>
               </div>
 
-              <div v-if="selectedHistory" class="rd-hist-panel">
-                <div class="rd-hist-head">
-                  <span class="doc-status" :class="sessionStatus(selectedHistory).tone">
-                    {{ sessionStatus(selectedHistory).label }}
-                  </span>
-                  <span class="rd-hist-meta">
-                    {{ selectedHistory.kindLabel || 'Первичная' }} диагностика от {{ formatDate(selectedHistory.date) }}
-                  </span>
+              <div v-if="activeCycle" class="cyc-panel">
+                <div class="cyc-summary" :class="{ 'is-active': activeCycle.active }">
+                  <div class="cyc-fact">
+                    <div class="cyc-fact-k">Статус</div>
+                    <div class="cyc-fact-v">{{ activeCycle.closed ? 'Завершён' : 'Идёт' }}</div>
+                  </div>
+                  <div class="cyc-fact">
+                    <div class="cyc-fact-k">{{ activeCycle.to ? 'Период' : 'Начат' }}</div>
+                    <div class="cyc-fact-v">{{ formatDate(activeCycle.from) }}<span v-if="activeCycle.to" class="unit"> – {{ formatDate(activeCycle.to) }}</span></div>
+                  </div>
+                  <div class="cyc-fact">
+                    <div class="cyc-fact-k">Занятий</div>
+                    <div v-if="cycleLessons(activeCycle).total" class="cyc-fact-v">
+                      {{ cycleLessons(activeCycle).done }}<span class="unit"> / {{ cycleLessons(activeCycle).total }} проведено</span>
+                    </div>
+                    <div v-else class="cyc-fact-v">—<span class="unit"> занятия не назначены</span></div>
+                  </div>
+                  <div class="cyc-fact">
+                    <div class="cyc-fact-k">Итог</div>
+                    <div class="cyc-fact-v" v-if="activeCycle.final">{{ capitalize(verdictLabel(activeCycle.final.conclusion.verdict)) }}</div>
+                    <div class="cyc-fact-v" v-else>—<span class="unit"> заключения нет</span></div>
+                  </div>
                 </div>
 
-                <div v-if="!(selectedHistory.blocks || []).length" class="rd-inline-empty">
-                  Блоки ещё не заполнены
-                </div>
-                <div v-else class="rd-hist-blocks">
-                  <div v-for="b in selectedHistory.blocks" :key="'hb-' + b.id" class="rd-result">
-                    <div class="rd-result-head">
-                      <span class="rd-result-dir">{{ b.direction?.name || 'Направление не указано' }}</span>
-                      <span class="rd-result-meta">
-                        {{ b.specialistName || '—' }} ·
-                        {{ b.blockStatus === 'completed' ? 'сдан' : 'в работе' }}
-                      </span>
-                    </div>
-                    <div v-if="b.resultsHidden" class="rd-result-empty">Результаты доступны только автору блока</div>
-                    <div v-else-if="!blockResultLines(b).length" class="rd-result-empty">Результаты не заполнены</div>
-                    <div v-else>
-                      <div v-for="(r, i) in blockResultLines(b)" :key="'hbr-' + b.id + '-' + i" class="rd-result-block">
-                        <div class="rd-result-block-title">{{ r.title }}</div>
-                        <div v-if="r.specialists" class="rd-result-spec">Специалисты: {{ r.specialists }}</div>
-                        <p v-if="r.recs" class="rd-result-recs">{{ r.recs }}</p>
+                <details
+                  v-for="(s, si) in activeCycle.sessions" :key="'diag-' + s.id"
+                  class="diag" :class="diagTone(s)" :open="si === 0"
+                >
+                  <summary class="diag-head">
+                    <span class="pill" :class="diagPill(s).cls">{{ diagPill(s).text }}</span>
+                    <span class="diag-verdict">{{ s.kindLabel || 'Первичная' }} диагностика</span>
+                    <span class="diag-when">{{ diagWhen(s) }}</span>
+                  </summary>
+                  <div class="diag-body">
+                    <div v-if="!(s.blocks || []).length" class="empty">Заявку пока никто не взял</div>
+
+                    <details v-for="b in (s.blocks || [])" :key="'dir-' + b.id" class="dir">
+                      <summary>
+                        <span class="dir-ic" aria-hidden="true">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                            <path v-for="(d, di) in dirIcon(b)" :key="di" :d="d" />
+                          </svg>
+                        </span>
+                        <span class="dir-name">{{ b.direction?.name || 'Направление не указано' }}</span>
+                        <span class="dir-spec">{{ b.specialistName || 'Специалист не назначен' }}</span>
+                        <span class="dir-score" v-if="dirScore(b)">{{ dirScore(b).value }}<span class="unit">{{ dirScore(b).unit }}</span></span>
+                        <span class="dir-score" v-else>—<span class="unit"> / 4</span></span>
+                      </summary>
+                      <div class="dir-body">
+                        <div v-if="b.resultsHidden" class="empty">Результаты доступны только автору блока</div>
+                        <template v-else>
+                          <div v-if="dirComment(b)" class="dir-comment">
+                            <div class="dir-comment-k">Комментарий специалиста</div>
+                            <p class="dir-comment-p">{{ dirComment(b) }}</p>
+                          </div>
+                          <div v-for="(r, ri) in dirLegacy(b)" :key="'lg-' + ri" class="dir-comment" style="margin-top:.5rem;">
+                            <div class="dir-comment-k">{{ r.title }}<template v-if="r.specialists"> · {{ r.specialists }}</template></div>
+                            <p v-if="r.recs" class="dir-comment-p">{{ r.recs }}</p>
+                          </div>
+                          <div v-if="!dirComment(b) && !dirLegacy(b).length" class="empty">Комментарий не заполнен</div>
+
+                          <details v-if="dirRows(b).length" class="crit" :open="!!dirRowsFilled(b)">
+                            <summary class="crit-sum">
+                              Оценки по критериям
+                              <span class="crit-count">{{ critCountLabel(b) }}</span>
+                            </summary>
+                            <div class="crit-body">
+                              <p v-if="!dirRowsFilled(b)" class="crit-empty">
+                                Специалист ещё не выставил оценки по этому направлению — шкала заполнится, как только он сдаст блок диагностики.
+                              </p>
+                              <div v-for="r in dirRows(b)" :key="r.key" class="crit-row" :class="{ 'is-blank': r.value === null || r.value === '' }">
+                                <span class="crit-label">{{ r.label }}</span>
+                                <span v-if="r.kind === 'scale'" class="crit-scale" role="img" :aria-label="r.label + ': ' + rowAria(r)">
+                                  <span v-for="n in ticksOf(r.max)" :key="n" class="tick" :class="{ on: r.value === n }">{{ n }}</span>
+                                </span>
+                                <span v-else class="crit-answer">{{ r.value }}</span>
+                              </div>
+                              <p v-if="dirGraded(b)" class="crit-hint">{{ CRIT_HINT }}</p>
+                            </div>
+                          </details>
+                        </template>
                       </div>
+                    </details>
+
+                    <div v-if="s.conclusion" class="diag-concl" :class="{ 'is-stop': s.conclusion.verdict === 'rejected' }">
+                      <div class="diag-concl-h">Заключение · {{ verdictLabel(s.conclusion.verdict) }}</div>
+                      <p v-if="s.conclusion.summary" class="diag-concl-p">{{ s.conclusion.summary }}</p>
+                      <p v-if="s.conclusion.recommendations" class="diag-concl-p">{{ s.conclusion.recommendations }}</p>
+                      <div class="diag-concl-m">{{ s.conclusion.authorName || 'Автор не указан' }} · {{ formatDate(s.conclusion.issuedAt) }}</div>
+                    </div>
+
+                    <div v-if="canCancelSession && (s.status === 'open' || s.status === 'in_progress')" class="doc-acts">
+                      <button type="button" class="rd-cancel-btn" @click="askCancel(s)">Отменить заявку</button>
                     </div>
                   </div>
-                </div>
-
-                <div v-if="selectedHistory.conclusion" class="rd-hist-conclusion">
-                  <div class="rd-hist-conclusion-head">
-                    Заключение · {{ verdictLabel(selectedHistory.conclusion.verdict) }}
-                  </div>
-                  <p class="rd-hist-conclusion-text">{{ selectedHistory.conclusion.summary }}</p>
-                  <p v-if="selectedHistory.conclusion.recommendations" class="rd-hist-conclusion-text">
-                    {{ selectedHistory.conclusion.recommendations }}
-                  </p>
-                  <div class="rd-hist-conclusion-meta">
-                    {{ selectedHistory.conclusion.authorName || '—' }} · {{ formatDate(selectedHistory.conclusion.issuedAt) }}
-                  </div>
-                </div>
-                <div v-else class="rd-inline-empty">Заключение ещё не выдано</div>
-              </div>
-            </template>
-
-            <h3 class="rd-subtitle" style="margin-top: 1.75rem;">Заявки на диагностику</h3>
-            <div v-if="assignmentsLoading" class="rd-loading" style="min-height:80px"><div class="spinner"></div></div>
-            <div v-else-if="!activeSessions.length" class="rd-inline-empty">Активных заявок нет</div>
-            <table v-else class="rd-table">
-              <thead>
-                <tr>
-                  <th>Дата диагностики</th>
-                  <th>Специалисты</th>
-                  <th>Статус</th>
-                  <th v-if="canCancelSession" class="rd-col-act">Действие</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="s in activeSessions" :key="'sess-' + s.id">
-                  <td>{{ formatDate(s.date) }}</td>
-                  <td>{{ s.total ? (s.blocks || []).map((b) => b.specialistName || b.direction?.name).filter(Boolean).join(', ') || '—' : 'Заявку пока никто не взял' }}</td>
-                  <td>
-                    <span class="doc-status" :class="sessionStatus(s).tone">{{ sessionStatus(s).label }}</span>
-                  </td>
-                  <td v-if="canCancelSession" class="rd-col-act">
-                    <button type="button" class="rd-cancel-btn" @click="askCancel(s)">Отменить</button>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <h3 class="rd-subtitle" style="margin-top: 1.75rem;">Назначенные диагностики</h3>
-            <div v-if="assignmentsLoading" class="rd-loading" style="min-height:80px"><div class="spinner"></div></div>
-            <div v-else-if="!assignments.length" class="rd-inline-empty">Пока нет назначений</div>
-            <table v-else class="rd-table">
-              <thead>
-                <tr><th>Направление</th><th>Специалист</th><th>Дата</th><th>Статус</th></tr>
-              </thead>
-              <tbody>
-                <tr v-for="a in assignments" :key="a.id">
-                  <td>{{ a.direction?.name || '—' }}</td>
-                  <td>{{ a.specialist?.fullName || '—' }}</td>
-                  <td>{{ formatDate(a.date) }}</td>
-                  <td><span class="doc-status" :class="a.published ? 'sage' : 'amber'">{{ a.published ? 'Проведена' : 'Назначена' }}</span></td>
-                </tr>
-              </tbody>
-            </table>
-
-            <template v-if="publishedAssignments.length">
-              <h3 class="rd-subtitle" style="margin-top: 1.75rem;">Результаты проведённых диагностик</h3>
-              <div v-for="a in publishedAssignments" :key="'res-' + a.id" class="rd-result">
-                <div class="rd-result-head">
-                  <span class="rd-result-dir">{{ a.direction?.name || '—' }}</span>
-                  <span class="rd-result-meta">{{ a.specialist?.fullName || '—' }} · {{ formatDate(a.date) }}</span>
-                </div>
-                <div v-if="!resultBlocks(a).length" class="rd-result-empty">Результаты не заполнены</div>
-                <div v-else>
-                  <div v-for="(b, i) in resultBlocks(a)" :key="i" class="rd-result-block">
-                    <div class="rd-result-block-title">{{ blockTitle(b) }}</div>
-                    <div v-if="b.specialists && b.specialists.length" class="rd-result-spec">
-                      Специалисты: {{ b.specialists.join(', ') }}
-                    </div>
-                    <p v-if="b.recs" class="rd-result-recs">{{ b.recs }}</p>
-                  </div>
-                </div>
+                </details>
               </div>
             </template>
           </div>
@@ -974,16 +1090,13 @@
       <div v-else-if="activeTab === 'enrollment'" class="tabpanel">
         <section class="card">
           <div class="card-head">
-            <div>
-              <h2 class="card-title">Документы на зачисление</h2>
-              <div class="card-sub">{{ enrollSubtitle }}</div>
-            </div>
-            <span v-if="enroll" class="rd-scan-badge">{{ enroll.signedCount }} / {{ enroll.docs.length }}</span>
+            <h2 class="card-title">Документы на зачисление</h2>
+            <span v-if="enroll" class="badge">{{ enroll.signedCount }} / {{ enroll.docs.length }}</span>
           </div>
 
           <div class="card-body">
-            <div v-if="enrollLoading" class="rd-loading" style="min-height:120px"><div class="spinner"></div></div>
-            <div v-else-if="enrollError" class="rd-inline-empty">{{ enrollError }}</div>
+            <div v-if="enrollLoading" class="rd-loading" style="min-height:7.5rem"><div class="spinner"></div></div>
+            <div v-else-if="enrollError" class="empty">{{ enrollError }}</div>
 
             <template v-else-if="enroll">
               <div v-if="!enroll.verdict" class="en-note en-note-wait">
@@ -996,41 +1109,50 @@
               </div>
 
               <template v-else>
-                <div class="en-grid">
-                  <div v-for="d in enroll.docs" :key="d.key" class="en-doc" :class="{ done: d.uploaded }">
-                    <div class="en-doc-head">
-                      <span class="en-doc-ic" aria-hidden="true">
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                      </span>
-                      <div class="en-doc-t">
-                        <div class="en-doc-name">{{ d.title }}</div>
-                        <div class="en-doc-state">
-                          <template v-if="d.uploaded">
-                            Подписанный скан загружен<template v-if="d.uploadedAt"> · {{ formatDate(d.uploadedAt) }}</template>
-                          </template>
-                          <template v-else>Скан с подписью не загружен</template>
-                        </div>
+                <dl class="doc-table">
+                  <div v-for="d in enroll.docs" :key="d.key" class="doc-tr" :class="{ 'is-missing': !d.uploaded && d.required }">
+                    <dt class="doc-k">
+                      <span class="doc-name">{{ d.title }}</span>
+                      <span class="doc-req">{{ d.required ? 'обязательный' : 'по желанию' }}</span>
+                    </dt>
+                    <dd class="doc-v">
+                      <div class="doc-state">
+                        <span class="pill" :class="d.uploaded ? 'pill-ok' : (d.required ? 'pill-wait' : 'pill-mute')">
+                          {{ d.uploaded ? 'Подписано' : (d.required ? 'Ждём скан' : 'Не загружено') }}
+                        </span>
+                        <div v-if="d.uploaded && d.uploadedAt" class="doc-term">Загружено {{ formatDate(d.uploadedAt) }}</div>
                       </div>
-                      <span class="en-doc-tag" :class="d.uploaded ? 'is-done' : 'is-wait'">
-                        {{ d.uploaded ? 'Готово' : 'Ждём' }}
-                      </span>
-                    </div>
+                      <div v-if="d.uploaded && d.originalName" class="doc-file">{{ d.originalName }}</div>
 
-                    <div class="en-doc-actions">
-                      <button
-                        type="button"
-                        class="en-btn en-btn-primary"
-                        :disabled="enrollBusy === d.key"
-                        @click="downloadEnrollDoc(d)"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                        {{ enrollBusy === d.key ? 'Готовим…' : 'Скачать бланк' }}
-                      </button>
+                      <div class="doc-acts">
+                        <button
+                          v-if="d.uploaded && d.scanId"
+                          type="button"
+                          class="doc-act"
+                          :aria-label="'Открыть: ' + d.title"
+                          @click="openEnrollScan(d)"
+                        >
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                          Открыть
+                        </button>
 
-                      <template v-if="canEditDocs">
-                        <label class="en-btn en-btn-ghost" :class="{ 'is-busy': enrollBusy === 'up:' + d.key }">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                          {{ enrollBusy === 'up:' + d.key ? 'Загрузка…' : (d.uploaded ? 'Заменить скан' : 'Загрузить скан') }}
+                        <button
+                          type="button"
+                          :class="d.uploaded ? 'doc-act' : 'btn btn-secondary btn-sm'"
+                          :disabled="enrollBusy === d.key"
+                          @click="downloadEnrollDoc(d)"
+                        >
+                          <svg v-if="d.uploaded" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                          {{ enrollBusy === d.key ? 'Готовим…' : 'Скачать бланк' }}
+                        </button>
+
+                        <label
+                          v-if="canEditDocs"
+                          :class="d.uploaded ? 'doc-act' : 'btn btn-primary btn-sm'"
+                          :aria-label="(d.uploaded ? 'Новая версия: ' : 'Загрузить скан: ') + d.title"
+                        >
+                          <svg v-if="d.uploaded" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                          {{ enrollBusy === 'up:' + d.key ? 'Загрузка…' : (d.uploaded ? 'Новая версия' : 'Загрузить скан') }}
                           <input
                             type="file"
                             class="en-file"
@@ -1039,23 +1161,12 @@
                             @change="pickSignedScan(d, $event)"
                           />
                         </label>
+                      </div>
 
-                        <a
-                          v-if="d.uploaded && d.scanId"
-                          class="en-btn en-btn-ghost"
-                          :href="`/api/v1/recipients/${recipientId}/scans/${d.scanId}/file`"
-                          target="_blank"
-                          rel="noopener"
-                        >
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-                          Открыть скан
-                        </a>
-                      </template>
-                    </div>
-
-                    <p v-if="enrollDocError[d.key]" class="du-error en-doc-err">{{ enrollDocError[d.key] }}</p>
+                      <p v-if="enrollDocError[d.key]" class="field-err">{{ enrollDocError[d.key] }}</p>
+                    </dd>
                   </div>
-                </div>
+                </dl>
 
                 <div v-if="enroll.allSigned" class="en-note en-note-ok en-done">
                   Все подписанные документы загружены. Осталось назначить группу —
@@ -1229,6 +1340,212 @@
         </div>
       </div>
 
+      <div v-if="cardEditOpen" class="modal" @click.self="closeCardEdit">
+        <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="m-edit-t">
+          <div class="modal-head">
+            <div>
+              <h2 class="modal-title" id="m-edit-t">Редактирование карточки</h2>
+              <p class="modal-sub">Прежние данные сохранятся в истории вместе с автором и датой</p>
+            </div>
+            <button type="button" class="icon-btn icon-btn-sm" :disabled="cardSaving" aria-label="Закрыть" @click="closeCardEdit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <label class="field">
+              <span class="field-key">ФИО</span>
+              <input v-model="cardForm.fio" class="input" type="text" placeholder="Фамилия Имя Отчество" />
+              <span v-if="cardTouched && !cardFioValid" class="field-err">Укажите как минимум фамилию и имя</span>
+            </label>
+            <label class="field">
+              <span class="field-key">Дата рождения</span>
+              <input v-model="cardForm.birthDate" class="input" type="date" />
+            </label>
+            <label class="field">
+              <span class="field-key">Место обучения</span>
+              <input v-model="cardForm.educationPlace" class="input" type="text" placeholder="Например: ГБОУ «Школа № 1499», 7 «Б» класс" />
+            </label>
+            <label class="field">
+              <span class="field-key">Округ проживания</span>
+              <select v-model="cardForm.district" class="input">
+                <option value="">Не указан</option>
+                <option v-for="o in OKRUGA" :key="o" :value="o">{{ o }}</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-key">Причина изменения <span class="req">— обязательно</span></span>
+              <textarea v-model="cardReason" class="input" rows="2" placeholder="Например: уточнили класс обучения по справке из школы"></textarea>
+              <span v-if="cardTouched && !cardReasonValid" class="field-err">Опишите причину — не менее 3 символов</span>
+            </label>
+            <p v-if="cardError" class="field-err">{{ cardError }}</p>
+          </div>
+          <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" :disabled="cardSaving" @click="closeCardEdit">Отмена</button>
+            <button type="button" class="btn btn-primary" :disabled="!canSaveCard" @click="saveCardEdit">
+              {{ cardSaving ? 'Сохраняем…' : 'Сохранить' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="revealOpen" class="modal" @click.self="closeReveal">
+        <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="m-reveal-t">
+          <div class="modal-head">
+            <div>
+              <h2 class="modal-title" id="m-reveal-t">{{ revealTitle }}</h2>
+              <p class="modal-sub">{{ revealLabel }}</p>
+            </div>
+            <button type="button" class="icon-btn icon-btn-sm" :disabled="revealSending" aria-label="Закрыть" @click="closeReveal">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <label class="field">
+              <span class="field-key">{{ revealReasonKey }} <span class="req">— обязательно</span></span>
+              <select v-model="revealReasonCode" class="input">
+                <option value="">— выберите причину —</option>
+                <option v-for="r in revealReasons" :key="r.code" :value="r.code">{{ r.label }}</option>
+              </select>
+            </label>
+            <label class="field">
+              <span class="field-key">Пояснение<span v-if="revealReasonCode === 'other'" class="req">— обязательно, не менее 10 символов</span></span>
+              <textarea v-model="revealReasonText" class="input" rows="3" :placeholder="revealHint"></textarea>
+            </label>
+            <p class="modal-note">{{ revealNote }}</p>
+            <p v-if="revealError" class="field-err">{{ revealError }}</p>
+          </div>
+          <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" :disabled="revealSending" @click="closeReveal">Отмена</button>
+            <button type="button" class="btn btn-primary" :disabled="!canReveal" @click="submitReveal">
+              {{ revealSending ? 'Открываем…' : revealSubmitText }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="uploadOpen" class="modal" @click.self="closeUpload">
+        <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="m-upload-t">
+          <div class="modal-head">
+            <div>
+              <h2 class="modal-title" id="m-upload-t">{{ uploadIsReplace ? 'Новая версия документа' : 'Загрузка документа' }}</h2>
+              <p class="modal-sub">{{ uploadTypeName }}</p>
+            </div>
+            <button type="button" class="icon-btn icon-btn-sm" :disabled="uploadSaving" aria-label="Закрыть" @click="closeUpload">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <label class="field">
+              <span class="field-key">Тип документа <span class="req">— обязательно</span></span>
+              <select v-model="uploadCode" class="input" :disabled="uploadIsReplace || uploadSaving">
+                <option value="">— выберите тип —</option>
+                <option v-for="t in uploadTypes" :key="t.code" :value="t.code">{{ t.name }}</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span class="field-key">Файл <span class="req">— обязательно</span></span>
+              <input ref="uploadInputRef" class="input" type="file" accept="image/*,application/pdf"
+                     :disabled="uploadSaving" @change="pickUploadFile" />
+            </label>
+            <p class="modal-note" style="margin-bottom:.875rem;">
+              Изображение или PDF, не больше {{ MAX_SCAN_MB }} МБ. Прежняя версия не удаляется — останется в истории с автором, датой и причиной замены.
+            </p>
+
+            <div v-if="uploadFile" class="rs-picked">
+              <img v-if="uploadPreview" :src="uploadPreview" alt="" class="rs-preview" />
+              <div class="rs-picked-meta">
+                <div class="rs-picked-name">{{ uploadFile.name }}</div>
+                <div class="rs-picked-sub">{{ formatSize(uploadFile.size) }}</div>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <label class="field">
+                <span class="field-key">Дата выдачи</span>
+                <input v-model="uploadIssuedAt" class="input" type="date" :disabled="uploadSaving" />
+              </label>
+              <label class="field">
+                <span class="field-key">Действует до</span>
+                <input v-model="uploadValidUntil" class="input" type="date" :disabled="uploadPerpetual || uploadSaving" />
+              </label>
+            </div>
+            <label class="check">
+              <input v-model="uploadPerpetual" type="checkbox" :disabled="uploadSaving" />
+              <span>Бессрочный документ</span>
+            </label>
+
+            <div v-if="uploadIsReplace && uploadPrevTerm" class="term-note">
+              Новый срок заменит текущий: <b>{{ uploadPrevTerm }}</b> → <b>{{ uploadNextTerm }}</b>.
+              Предупреждение «истекает» и блокировка назначения диагностики пересчитаются сразу после сохранения.
+            </div>
+
+            <label v-if="uploadIsReplace" class="field" style="margin-top:.875rem;">
+              <span class="field-key">Причина загрузки <span class="req">— обязательно</span></span>
+              <textarea v-model="uploadReason" class="input" rows="2"
+                        placeholder="Например: представитель привёз новую справку МСЭ"
+                        :disabled="uploadSaving" @blur="uploadTouched = true"></textarea>
+              <span v-if="uploadTouched && !uploadReasonValid" class="field-err">Опишите причину — не менее 3 символов</span>
+            </label>
+
+            <p v-if="uploadError" class="field-err">{{ uploadError }}</p>
+          </div>
+          <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" :disabled="uploadSaving" @click="closeUpload">Отмена</button>
+            <button type="button" class="btn btn-primary" :disabled="!canSaveUpload" @click="saveUpload">
+              {{ uploadSaving ? 'Сохраняем…' : 'Сохранить документ' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="historyScan" class="modal" @click.self="closeScanHistory">
+        <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="m-history-t">
+          <div class="modal-head">
+            <div>
+              <h2 class="modal-title" id="m-history-t">История документа</h2>
+              <p class="modal-sub">{{ scanLabel(historyScan) }} · версий: {{ scanVersionRows.length }}</p>
+            </div>
+            <button type="button" class="icon-btn icon-btn-sm" aria-label="Закрыть" @click="closeScanHistory">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div class="modal-body">
+            <ol class="hist">
+              <li v-for="v in scanVersionRows" :key="v.id" class="hist-item">
+                <div class="hist-head">
+                  <span class="hist-date">{{ v.uploadedAt ? formatDateTime(v.uploadedAt) : 'Дата не записана' }}</span>
+                  <span class="hist-author">{{ uploaderName(v) }}</span>
+                  <span class="pill" :class="v.isCurrent !== false ? 'pill-ok' : 'pill-mute'">
+                    {{ v.isCurrent !== false ? 'Актуальная' : 'Заменена' }}
+                  </span>
+                </div>
+                <div class="hist-reason">{{ scanReasonText(v) }}</div>
+                <div class="hist-fields">
+                  Версия {{ v.verNo }} · {{ v.term }} · {{ v.originalName }}, {{ formatSize(v.sizeBytes) }}
+                  <button type="button" class="doc-act" @click="openScanDoc(v)">Открыть</button>
+                </div>
+              </li>
+            </ol>
+            <p class="modal-note">Прежние версии не удаляются. Открытие любой версии фиксируется в журнале доступа.</p>
+          </div>
+          <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @click="closeScanHistory">Закрыть</button>
+            <button v-if="canUploadScans" type="button" class="btn btn-primary"
+                    @click="openUpload({ code: historyScan.docTypeRef?.code, scan: historyScan }); closeScanHistory()">
+              Загрузить новую версию
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="lightbox" class="rd-lightbox" @click="lightbox = null">
+        <img :src="lightbox" alt="" @click.stop />
+        <button type="button" class="rd-lightbox-close" @click="lightbox = null" aria-label="Закрыть">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
+      </div>
+
       <AssignDiagnosticModal
         v-if="assignOpen"
         :recipient-id="recipientId"
@@ -1244,14 +1561,16 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { usePageStore } from '../stores/page';
 import { useAuthStore } from '../stores/auth';
+import { useUiStore } from '../stores/ui';
 import api from '../api';
 import { fullName, initials, recipientAge, statusLabel } from '../utils/recipient';
 import { notify, notifySaved } from '../utils/toast';
+import { SCALE, getBlock, averageScore } from '../utils/diagnosticBlocks';
 import AssignDiagnosticModal from '../components/AssignDiagnosticModal.vue';
-import LockedBlock from '../components/LockedBlock.vue';
 
 const pageStore = usePageStore();
 const authStore = useAuthStore();
+const ui = useUiStore();
 const recipientId = pageStore.params?.recipientId;
 
 const loading = ref(true);
@@ -1289,13 +1608,9 @@ const versionsOf = (s) =>
   scanRows.value
     .filter((r) => r.docType === s.docType)
     .sort((a, b) => b.id - a.id);
-const versionCount = (s) => versionsOf(s).length;
-
 const assignments = ref([]);
 const assignmentsLoading = ref(false);
 const todayStr = new Date().toISOString().slice(0, 10);
-const publishedAssignments = computed(() => assignments.value.filter(a => a.published));
-
 const sessions = ref([]);
 const activeSessions = computed(
   () => sessions.value.filter((s) => s.status === 'open' || s.status === 'in_progress')
@@ -1318,31 +1633,12 @@ const historySessions = computed(
     .sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.id - b.id)
 );
 const selectedHistoryId = ref(null);
-const selectedHistory = computed(
-  () => historySessions.value.find((s) => s.id === selectedHistoryId.value) || null
-);
-
 const VERDICT_LABELS = {
   recommended: 'рекомендован к зачислению',
   trial: 'пробные занятия',
   rejected: 'не рекомендован'
 };
 const verdictLabel = (v) => VERDICT_LABELS[v] || 'решение не указано';
-
-function blockResultLines(b) {
-  const blocks = b?.results?.blocks;
-  if (!Array.isArray(blocks)) return [];
-  return blocks
-    .filter((x) =>
-      (x && typeof x.recs === 'string' && x.recs.trim()) ||
-      (x && Array.isArray(x.specialists) && x.specialists.length)
-    )
-    .map((x) => ({
-      title: blockTitle(x),
-      specialists: Array.isArray(x.specialists) ? x.specialists.join(', ') : '',
-      recs: typeof x.recs === 'string' ? x.recs.trim() : ''
-    }));
-}
 
 const canCancelSession = computed(() => authStore.isAdmin || authStore.isEmployee);
 const cancelTarget = ref(null);
@@ -1387,11 +1683,11 @@ const groupChanged = computed(
 const tabs = [
   { id: 'overview', label: 'Обзор' },
   { id: 'profile', label: 'Анкета и медкарта' },
+  { id: 'representative', label: 'Представитель и семья' },
   { id: 'lessons', label: 'Занятия и группа' },
   { id: 'diagnostics', label: 'Диагностика и развитие' },
   { id: 'enrollment', label: 'Зачисление' },
   { id: 'documents', label: 'Документы' },
-  { id: 'representative', label: 'Представитель и семья' },
 ];
 
 const readiness = ref(null);
@@ -1421,6 +1717,30 @@ const stageChip = computed(() => {
   return (w ? `${w}-я неделя цикла · ` : '') + `группа «${groupName.value}»`;
 });
 
+const cycles = computed(() => {
+  const ordered = sessions.value
+    .filter((s) => s.status !== 'cancelled')
+    .slice()
+    .sort((a, b) => String(a.date).localeCompare(String(b.date)) || a.id - b.id);
+  const out = [];
+  for (const s of ordered) {
+    if (s.kind === 'primary' || !out.length) {
+      out.push({ num: out.length + 1, sessions: [s] });
+    } else {
+      out[out.length - 1].sessions.push(s);
+    }
+  }
+  return out;
+});
+
+const cycleTag = computed(() => {
+  const last = cycles.value[cycles.value.length - 1];
+  if (!last) return '';
+  const closed = last.sessions.some((s) => s.kind === 'final' && s.conclusion);
+  if (closed) return `Цикл ${last.num} · завершён`;
+  return `Цикл ${last.num} · ${recipient.value?.groupId ? 'активный' : 'в работе'}`;
+});
+
 const expiredDocs = computed(() => readiness.value?.docs?.expired || []);
 const expiringDocs = computed(() => readiness.value?.docs?.expiringSoon || []);
 const missingScans = computed(() => readiness.value?.docs?.missingScans || []);
@@ -1435,14 +1755,43 @@ const docAlertLabel = computed(() => {
 
 const canAssignDiagnostic = computed(() => authStore.isAdmin || authStore.isEmployee);
 const canEditDocs = computed(() => authStore.isAdmin || authStore.isEmployee);
+const canUploadScans = computed(() => authStore.isAdmin || authStore.isEmployee || authStore.isTeacher);
+const isSignedCode = (code) => String(code || '').startsWith('signed-');
+const canUploadRow = (row) => (isSignedCode(row?.code) ? canEditDocs.value : canUploadScans.value);
+const canEditCard = computed(() => authStore.isAdmin || authStore.isEmployee);
 
-const blockerWord = (n) => {
-  const mod10 = n % 10;
-  const mod100 = n % 100;
-  if (mod10 === 1 && mod100 !== 11) return 'препятствие';
-  if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) return 'препятствия';
-  return 'препятствий';
+const goFixDocs = () => {
+  if (missingScans.value.length) activeTab.value = 'documents';
+  else if (enrollAlertCount.value) activeTab.value = 'enrollment';
+  else openDocUpdate();
 };
+
+const enrollMissing = computed(() => {
+  const e = enroll.value;
+  if (!e || !e.positive) return [];
+  return (e.docs || []).filter((d) => d.required && !d.uploaded);
+});
+const enrollAlertCount = computed(() => enrollMissing.value.length);
+const enrollAlertLabel = computed(() =>
+  enrollAlertCount.value
+    ? `Не загружено подписанных документов: ${enrollAlertCount.value}`
+    : 'Документы на зачисление загружены'
+);
+
+const allMissingNames = computed(() => [
+  ...missingScans.value.map((m) => m.name),
+  ...enrollMissing.value.map((d) => d.title)
+]);
+
+const alertCount = computed(() => expiredDocs.value.length + allMissingNames.value.length);
+
+const alertLabel = computed(() => {
+  const parts = [];
+  if (expiredDocs.value.length) parts.push(`просроченных документов: ${expiredDocs.value.length}`);
+  if (allMissingNames.value.length) parts.push(`не загружено файлов: ${allMissingNames.value.length}`);
+  if (!parts.length && expiringDocs.value.length) parts.push(`истекает документов: ${expiringDocs.value.length}`);
+  return parts.length ? `Внимание — ${parts.join(', ')}` : 'Документы в порядке';
+});
 
 const assignOpen = ref(false);
 const openAssign = () => { assignOpen.value = true; };
@@ -1470,34 +1819,22 @@ const repPhoneHref = computed(() => {
   const p = recipient.value?.representative?.telephone;
   return p ? 'tel:' + String(p).replace(/[^\d+]/g, '') : '';
 });
+const repRoleLine = computed(() => {
+  const r = recipient.value?.representative;
+  if (!r) return '';
+  return [r.relation, r.telephone].filter(Boolean).join(' · ') || 'Контакты не указаны';
+});
 
 const familyStatuses = computed(() => {
   const list = recipient.value?.representative?.familyStatuses;
   if (!Array.isArray(list) || !list.length) return [];
   return [...list].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.id - b.id);
 });
-const programDays = computed(() => {
-  const c = recipient.value?.createdAt;
-  if (!c) return null;
-  const diff = Math.floor((Date.now() - new Date(c).getTime()) / 86400000);
-  return diff >= 0 ? diff : null;
-});
-
 const pastEvents = computed(() => events.value.filter(e => String(e.date) < todayStr));
-const futureEvents = computed(() => events.value.filter(e => String(e.date) >= todayStr));
-const recentEvents = computed(() => pastEvents.value.slice(-3).reverse());
-const allEventsDesc = computed(() => [...events.value].reverse());
+const futureEvents = computed(() => events.value.filter(e => String(e.date) >= todayStr));const allEventsDesc = computed(() => [...events.value].reverse());
 const lessonsCount = computed(() => events.value.length);
 
 const firstEventDate = computed(() => (events.value.length ? events.value[0].date : null));
-const inProgramDays = computed(() => {
-  if (!firstEventDate.value) return null;
-  const diff = Math.floor((Date.now() - new Date(firstEventDate.value).getTime()) / 86400000);
-  return diff >= 0 ? diff : null;
-});
-
-const nextControl = computed(() => futureEvents.value.find(e => e.type === 'diagnostic') || null);
-
 const upcoming = computed(() => {
   const rows = futureEvents.value.map(e => ({
     kind: 'event',
@@ -1597,22 +1934,6 @@ function formatDate(d) {
 
 const mseValidText = (d) => (d?.mseIndefinite ? 'Бессрочно' : formatDate(d?.mseValidDate));
 
-function formatShort(d) {
-  if (!d) return '—';
-  const dt = new Date(d);
-  if (isNaN(dt.getTime())) return String(d);
-  const m = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
-  return `${dt.getDate()} ${m[dt.getMonth()]}`;
-}
-
-function formatDay(d) {
-  if (!d) return '—';
-  const dt = new Date(d);
-  if (isNaN(dt.getTime())) return String(d);
-  const wd = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'][dt.getDay()];
-  return `${wd}, ${formatShort(d)}`;
-}
-
 function formatTime(t) {
   return t ? String(t).slice(0, 5) : '';
 }
@@ -1648,19 +1969,6 @@ function monthShort(d) {
 function memberMeta(m) {
   const a = recipientAge(m);
   return [a != null ? `${a} ${yearsWord(a)}` : '', m.diagnosis || ''].filter(Boolean).join(' · ');
-}
-
-function resultBlocks(a) {
-  const blocks = a?.results?.blocks;
-  if (!Array.isArray(blocks)) return [];
-  return blocks.filter(b =>
-    (b && typeof b.recs === 'string' && b.recs.trim()) ||
-    (b && Array.isArray(b.specialists) && b.specialists.length)
-  );
-}
-
-function blockTitle(b) {
-  return String(b?.sub || b?.direction || 'Блок').replace(/\s*\n\s*/g, ' ').trim();
 }
 
 const goBack = () => {
@@ -1803,14 +2111,6 @@ const loadDocHistory = async (force = false) => {
   }
 };
 
-const snapshotValue = (snapshot, key) => {
-  const v = snapshot?.[key];
-  if (v === null || v === undefined || v === '') return '—';
-  if (typeof v === 'boolean') return v ? 'Да' : 'Нет';
-  if (/Date$/.test(key)) return formatDate(v);
-  return String(v);
-};
-
 const formatDateTime = (v) => {
   if (!v) return '—';
   const d = new Date(v);
@@ -1861,12 +2161,7 @@ const loadScans = async (force = false) => {
 const scanFileUrl = (s) => `/api/v1/recipients/${recipientId}/scans/${s.id}/file`;
 const isImage = (s) =>
   /^image\//i.test(s?.mimeType || '') || /\.(png|jpe?g|gif|webp|bmp)$/i.test(s?.originalName || '');
-const scanLabel = (s) => s?.docTypeRef?.name || s?.originalName || 'Документ';
-const fileExt = (s) => {
-  const m = String(s?.originalName || '').match(/\.([a-z0-9]+)$/i);
-  return m ? m[1].toUpperCase() : 'ФАЙЛ';
-};
-const formatSize = (bytes) => {
+const scanLabel = (s) => s?.docTypeRef?.name || s?.originalName || 'Документ';const formatSize = (bytes) => {
   const b = Number(bytes) || 0;
   if (b < 1024) return b + ' Б';
   if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' КБ';
@@ -1874,59 +2169,47 @@ const formatSize = (bytes) => {
 };
 const openLightbox = (s) => { lightbox.value = scanFileUrl(s); };
 
-const MAX_SCAN_MB = 15;
+const scanByCode = (code) => scans.value.find((s) => s.docTypeRef?.code === code) || null;
 
-const replaceScan = ref(null);       
-const replaceFile = ref(null);       
-const replacePreview = ref('');      
-const replaceReason = ref('');
-const replaceTouched = ref(false);
-const replaceSaving = ref(false);
-const replaceError = ref('');
-const replaceOk = ref('');
-const fileInputRef = ref(null);
-
-const replaceReasonValid = computed(() => replaceReason.value.trim().length >= 3);
-const canSaveReplace = computed(
-  () => !!replaceFile.value && replaceReasonValid.value && !replaceOk.value
-);
-
-const revokePreview = () => {
-  if (replacePreview.value) URL.revokeObjectURL(replacePreview.value);
-  replacePreview.value = '';
+const showScan = (s) => {
+  if (isImage(s)) openLightbox(s);
+  else window.open(scanFileUrl(s), '_blank', 'noopener');
 };
 
-const openScanReplace = (s) => {
-  replaceScan.value = s;
-  replaceFile.value = null;
-  revokePreview();
-  replaceReason.value = '';
-  replaceTouched.value = false;
-  replaceError.value = '';
-  replaceOk.value = '';
-};
-
-const closeScanReplace = () => {
-  if (replaceSaving.value) return;
-  revokePreview();
-  replaceScan.value = null;
-  replaceFile.value = null;
-};
-
-const pickReplaceFile = (event) => {
-  const file = event.target.files?.[0] || null;
-  replaceError.value = '';
-  revokePreview();
-  if (!file) { replaceFile.value = null; return; }
-  if (file.size > MAX_SCAN_MB * 1024 * 1024) {
-    replaceFile.value = null;
-    replaceError.value = `Файл больше ${MAX_SCAN_MB} МБ — выберите файл меньшего размера`;
-    if (fileInputRef.value) fileInputRef.value.value = '';
+const openScanDoc = (s) => {
+  if (!s) return;
+  if (scansLocked.value || isLocked('scans')) {
+    openReveal('scans', { docName: scanLabel(s), then: () => showScan(s) });
     return;
   }
-  replaceFile.value = file;
-  if (/^image\//i.test(file.type)) replacePreview.value = URL.createObjectURL(file);
+  showScan(s);
 };
+
+const openEnrollScan = (d) => {
+  if (!d?.scanId) return;
+  const known = scanRows.value.find((s) => s.id === d.scanId);
+  openScanDoc(known || {
+    id: d.scanId,
+    originalName: d.originalName || d.title,
+    mimeType: '',
+    docTypeRef: { name: d.title }
+  });
+};
+
+const openScanByCode = (code) => {
+  const scan = scanByCode(code);
+  if (!scan) {
+    if (scansLocked.value || isLocked('scans')) {
+      openReveal('scans');
+      return;
+    }
+    notify('Скан не загружен — откройте вкладку «Документы», чтобы добавить файл');
+    return;
+  }
+  openScanDoc(scan);
+};
+
+const MAX_SCAN_MB = 15;
 
 const fileToBase64 = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -1935,53 +2218,11 @@ const fileToBase64 = (file) => new Promise((resolve, reject) => {
   reader.readAsDataURL(file);
 });
 
-const saveScanReplace = async () => {
-  if (!canSaveReplace.value || replaceSaving.value) return;
-  const target = replaceScan.value;
-  const docKey = target?.docTypeRef?.code;
-  if (!docKey) {
-    replaceError.value = 'У документа не указан тип — замена невозможна';
-    return;
-  }
-  replaceSaving.value = true;
-  replaceError.value = '';
-  try {
-    const file = replaceFile.value;
-    await api.post(`/recipients/${recipientId}/scans`, {
-      mode: 'update',
-      reason: replaceReason.value.trim(),
-      scans: [{
-        docKey,
-        entityType: target.entityType,
-        originalName: file.name,
-        mimeType: file.type || 'application/octet-stream',
-        base64: await fileToBase64(file)
-      }]
-    });
-    replaceOk.value = 'Файл заменён, прежняя версия сохранена в истории.';
-    await Promise.all([loadScans(true), loadReadiness()]);
-  } catch (err) {
-    console.error('saveScanReplace', err);
-    replaceError.value = err?.response?.data?.message || 'Не удалось заменить файл';
-  } finally {
-    replaceSaving.value = false;
-  }
-};
-
 const enroll = ref(null);
 const enrollLoading = ref(false);
 const enrollError = ref('');
 const enrollBusy = ref('');
 const enrollDocError = ref({});
-
-const enrollSubtitle = computed(() => {
-  const e = enroll.value;
-  if (!e) return 'Бланки на подпись после положительного заключения';
-  if (!e.verdict) return 'Ждём заключение по диагностике';
-  if (!e.positive) return 'Решение отрицательное — бланки не нужны';
-  if (e.allSigned) return 'Все три документа подписаны и загружены';
-  return `Подписано ${e.signedCount} из ${e.docs.length} · остальные ждут скан`;
-});
 
 const loadEnrollment = async () => {
   if (!recipientId || enrollLoading.value) return;
@@ -2088,7 +2329,313 @@ const uploaderName = (row) => {
 };
 const scanReasonText = (row) => row?.updateReason || 'Первичная загрузка при заведении карточки';
 
-onUnmounted(revokePreview);
+const docSub = ref('files');
+
+const docTypes = ref([]);
+const loadDocTypes = async () => {
+  if (docTypes.value.length) return;
+  try {
+    const { data } = await api.get('/lists/doc-types');
+    docTypes.value = Array.isArray(data) ? data : [];
+  } catch (err) {
+    console.error('loadDocTypes', err);
+    docTypes.value = [];
+  }
+};
+
+const DOC_GROUPS = [
+  { key: 'personal', title: 'Личные документы', codes: ['birth', 'rep-pass', 'snils', 'housing'] },
+  { key: 'consents', title: 'Согласия', codes: ['signed-pdn', 'signed-photo'] },
+  { key: 'medical', title: 'Медицинские', codes: ['mse', 'ipra', 'med', 'cpmpk'] },
+  { key: 'papers', title: 'Заявления и договоры', codes: ['signed-diag', 'signed-contract', 'signed-enroll', 'signed-plan'] }
+];
+
+const ENROLL_BLANK = {
+  'signed-pdn': 'pdn',
+  'signed-photo': 'photo',
+  'signed-contract': 'contract',
+  'signed-enroll': 'enroll'
+};
+
+const enrollRequired = computed(() => {
+  const m = new Map();
+  for (const d of enroll.value?.docs || []) m.set(d.scanCode, !!d.required);
+  return m;
+});
+
+const DAY_MS = 86400000;
+const daysUntil = (d) => {
+  if (!d) return null;
+  const t = new Date(String(d).slice(0, 10)).getTime();
+  if (isNaN(t)) return null;
+  return Math.round((t - new Date(todayStr).getTime()) / DAY_MS);
+};
+const dayWord = (n) => {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return 'день';
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return 'дня';
+  return 'дней';
+};
+
+const docTermInfo = (code, scan) => {
+  let perpetual = !!scan?.perpetual;
+  let issued = scan?.issuedAt || null;
+  let until = scan?.validUntil || null;
+  if (code === 'mse') {
+    if (!perpetual) perpetual = !!doc.value?.mseIndefinite;
+    issued = issued || doc.value?.mseIssueDate || null;
+    if (!until && !perpetual) until = doc.value?.mseValidDate || null;
+  }
+  return { perpetual, issued, until };
+};
+
+const docTerm = (code, scan) => {
+  const { perpetual, issued, until } = docTermInfo(code, scan);
+  if (perpetual) return 'Бессрочный';
+  const left = daysUntil(until);
+  const tail = left != null && left >= 0 && left <= 30 ? ` · осталось ${left} ${dayWord(left)}` : '';
+  if (issued && until) return `${formatDate(issued)} — ${formatDate(until)}${tail}`;
+  if (until) return `Действует до ${formatDate(until)}${tail}`;
+  if (scan?.uploadedAt) return `Загружено ${formatDate(scan.uploadedAt)}`;
+  return '';
+};
+
+const docState = (code, scan, required) => {
+  const signed = String(code).startsWith('signed-');
+  if (!scan) {
+    if (!required) return { cls: 'pill-mute', text: 'Не загружено' };
+    return signed ? { cls: 'pill-wait', text: 'Ждём скан' } : { cls: 'pill-stop', text: 'Не загружен' };
+  }
+  const { perpetual, until } = docTermInfo(code, scan);
+  if (!perpetual && until) {
+    const left = daysUntil(until);
+    if (left != null && left < 0) return { cls: 'pill-stop', text: 'Просрочен' };
+    if (left != null && left <= 30) return { cls: 'pill-wait', text: 'Истекает' };
+  }
+  return { cls: 'pill-ok', text: signed ? 'Подписано' : 'Загружен' };
+};
+
+const docGroups = computed(() => {
+  const types = docTypes.value;
+  if (!types.length) return [];
+  const byCode = new Map(types.map((t) => [t.code, t]));
+  const req = enrollRequired.value;
+  const used = new Set();
+
+  const build = (code) => {
+    const t = byCode.get(code);
+    if (!t) return null;
+    used.add(code);
+    const scan = scanByCode(code);
+    const required = req.has(code) ? req.get(code) : !!t.isRequired;
+    return {
+      code,
+      name: t.name,
+      required,
+      entityType: t.appliesTo === 'representative' ? 'representative' : 'rehabilitant',
+      scan,
+      versions: scan ? versionsOf(scan).length : 0,
+      state: docState(code, scan, required),
+      term: docTerm(code, scan),
+      blank: ENROLL_BLANK[code] || null
+    };
+  };
+
+  const groups = DOC_GROUPS
+    .map((g) => ({ key: g.key, title: g.title, rows: g.codes.map(build).filter(Boolean) }))
+    .filter((g) => g.rows.length);
+
+  const rest = types.filter((t) => !used.has(t.code)).map((t) => build(t.code)).filter(Boolean);
+  if (rest.length) groups.push({ key: 'other', title: 'Прочие документы', rows: rest });
+  return groups;
+});
+
+const docGroupsSplit = computed(() => Math.ceil(docGroups.value.length / 2));
+const docGroupsLeft = computed(() => docGroups.value.slice(0, docGroupsSplit.value));
+const docGroupsRight = computed(() => docGroups.value.slice(docGroupsSplit.value));
+
+const groupPill = (g) => {
+  const total = g.rows.length;
+  const have = g.rows.filter((r) => r.scan).length;
+  const missing = g.rows.filter((r) => !r.scan && r.required).length;
+  const bad = g.rows.filter((r) => r.scan && r.state.cls !== 'pill-ok').length;
+  if (!missing && !bad) return { cls: 'pill-ok', text: `${have} из ${total}` };
+  const parts = [];
+  if (missing) parts.push(`${missing} не загружен`);
+  if (bad) parts.push(`${bad} истекает`);
+  return { cls: 'pill-wait', text: parts.join(' · ') };
+};
+
+const docJournal = computed(() => {
+  const rows = [];
+  for (const h of docHistory.value) {
+    rows.push({
+      key: 'f' + h.id,
+      at: h.changedAt,
+      author: h.authorName || 'Автор не указан',
+      reason: h.reason,
+      fields: (h.changedFields || []).length
+        ? 'Изменено: ' + h.changedFields.map(fieldLabel).join(', ')
+        : ''
+    });
+  }
+  const byType = new Map();
+  for (const s of scanRows.value) {
+    if (!byType.has(s.docType)) byType.set(s.docType, []);
+    byType.get(s.docType).push(s);
+  }
+  for (const list of byType.values()) {
+    const ordered = list.slice().sort((a, b) => a.id - b.id);
+    ordered.forEach((s, i) => {
+      rows.push({
+        key: 's' + s.id,
+        at: s.uploadedAt,
+        author: uploaderName(s),
+        reason: s.updateReason || (i === 0 ? 'Первичная загрузка файла' : 'Причина замены не указана'),
+        fields: `Файл «${scanLabel(s)}» · версия ${i + 1} из ${ordered.length}`
+      });
+    });
+  }
+  return rows
+    .filter((r) => r.at)
+    .sort((a, b) => String(b.at).localeCompare(String(a.at)));
+});
+
+const uploadOpen = ref(false);
+const uploadCode = ref('');
+const uploadScan = ref(null);
+const uploadFile = ref(null);
+const uploadPreview = ref('');
+const uploadIssuedAt = ref('');
+const uploadValidUntil = ref('');
+const uploadPerpetual = ref(false);
+const uploadReason = ref('');
+const uploadTouched = ref(false);
+const uploadSaving = ref(false);
+const uploadError = ref('');
+const uploadInputRef = ref(null);
+
+const uploadTypes = computed(() =>
+  docTypes.value.map((t) => ({ code: t.code, name: t.name }))
+);
+const uploadIsReplace = computed(() => !!uploadScan.value);
+const uploadTypeName = computed(
+  () => docTypes.value.find((t) => t.code === uploadCode.value)?.name || 'Новый документ'
+);
+const uploadReasonValid = computed(
+  () => !uploadIsReplace.value || uploadReason.value.trim().length >= 3
+);
+const canSaveUpload = computed(
+  () => !!uploadCode.value && !!uploadFile.value && uploadReasonValid.value && !uploadSaving.value
+);
+const uploadPrevTerm = computed(() => {
+  const s = uploadScan.value;
+  if (!s) return '';
+  return docTerm(uploadCode.value, s);
+});
+const uploadNextTerm = computed(() => {
+  if (uploadPerpetual.value) return 'Бессрочный';
+  if (uploadIssuedAt.value && uploadValidUntil.value) return `${formatDate(uploadIssuedAt.value)} — ${formatDate(uploadValidUntil.value)}`;
+  if (uploadValidUntil.value) return `Действует до ${formatDate(uploadValidUntil.value)}`;
+  return 'срок не указан';
+});
+
+const revokeUploadPreview = () => {
+  if (uploadPreview.value) URL.revokeObjectURL(uploadPreview.value);
+  uploadPreview.value = '';
+};
+
+const openUpload = (row = null) => {
+  uploadCode.value = row?.code || '';
+  uploadScan.value = row?.scan || null;
+  uploadFile.value = null;
+  revokeUploadPreview();
+  const info = row ? docTermInfo(row.code, row.scan) : { perpetual: false, issued: null, until: null };
+  uploadIssuedAt.value = info.issued ? String(info.issued).slice(0, 10) : '';
+  uploadValidUntil.value = info.until ? String(info.until).slice(0, 10) : '';
+  uploadPerpetual.value = !!info.perpetual;
+  uploadReason.value = '';
+  uploadTouched.value = false;
+  uploadError.value = '';
+  uploadOpen.value = true;
+};
+
+const closeUpload = () => {
+  if (uploadSaving.value) return;
+  revokeUploadPreview();
+  uploadOpen.value = false;
+  uploadFile.value = null;
+};
+
+const pickUploadFile = (event) => {
+  const file = event.target.files?.[0] || null;
+  uploadError.value = '';
+  revokeUploadPreview();
+  if (!file) { uploadFile.value = null; return; }
+  if (file.size > MAX_SCAN_MB * 1024 * 1024) {
+    uploadFile.value = null;
+    uploadError.value = `Файл больше ${MAX_SCAN_MB} МБ — выберите файл поменьше`;
+    if (uploadInputRef.value) uploadInputRef.value.value = '';
+    return;
+  }
+  uploadFile.value = file;
+  if (/^image\//i.test(file.type)) uploadPreview.value = URL.createObjectURL(file);
+};
+
+const saveUpload = async () => {
+  if (!canSaveUpload.value) return;
+  uploadSaving.value = true;
+  uploadError.value = '';
+  try {
+    const file = uploadFile.value;
+    const type = docTypes.value.find((t) => t.code === uploadCode.value);
+    const payload = {
+      scans: [{
+        docKey: uploadCode.value,
+        entityType: type?.appliesTo === 'representative' ? 'representative' : 'rehabilitant',
+        originalName: file.name,
+        mimeType: file.type || 'application/octet-stream',
+        base64: await fileToBase64(file),
+        issuedAt: uploadIssuedAt.value || null,
+        validUntil: uploadPerpetual.value ? null : (uploadValidUntil.value || null),
+        perpetual: uploadPerpetual.value
+      }]
+    };
+    if (uploadIsReplace.value) {
+      payload.mode = 'update';
+      payload.reason = uploadReason.value.trim();
+    }
+    await api.post(`/recipients/${recipientId}/scans`, payload);
+    uploadOpen.value = false;
+    revokeUploadPreview();
+    uploadFile.value = null;
+    notifySaved(uploadIsReplace.value
+      ? 'Файл заменён, прежняя версия осталась в истории'
+      : 'Документ загружен');
+    await Promise.all([loadScans(true), loadReadiness(), loadEnrollment(true)]);
+  } catch (err) {
+    console.error('saveUpload', err);
+    uploadError.value = err?.response?.data?.message || 'Не удалось сохранить документ';
+  } finally {
+    uploadSaving.value = false;
+  }
+};
+
+const scanVersionRows = computed(() => {
+  const list = scanHistoryRows.value;
+  const n = list.length;
+  return list.map((v, i) => ({
+    ...v,
+    verNo: n - i,
+    term: [v.perpetual ? 'бессрочный' : null,
+           v.issuedAt ? 'выдан ' + formatDate(v.issuedAt) : null,
+           v.validUntil ? 'действует до ' + formatDate(v.validUntil) : null]
+      .filter(Boolean).join(' · ') || 'срок не указан'
+  }));
+});
+
+onUnmounted(revokeUploadPreview);
 
 const loadGroups = async () => {
   if (allGroups.value.length || groupsLoading.value) return;
@@ -2212,6 +2759,388 @@ const saveAttendance = async () => {
   }
 };
 
+const CATEGORY_LABELS = {
+  passport: 'Паспортные данные и СНИЛС',
+  scans: 'Сканы документов',
+  contacts: 'Адреса и телефоны',
+  medical: 'Диагноз и медицинские сведения'
+};
+
+const revealOpen = ref(false);
+const revealCategory = ref('');
+const revealReasonCode = ref('');
+const revealReasonText = ref('');
+const revealSending = ref(false);
+const revealError = ref('');
+const revealReasons = ref([]);
+const revealMinutes = ref(30);
+const revealDocName = ref('');
+let accessOptionsPromise = null;
+let revealPending = null;
+
+const revealLabel = computed(
+  () => revealDocName.value || CATEGORY_LABELS[revealCategory.value] || 'Персональные данные'
+);
+const revealTitle = computed(() =>
+  revealDocName.value ? 'Открыть скан документа' : 'Для чего вы хотите получить информацию?'
+);
+const revealReasonKey = computed(() =>
+  revealDocName.value ? 'Причина просмотра документа' : 'Причина получения информации'
+);
+const revealHint = computed(() =>
+  revealDocName.value
+    ? 'Например: сверяю срок действия перед подготовкой договора'
+    : 'Коротко опишите, зачем нужны эти данные'
+);
+const revealNote = computed(() =>
+  revealDocName.value
+    ? `Файл откроется после подтверждения. Доступ к сканам откроется на ${revealMinutes.value} минут, запись о просмотре сохранится в журнале.`
+    : `Доступ откроется на ${revealMinutes.value} минут и только по этому реабилитанту. Запись о том, кто, когда и зачем открыл данные, сохранится в журнале.`
+);
+const revealSubmitText = computed(() =>
+  revealDocName.value ? 'Открыть документ' : 'Открыть данные'
+);
+const canReveal = computed(() =>
+  !!revealReasonCode.value &&
+  !revealSending.value &&
+  (revealReasonCode.value !== 'other' || revealReasonText.value.trim().length >= 10)
+);
+
+const openReveal = async (category, options = {}) => {
+  revealCategory.value = category;
+  revealDocName.value = options.docName || '';
+  revealPending = typeof options.then === 'function' ? options.then : null;
+  revealReasonCode.value = '';
+  revealReasonText.value = '';
+  revealError.value = '';
+  revealOpen.value = true;
+  try {
+    if (!accessOptionsPromise) {
+      accessOptionsPromise = api.get('/recipients/access/options').then((r) => r.data);
+    }
+    const data = await accessOptionsPromise;
+    revealReasons.value = data.reasons || [];
+    revealMinutes.value = data.grantMinutes || 30;
+  } catch (err) {
+    accessOptionsPromise = null;
+    revealError.value = 'Не удалось загрузить список причин';
+  }
+};
+
+const closeReveal = () => {
+  if (revealSending.value) return;
+  revealPending = null;
+  revealOpen.value = false;
+};
+
+const submitReveal = async () => {
+  if (!canReveal.value) return;
+  revealSending.value = true;
+  revealError.value = '';
+  try {
+    await api.post(`/recipients/${recipientId}/access`, {
+      category: revealCategory.value,
+      reasonCode: revealReasonCode.value,
+      reasonText: revealReasonText.value.trim()
+    });
+    const category = revealCategory.value;
+    const then = revealPending;
+    revealPending = null;
+    revealOpen.value = false;
+    notifySaved(`Доступ открыт на ${revealMinutes.value} минут. Причина записана в журнал.`);
+    onUnlocked(category);
+    if (then) then();
+  } catch (err) {
+    revealError.value = err?.response?.data?.message || 'Не удалось открыть данные';
+  } finally {
+    revealSending.value = false;
+  }
+};
+
+const splitCode = (value) => {
+  const raw = String(value || '').trim();
+  if (!raw) return null;
+  const m = raw.match(/^(\S+)\s*[—–-]\s*(.+)$/);
+  return m ? { code: m[1], name: m[2] } : { code: '', name: raw };
+};
+
+const district = computed(() => splitCode(doc.value?.district));
+
+const cycleOfSession = computed(() => {
+  const map = new Map();
+  for (const c of cycles.value) for (const s of c.sessions) map.set(s.id, c.num);
+  return map;
+});
+
+const VERDICT_PILL = { recommended: 'pill-ok', trial: 'pill-wait', rejected: 'pill-stop' };
+
+const diagHistoryRows = computed(() =>
+  historySessions.value
+    .slice()
+    .reverse()
+    .map((s) => {
+      const v = s.conclusion?.verdict || null;
+      return {
+        id: s.id,
+        date: s.date,
+        title: `${s.kindLabel || 'Диагностика'} · цикл ${cycleOfSession.value.get(s.id) || '—'}`,
+        pill: v ? VERDICT_PILL[v] || 'pill-mute' : 'pill-mute',
+        pillText: v ? verdictLabel(v) : sessionStatus(s).label
+      };
+    })
+);
+
+const selectedCycle = ref(null);
+
+const cycleRows = computed(() => {
+  const list = cycles.value;
+  const starts = list.map((c) => {
+    const dates = c.sessions.map((s) => String(s.date).slice(0, 10)).sort();
+    return dates[0] || null;
+  });
+  return list
+    .map((c, idx) => {
+      const dates = c.sessions.map((s) => String(s.date).slice(0, 10)).sort();
+      const closed = c.sessions.some((s) => s.kind === 'final' && s.conclusion);
+      return {
+        num: c.num,
+        sessions: c.sessions.slice().reverse(),
+        closed,
+        active: !closed && c.num === list.length,
+        from: dates[0] || null,
+        to: closed ? dates[dates.length - 1] : null,
+        windowTo: starts[idx + 1] || null,
+        count: c.sessions.length,
+        final: c.sessions.find((s) => s.kind === 'final' && s.conclusion) || null
+      };
+    })
+    .reverse();
+});
+
+const activeCycle = computed(
+  () => cycleRows.value.find((r) => r.num === selectedCycle.value) || cycleRows.value[0] || null
+);
+
+watch(cycleRows, (rows) => {
+  if (!rows.some((r) => r.num === selectedCycle.value)) {
+    selectedCycle.value = rows.length ? rows[0].num : null;
+  }
+}, { immediate: true });
+
+const cycleMeta = (row) => {
+  const count = `диагностик: ${row.count}`;
+  if (!row.from) return count;
+  if (row.to && row.to !== row.from) return `${formatDate(row.from)} – ${formatDate(row.to)} · ${count}`;
+  return `с ${formatDate(row.from)} · ${count}`;
+};
+
+const cycleLessons = (row) => {
+  const list = lessonEvents.value.filter((e) => {
+    const d = String(e.date).slice(0, 10);
+    if (row?.from && d < row.from) return false;
+    if (row?.windowTo && d >= row.windowTo) return false;
+    return true;
+  });
+  return { total: list.length, done: list.filter((e) => e.status === 'completed').length };
+};
+
+const capitalize = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
+
+const diagTone = (s) => {
+  const v = s?.conclusion?.verdict;
+  if (v === 'recommended' || v === 'trial') return 'is-ok';
+  if (v === 'rejected') return 'is-stop';
+  if (s?.conclusion) return 'is-ok';
+  return sessionStatus(s).tone === 'sage' ? 'is-ok' : 'is-wait';
+};
+
+const diagPill = (s) => {
+  const v = s?.conclusion?.verdict;
+  if (v) return { cls: VERDICT_PILL[v] || 'pill-mute', text: capitalize(verdictLabel(v)) };
+  const st = sessionStatus(s);
+  return { cls: st.tone === 'sage' ? 'pill-ok' : 'pill-wait', text: st.label };
+};
+
+const diagWhen = (s) =>
+  `${formatDate(s.date)} · ${s.completed} из ${s.total || 0} направлений сдано`;
+
+const DIR_ICON = {
+  log: ['M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z', 'M8.5 10.5h7', 'M8.5 14h4'],
+  psy: ['M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0z', 'M12 7a2.4 2.4 0 0 0-2.4 2.4c0 .8.4 1.5 1 1.9a2.4 2.4 0 0 0-1 1.9A2.4 2.4 0 0 0 12 15.6a2.4 2.4 0 0 0 2.4-2.4c0-.8-.4-1.5-1-1.9.6-.4 1-1.1 1-1.9A2.4 2.4 0 0 0 12 7z'],
+  afk: ['M22 12h-4l-3 9-6-18-3 9H2'],
+  izo: ['M12 19l7-7 3 3-7 7-3-3z', 'M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z', 'M2 2l7.586 7.586', 'M11 11a2 2 0 1 0 4 0 2 2 0 0 0-4 0z'],
+  theatre: ['M4 4h7v9a3.5 3.5 0 0 1-7 0z', 'M13 7h7v9a3.5 3.5 0 0 1-7 0z'],
+  vocal: ['M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3z', 'M19 10v1a7 7 0 0 1-14 0v-1', 'M12 18v4', 'M8 22h8'],
+  instrument: ['M9 18V5l12-2v13', 'M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0z', 'M21 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z']
+};
+const DIR_ICON_DEFAULT = ['M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z', 'M14 2v6h6'];
+const dirIcon = (b) => DIR_ICON[b?.profileKey] || DIR_ICON_DEFAULT;
+
+const dirScores = (b) =>
+  (Array.isArray(b?.results?.scores) ? b.results.scores : [])
+    .filter((x) => x && x.value !== null && x.value !== undefined && x.value !== '');
+
+const dirAnswers = (b) =>
+  (Array.isArray(b?.results?.answers) ? b.results.answers : []).filter((x) => x && x.label && x.value);
+
+const dirScore = (b) => {
+  const v = averageScore(b?.results);
+  if (v != null) return { value: v.toFixed(1).replace('.', ','), unit: ' / 4' };
+  const sc = dirScores(b);
+  if (!sc.length) return null;
+  const sum = sc.reduce((a, x) => a + Number(x.value), 0);
+  const max = sc.reduce((a, x) => a + (Number(x.max) || 0), 0);
+  return { value: String(sum), unit: max ? ` / ${max}` : '' };
+};
+
+const hasScore = (v) => v !== null && v !== undefined && v !== '';
+
+const dirCriteria = (b) => {
+  const block = getBlock(b?.profileKey);
+  if (!block) return [];
+  const values = b?.results?.criteria || {};
+  return block.criteria.map((c) => ({
+    id: c.id,
+    label: c.label,
+    value: hasScore(values[c.id]) ? Number(values[c.id]) : null
+  }));
+};
+
+const dirGraded = (b) => dirCriteria(b).filter((c) => c.value !== null).length;
+
+const dirRows = (b) => {
+  const schema = dirCriteria(b);
+  if (schema.some((c) => c.value !== null)) {
+    return schema.map((c) => ({ key: 'c-' + c.id, kind: 'scale', label: c.label, value: c.value, max: 4 }));
+  }
+  const rows = [
+    ...dirScores(b).map((x, i) => ({
+      key: 's-' + (x.key || i), kind: 'scale', label: x.label,
+      value: Number(x.value), max: Number(x.max) || 4
+    })),
+    ...dirAnswers(b).map((x, i) => ({ key: 'a-' + i, kind: 'text', label: x.label, value: x.value }))
+  ];
+  if (rows.length) return rows;
+  return schema.map((c) => ({ key: 'c-' + c.id, kind: 'scale', label: c.label, value: c.value, max: 4 }));
+};
+
+const dirRowsFilled = (b) => dirRows(b).filter((r) => r.value !== null && r.value !== undefined && r.value !== '').length;
+
+const critCountLabel = (b) => {
+  const total = dirRows(b).length;
+  const filled = dirRowsFilled(b);
+  return filled === total ? String(total) : `${filled} из ${total}`;
+};
+
+const ticksOf = (max) => Array.from({ length: (Number(max) || 4) + 1 }, (_, i) => i);
+const rowAria = (r) =>
+  r.value === null || r.value === undefined || r.value === ''
+    ? 'не заполнено'
+    : (r.kind === 'scale' ? `Оценка ${r.value} из ${r.max}` : String(r.value));
+
+const dirComment = (b) => (b?.results?.comment || b?.comment || '').trim();
+
+const legacyTitle = (x) => String(x?.sub || x?.direction || 'Блок').replace(/\s*\n\s*/g, ' ').trim();
+
+const dirLegacy = (b) => {
+  const blocks = b?.results?.blocks;
+  if (!Array.isArray(blocks)) return [];
+  return blocks
+    .filter((x) =>
+      (typeof x?.recs === 'string' && x.recs.trim()) ||
+      (Array.isArray(x?.specialists) && x.specialists.length)
+    )
+    .map((x) => ({
+      title: legacyTitle(x),
+      specialists: Array.isArray(x.specialists) ? x.specialists.join(', ') : '',
+      recs: typeof x.recs === 'string' ? x.recs.trim() : ''
+    }));
+};
+
+const CRIT_HINT = SCALE.map((s) => `${s.short} — ${s.label.toLowerCase()}`).join(' · ');
+
+const lessonEvents = computed(() => events.value.filter((e) => e.type !== 'diagnostic'));
+const lessonsDone = computed(() => lessonEvents.value.filter((e) => e.status === 'completed').length);
+
+const ATT_LABELS = { present: 'Был', absent: 'Не был', left: 'Ушёл раньше' };
+const ATT_PILL = { present: 'pill-ok', absent: 'pill-stop', left: 'pill-wait' };
+
+const eventPill = (e) => {
+  if (e?.status === 'cancelled') return { cls: 'pill-stop', text: 'Отменено' };
+  if (e?.status === 'completed') return { cls: 'pill-ok', text: 'Проведено' };
+  return { cls: 'pill-mute', text: 'Запланировано' };
+};
+
+const OKRUGA = [
+  'ЦАО — Центральный', 'САО — Северный', 'СВАО — Северо-Восточный', 'ВАО — Восточный',
+  'ЮВАО — Юго-Восточный', 'ЮАО — Южный', 'ЮЗАО — Юго-Западный', 'ЗАО — Западный',
+  'СЗАО — Северо-Западный', 'ЗелАО — Зеленоградский', 'ТАО — Троицкий', 'НАО — Новомосковский',
+  'Московская область', 'Другой регион'
+];
+
+const cardEditOpen = ref(false);
+const cardForm = ref({ fio: '', birthDate: '', educationPlace: '', district: '' });
+const cardReason = ref('');
+const cardTouched = ref(false);
+const cardSaving = ref(false);
+const cardError = ref('');
+
+const cardFioParts = computed(() => {
+  const parts = String(cardForm.value.fio || '').trim().split(/\s+/).filter(Boolean);
+  return {
+    lastName: parts[0] || '',
+    firstName: parts[1] || '',
+    middleName: parts.slice(2).join(' ')
+  };
+});
+const cardReasonValid = computed(() => cardReason.value.trim().length >= 3);
+const cardFioValid = computed(() => !!cardFioParts.value.lastName && !!cardFioParts.value.firstName);
+const canSaveCard = computed(() => cardReasonValid.value && cardFioValid.value && !cardSaving.value);
+
+const openCardEdit = () => {
+  const r = recipient.value;
+  if (!r) return;
+  cardForm.value = {
+    fio: [r.lastName, r.firstName, r.middleName].filter(Boolean).join(' '),
+    birthDate: toInputDate(r.birthDate),
+    educationPlace: doc.value?.educationPlace || '',
+    district: doc.value?.district || ''
+  };
+  cardReason.value = '';
+  cardTouched.value = false;
+  cardError.value = '';
+  cardEditOpen.value = true;
+};
+const closeCardEdit = () => { if (!cardSaving.value) cardEditOpen.value = false; };
+
+const saveCardEdit = async () => {
+  cardTouched.value = true;
+  if (!canSaveCard.value) return;
+  cardSaving.value = true;
+  cardError.value = '';
+  try {
+    const { data } = await api.patch(`/recipients/${recipientId}/card`, {
+      ...cardFioParts.value,
+      birthDate: cardForm.value.birthDate,
+      educationPlace: cardForm.value.educationPlace,
+      district: cardForm.value.district,
+      reason: cardReason.value.trim()
+    });
+    if (data?.recipient) {
+      recipient.value = data.recipient;
+      hiddenCategories.value = data.recipient.hiddenCategories || [];
+    }
+    cardEditOpen.value = false;
+    notifySaved('Карточка обновлена');
+    loadReadiness();
+    loadDocHistory(true);
+  } catch (err) {
+    cardError.value = err?.response?.data?.message || 'Не удалось сохранить изменения';
+  } finally {
+    cardSaving.value = false;
+  }
+};
+
 watch(activeTab, (tab) => {
   if (tab === 'lessons') {
     loadGroups();
@@ -2220,11 +3149,24 @@ watch(activeTab, (tab) => {
     loadAssignments();
   } else if (tab === 'documents') {
     loadScans();
+    loadDocTypes();
+    loadDocHistory();
+    loadEnrollment();
   } else if (tab === 'profile') {
     loadDocHistory();
   } else if (tab === 'enrollment') {
     loadEnrollment();
   }
+});
+
+const overlayOpen = computed(() => !!(
+  docUpdateOpen.value || cancelTarget.value || cardEditOpen.value ||
+  revealOpen.value || uploadOpen.value || historyScan.value ||
+  lightbox.value || heroPhotoOpen.value
+));
+watch(overlayOpen, (open) => {
+  if (open) ui.lockScroll();
+  else ui.unlockScroll();
 });
 
 onMounted(async () => {
@@ -2234,8 +3176,13 @@ onMounted(async () => {
   loadReadiness();
   loadAssignments();
   loadScans();
+  loadEnrollment();
   const wanted = pageStore.params?.tab;
   if (wanted && tabs.some((t) => t.id === wanted)) activeTab.value = wanted;
+});
+
+onUnmounted(() => {
+  if (overlayOpen.value) ui.unlockScroll();
 });
 </script>
 
@@ -2249,7 +3196,7 @@ onMounted(async () => {
   --ink: #1A211A;
   --ink-strong: #0F140F;
   --ink-muted: #454C40;
-  --ink-subtle: #5E6359;
+  --ink-subtle: #4A5044;
   --line: #E4DECF;
   --line-soft: #EFEADC;
   --line-strong: #D6CFBE;
@@ -2269,12 +3216,22 @@ onMounted(async () => {
   --blue-700: #1F3D52;
   --blue-100: #D4E1EB;
   --blue-50: #E8EFF5;
+  --action: #1E2F1E;
+  --action-hover: #2A4129;
+  --action-ink: #F4F8EC;
+  --cycle: #453A2C;
+  --cycle-tint: #F0E9DC;
+  --cycle-line: #DDD2BE;
+  --stage: #144A63;
+  --stage-tint: #E6EEF3;
+  --stage-line: #C3D6E1;
+  --stage-ink: #F2F8FB;
   --radius-sm: 0.5rem;
   --radius-md: 0.75rem;
   --radius-lg: 1.125rem;
   --radius-xl: 1.5rem;
-  --shadow-sm: 0 0.0625rem 0.125rem rgba(30, 47, 30, 0.04), 0 0.0625rem 0 rgba(30, 47, 30, 0.02);
-  --shadow-md: 0 0.25rem 0.875rem rgba(30, 47, 30, 0.05), 0 0.0625rem 0.125rem rgba(30, 47, 30, 0.04);
+  --shadow-sm: 0 0.0625rem 0.125rem rgba(30, 47, 30, 0.05);
+  --shadow-md: 0 0.25rem 0.875rem rgba(30, 47, 30, 0.06), 0 0.0625rem 0.125rem rgba(30, 47, 30, 0.04);
 
   max-width: 87.5rem;
   margin: 0 auto;
@@ -2314,233 +3271,171 @@ onMounted(async () => {
 
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.4375rem;
-  padding: 0.6875rem 1.125rem; min-height: 2.75rem;
+  padding: 0.625rem 1rem; min-height: 2.75rem;
   border-radius: 0.625rem; font-size: 0.9375rem; font-weight: 500;
-  border: 0.0625rem solid transparent; white-space: nowrap;
-  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  border: 0.0625rem solid transparent; white-space: nowrap; text-decoration: none;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
   cursor: pointer;
 }
-.btn svg { width: 0.9375rem; height: 0.9375rem; flex: 0 0 0.9375rem; }
-.btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: var(--btn-primary-bg); }
-.btn-primary:hover:not(:disabled) { background: var(--btn-primary-bg-hover); border-color: var(--btn-primary-bg-hover); }
-.btn-secondary { background: var(--btn-secondary-bg); color: var(--btn-secondary-fg); border-color: var(--btn-secondary-border); }
-.btn-secondary:hover:not(:disabled) { background: var(--btn-secondary-bg-hover); border-color: var(--btn-secondary-border-hover); }
+.btn svg { width: 1rem; height: 1rem; flex: 0 0 1rem; }
+.btn-primary { background: var(--action); color: var(--action-ink); border-color: var(--action); }
+.btn-primary:hover:not(:disabled) { background: var(--action-hover); border-color: var(--action-hover); }
+.btn-secondary { background: var(--paper); color: var(--ink); border-color: var(--line-strong); }
+.btn-secondary:hover:not(:disabled) { background: var(--paper-soft); border-color: var(--ink-muted); }
 .btn:disabled { opacity: 0.55; cursor: not-allowed; }
 
 .alert {
-  display: flex; align-items: center; gap: 0.875rem;
-  background: linear-gradient(90deg, var(--rose-50), var(--amber-50));
-  border: 0.0625rem solid var(--amber-100);
+  display: flex; align-items: center; gap: 0.875rem; flex-wrap: wrap;
+  background: var(--rose-50);
+  border: 0.0625rem solid var(--rose-100);
   border-left: 0.25rem solid var(--rose-500);
   border-radius: var(--radius-md);
-  padding: 1rem 1.125rem; margin-bottom: 1.25rem;
+  padding: 0.875rem 1rem; margin-bottom: 1rem;
 }
-.alert-icon {
+.alert-ic {
   flex: 0 0 2rem; width: 2rem; height: 2rem; border-radius: 0.5rem;
   background: var(--rose-100); color: var(--rose-700); display: grid; place-items: center;
 }
-.alert-icon svg { width: 1.125rem; height: 1.125rem; }
-.alert-body { flex: 1; min-width: 0; }
+.alert-ic svg { width: 1.125rem; height: 1.125rem; }
+.alert-body { flex: 1 1 16rem; min-width: 0; }
 .alert-title {
   font-size: 0.8125rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
-  color: var(--rose-700); margin-bottom: 0.25rem;
+  color: var(--rose-700);
 }
-.alert-text { font-size: 0.9375rem; color: var(--ink-strong); line-height: 1.5; }
-
-.alert-docs { align-items: center; }
-.alert-action {
-  flex: 0 0 auto;
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 0.5625rem 0.9375rem; min-height: 2.375rem;
-  border-radius: 0.5rem; white-space: nowrap;
-  font-family: inherit; font-size: 0.875rem; font-weight: 600;
-  background: var(--rose-700); color: #FDF3EF;
-  border: 0.0625rem solid var(--rose-700);
-  cursor: pointer; transition: background 0.15s, border-color 0.15s;
-}
-.alert-action:hover { background: #58211A; border-color: #58211A; }
+.alert-text { font-size: 0.9375rem; color: var(--ink-strong); }
 .alert-action:focus-visible { outline: 0.125rem solid var(--rose-500); outline-offset: 0.125rem; }
 
 .hero {
-  position: relative; border-radius: var(--radius-xl); margin-bottom: 1.5rem;
-  border: 0.0625rem solid var(--line); background: var(--paper); box-shadow: var(--shadow-sm);
-  overflow: hidden;
-}
-.hero-banner {
-  height: 8rem;
-  background: linear-gradient(135deg, var(--sage-400), var(--sage-100) 60%, var(--sage-50));
-  border-bottom: 0.0625rem solid var(--line-soft);
+  background: var(--paper); border: 0.0625rem solid var(--line); border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm); overflow: hidden; margin-bottom: 1.5rem;
 }
 .hero-body {
-  padding: 0 2rem 1.5rem;
-  display: grid; grid-template-columns: auto 1fr auto; gap: 1.5rem; align-items: end;
-  position: relative; background: var(--paper);
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 1.25rem; align-items: center; padding: 1.5rem;
 }
-.hero-avatar, .hero-avatar-img {
-  width: 7.5rem; height: 7.5rem; flex: 0 0 7.5rem; border-radius: 50%;
-  border: 0.375rem solid var(--paper); box-shadow: var(--shadow-md);
-  transform: translateY(-3rem); margin-bottom: -2rem;
+.hero-ava {
+  width: 5.5rem; height: 5.5rem; flex: 0 0 5.5rem; border-radius: 50%; object-fit: cover;
+  display: grid; place-items: center; background: var(--sage-100); color: var(--sage-700);
+  font-family: var(--font-serif); font-size: 2rem;
+  border: 0.1875rem solid var(--paper); box-shadow: var(--shadow-md);
 }
-.hero-avatar {
-  display: grid; place-items: center;
-  background: linear-gradient(135deg, var(--amber-100), var(--rose-100));
-  color: var(--amber-700);
-  font-family: var(--font-serif); font-weight: 500; font-size: 2.75rem; letter-spacing: -0.04em;
-}
-.hero-avatar-img { object-fit: cover; }
-.hero-identity { padding-bottom: 0.25rem; min-width: 0; }
-.hero-id-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; flex-wrap: wrap; }
+.hero-id { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.375rem; }
 .id-chip {
-  font-size: 0.6875rem; color: var(--ink-muted); background: var(--paper-soft);
-  padding: 0.125rem 0.5rem; border-radius: 0.25rem; letter-spacing: 0.04em; font-weight: 600;
+  font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.04em; color: var(--ink-muted);
+  background: var(--paper-soft); padding: 0.125rem 0.5rem; border-radius: 0.25rem;
 }
-.status-dot { width: 0.4375rem; height: 0.4375rem; border-radius: 50%; background: var(--sage-500); box-shadow: 0 0 0 0.1875rem var(--sage-100); }
-.status-dot.st-draft { background: #B07223; box-shadow: 0 0 0 0.1875rem var(--amber-100); }
-.status-dot.st-archived { background: var(--ink-subtle); box-shadow: 0 0 0 0.1875rem var(--paper-sunken); }
-.status-label { font-size: 0.78125rem; color: var(--sage-700); font-weight: 600; }
-.status-label.st-draft { color: var(--amber-700); }
-.status-label.st-archived { color: var(--ink-muted); }
+.status {
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  font-size: 0.8125rem; font-weight: 600; color: var(--sage-700);
+}
+.status::before {
+  content: ''; width: 0.4375rem; height: 0.4375rem; border-radius: 50%;
+  background: var(--sage-500); box-shadow: 0 0 0 0.1875rem var(--sage-100);
+}
+.status.st-draft { color: var(--amber-700); }
+.status.st-draft::before { background: #B07223; box-shadow: 0 0 0 0.1875rem var(--amber-100); }
+.status.st-archived { color: var(--ink-muted); }
+.status.st-archived::before { background: var(--ink-subtle); box-shadow: 0 0 0 0.1875rem var(--paper-sunken); }
 .stage-chip {
-  font-size: 0.71875rem; color: var(--ink-muted); background: var(--paper-soft);
-  padding: 0.125rem 0.5rem; border-radius: 62.5rem; font-weight: 500;
+  font-size: 0.75rem; color: var(--ink-muted); background: var(--paper-soft);
+  padding: 0.125rem 0.5rem; border-radius: 62.5rem;
 }
+
+.hero-name-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .hero-name {
-  font-family: var(--font-serif); font-size: 2.5rem; line-height: 1.05; font-weight: 500;
-  letter-spacing: -0.025em; color: var(--ink-strong); margin: 0 0 0.5rem;
-  word-break: break-word;
+  font-family: var(--font-serif); font-size: 2rem; line-height: 1.1; font-weight: 500;
+  letter-spacing: -0.02em; color: var(--ink-strong); margin: 0; word-break: break-word;
 }
-.hero-tags { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.5rem; }
+.icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.5rem; height: 2.5rem; flex: 0 0 2.5rem;
+  border: 0.0625rem solid var(--line-strong); border-radius: 0.625rem;
+  background: var(--paper); color: var(--ink-muted); cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+.icon-btn:hover:not(:disabled) { background: var(--paper-soft); color: var(--action); border-color: var(--ink-muted); }
+.icon-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+.icon-btn svg { width: 1.0625rem; height: 1.0625rem; }
+.icon-btn-sm { width: 2.25rem; height: 2.25rem; flex: 0 0 2.25rem; }
+.icon-btn-sm svg { width: 0.9375rem; height: 0.9375rem; }
+
+.hero-tags { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.5rem; }
 .tag { font-size: 0.78125rem; padding: 0.1875rem 0.625rem; border-radius: 62.5rem; font-weight: 500; }
 .tag-neutral { background: var(--paper-soft); color: var(--ink-muted); }
 .tag-blue { background: var(--blue-50); color: var(--blue-700); }
+.tag-cycle { background: var(--cycle-tint); color: var(--cycle); }
 .tag-sage { background: var(--sage-50); color: var(--sage-700); }
-.hero-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; padding-bottom: 0.25rem; }
+.hero-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
 
-.stage-track { border-top: 0.0625rem solid var(--line-soft); padding: 1.25rem 2rem; background: var(--paper-soft); }
-.stage-track-label { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; color: var(--ink-muted); margin-bottom: 0.75rem; }
-.stage-steps { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.5rem; list-style: none; margin: 0; padding: 0; }
-.stage-step { display: flex; flex-direction: column; gap: 0.375rem; padding-top: 0.875rem; position: relative; }
-.stage-step::before { content: ''; position: absolute; top: 0.3125rem; left: 0; right: 0; height: 0.25rem; border-radius: 62.5rem; background: var(--line); }
-.stage-step.done::before { background: var(--sage-500); }
-.stage-step.current::before { background: var(--sage-900); }
-.stage-step .step-num { font-size: 0.75rem; font-weight: 700; color: var(--ink-muted); }
-.stage-step.current .step-num { color: var(--sage-900); }
-.stage-step .step-name { font-size: 0.9375rem; color: var(--ink-muted); line-height: 1.3; }
-.stage-step.current .step-name { color: var(--ink-strong); font-weight: 600; }
-.stage-step.done .step-name { color: var(--ink); }
-.step-name-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.25rem;
-  padding: 0;
-  border: none;
-  background: none;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  color: inherit;
-  text-decoration: none;
-  transition: color 0.12s;
-}
-.step-name-link svg {
-  width: 0.75rem; height: 0.75rem; flex: none;
-  opacity: 0; transition: opacity 0.12s;
-}
-.step-name-link:hover { color: var(--sage-700); text-decoration: underline; text-underline-offset: 0.15rem; }
-.step-name-link:hover svg,
-.step-name-link:focus-visible svg { opacity: 0.65; }
-.step-name-link:focus-visible { outline: 0.125rem solid var(--sage-500); outline-offset: 0.1875rem; border-radius: 0.25rem; }
+.route { border-top: 0.0625rem solid var(--line-soft); background: var(--paper-soft); padding: 1.125rem 1.5rem; }
+.route-head { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.875rem; }
+.route-label { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.1em; font-weight: 600; color: var(--ink-muted); }
+.route-done { font-size: 0.75rem; font-weight: 700; padding: 0.1875rem 0.5625rem; border-radius: 62.5rem; background: var(--sage-100); color: var(--sage-700); }
+.route-load { font-size: 0.8125rem; color: var(--ink-subtle); }
 
-.stage-track-head {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 0.75rem; flex-wrap: wrap; margin-bottom: 0.75rem;
+.steps { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0.5rem; list-style: none; margin: 0; padding: 0; }
+.step { display: flex; flex-direction: column; gap: 0.3125rem; padding-top: 0.875rem; position: relative; }
+.step::before { content: ''; position: absolute; top: 0.3125rem; left: 0; right: 0; height: 0.25rem; border-radius: 62.5rem; background: var(--line-strong); }
+.step.done::before { background: var(--sage-500); }
+.step.current::before { background: var(--amber-700); }
+.step.current.warn::before { background: var(--amber-700); }
+.step-num { font-size: 0.75rem; font-weight: 700; color: var(--ink-muted); }
+.step.current .step-num { color: var(--amber-700); }
+.step.current.warn .step-num { color: var(--amber-700); }
+.step-name {
+  display: inline-flex; align-items: center; gap: 0.25rem; padding: 0; border: none; background: none;
+  font: inherit; font-size: 0.9375rem; line-height: 1.25; text-align: left; color: var(--ink-muted); cursor: pointer;
 }
-.stage-track-head .stage-track-label { margin-bottom: 0; }
-.stage-track-state {
-  font-size: 0.75rem; font-weight: 700; letter-spacing: 0.02em;
-  padding: 0.1875rem 0.5625rem; border-radius: 62.5rem;
-  border: 0.0625rem solid transparent; white-space: nowrap;
-}
-.stage-track-state.ok { background: var(--sage-100); color: var(--sage-700); border-color: var(--sage-100); }
-.stage-track-state.bad { background: var(--amber-50); color: var(--amber-700); border-color: var(--amber-100); }
-.stage-track-state.cur { background: var(--sage-900); color: #F4F8EC; border-color: var(--sage-900); }
+.step.done .step-name { color: var(--ink); }
+.step.current .step-name { color: var(--ink-strong); font-weight: 600; }
+.step-name:hover { text-decoration: underline; text-underline-offset: 0.15rem; }
+.step-name svg { width: 0.75rem; height: 0.75rem; flex: none; opacity: 0; transition: opacity 0.12s; }
+.step-name:hover svg, .step-name:focus-visible svg { opacity: 0.7; }
 
-.stage-step.todo .step-name { color: var(--ink-subtle); }
-.stage-step.todo .step-hint { color: var(--ink-subtle); opacity: 0.8; }
-.stage-step.warn .step-num,
-.stage-step.warn .step-hint { color: var(--amber-700); }
-.stage-step.current.warn::before { background: var(--amber-700); }
-.step-hint {
-  font-size: 0.75rem; line-height: 1.35; color: var(--ink-subtle);
-  overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+.step-mark {
+  display: inline-flex; align-items: center; gap: 0.3125rem; align-self: flex-start;
+  font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
+  padding: 0.1875rem 0.5rem 0.1875rem 0.375rem; border-radius: 62.5rem;
+  background: var(--amber-700); color: #FFF7EA;
 }
-.stage-track-load { font-size: 0.8125rem; color: var(--ink-subtle); padding: 0.5rem 0; }
+.step-mark svg { width: 0.8125rem; height: 0.8125rem; flex: 0 0 0.8125rem; }
+.step.warn .step-mark { background: var(--amber-700); color: #FFF7EA; }
 
-.stage-track-actions {
-  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
-  margin-top: 1rem; padding-top: 0.875rem;
-  border-top: 0.0625rem solid var(--line);
+.tabs {
+  display: flex; gap: 0.375rem;
+  width: 100%; max-width: 100%; margin: 0 auto 1.5rem;
+  justify-content: center;
+  justify-content: safe center;
+  padding: 0.375rem 0.5rem;
+  background: var(--paper); border: 0.0625rem solid var(--line);
+  border-radius: var(--radius-lg); box-shadow: var(--shadow-sm);
+  overflow-x: auto; scrollbar-width: none;
 }
-.stage-assign-btn {
-  display: inline-flex; align-items: center; gap: 0.4375rem;
-  padding: 0.625rem 1.0625rem; min-height: 2.5rem;
-  border-radius: 0.625rem; font-family: inherit; font-size: 0.9375rem; font-weight: 600;
-  background: var(--sage-900); color: #F4F8EC; border: 0.0625rem solid var(--sage-900);
-  cursor: pointer; transition: background 0.15s, border-color 0.15s, color 0.15s;
-}
-.stage-assign-btn svg { width: 1rem; height: 1rem; flex: 0 0 1rem; }
-.stage-assign-btn:hover { background: var(--sage-800); border-color: var(--sage-800); }
-.stage-assign-btn.is-blocked {
-  background: var(--paper); color: var(--amber-700); border-color: var(--amber-100);
-}
-.stage-assign-btn.is-blocked:hover { background: var(--amber-50); border-color: var(--amber-700); }
-.stage-assign-note { font-size: 0.8125rem; font-weight: 500; color: var(--amber-700); }
-
-.mini-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.75rem; padding: 1rem 2rem 1.5rem; }
-.mini-stat { background: var(--paper-soft); border-radius: var(--radius-md); padding: 0.85rem 1rem; min-width: 0; }
-.mini-stat.active { background: var(--sage-50); border: 0.0625rem solid var(--sage-100); }
-.mini-stat .label { font-size: 0.71875rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--ink-muted); font-weight: 600; }
-.mini-stat .value {
-  font-family: var(--font-serif); font-size: 1.5rem; font-weight: 500; color: var(--ink-strong);
-  margin-top: 0.1875rem; letter-spacing: -0.025em; line-height: 1.1;
-}
-.mini-stat .value.value-text { font-size: 1.0625rem; line-height: 1.25; word-break: break-word; }
-.mini-stat .value .value-unit { font-size: 0.9375rem; color: var(--ink-muted); font-family: var(--font-sans); font-weight: 500; }
-.mini-stat .trend { font-size: 0.75rem; color: var(--ink-muted); margin-top: 0.3125rem; font-weight: 400; line-height: 1.35; }
-
-.tabs { display: flex; gap: 0.25rem; border-bottom: 0.0625rem solid var(--line); margin-bottom: 1.5rem; overflow-x: auto; scrollbar-width: none; }
 .tabs::-webkit-scrollbar { display: none; }
 .tab {
-  display: inline-flex; align-items: center; gap: 0.4375rem; padding: 0.75rem 0.875rem; min-height: 2.75rem;
-  font-size: 0.9375rem; font-weight: 500; color: var(--ink-muted);
-  background: none; border: none; border-bottom: 0.1875rem solid transparent; white-space: nowrap;
-  cursor: pointer; transition: color 0.15s, border-color 0.15s;
+  display: inline-flex; align-items: center; gap: 0.4375rem; padding: 0.5rem 1.125rem; min-height: 2.75rem;
+  font-size: 0.9375rem; font-weight: 500; color: var(--ink-muted); background: none; border: none;
+  border-radius: 0.625rem; white-space: nowrap; cursor: pointer;
+  transition: background 0.12s, color 0.12s;
 }
-.tab:hover { color: var(--ink-strong); }
-.tab[aria-selected="true"] { color: var(--sage-900); border-bottom-color: var(--sage-700); font-weight: 600; }
+.tab:hover { background: var(--paper-soft); color: var(--ink-strong); }
+.tab[aria-selected="true"] {
+  color: var(--action); font-weight: 600; background: var(--sage-50);
+  box-shadow: inset 0 0 0 0.125rem var(--sage-700);
+}
 .tab-count {
   font-size: 0.75rem; font-weight: 600; color: var(--ink-muted); background: var(--paper-soft);
   border: 0.0625rem solid var(--line); border-radius: 62.5rem; padding: 0.0625rem 0.4375rem;
 }
 .tab[aria-selected="true"] .tab-count { background: var(--sage-100); color: var(--sage-700); border-color: var(--sage-100); }
-
 .tab-alert {
   display: inline-flex; align-items: center; gap: 0.1875rem;
-  font-size: 0.75rem; font-weight: 700; line-height: 1;
+  font-size: 0.75rem; font-weight: 700;
   color: var(--rose-700); background: var(--rose-50);
   border: 0.0625rem solid var(--rose-100); border-radius: 62.5rem;
-  padding: 0.125rem 0.4375rem 0.125rem 0.3125rem;
-  animation: rd-alert-pulse 2.2s ease-in-out infinite;
+  padding: 0.125rem 0.4375rem;
 }
-.tab-alert svg { width: 0.75rem; height: 0.75rem; flex: 0 0 0.75rem; }
-.tab[aria-selected="true"] .tab-alert { background: var(--rose-100); border-color: var(--rose-100); }
-@keyframes rd-alert-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(176, 83, 63, 0.28); }
-  55% { box-shadow: 0 0 0 0.25rem rgba(176, 83, 63, 0); }
-}
-@media (prefers-reduced-motion: reduce) {
-  .tab-alert { animation: none; }
-}
+.tab-alert svg { width: 0.75rem; height: 0.75rem; }
 
 .tabpanel { animation: rd-panel 0.35s cubic-bezier(0.2, 0.7, 0.2, 1); }
 @keyframes rd-panel { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
@@ -2889,28 +3784,24 @@ onMounted(async () => {
   display: flex; align-items: center; justify-content: space-between; gap: 1rem;
 }
 
-.hero-avatar-btn {
+.hero-ava-btn {
   position: relative; display: inline-flex;
   padding: 0; border: none; background: none; border-radius: 50%;
   cursor: zoom-in;
-  transform: translateY(-3rem); margin-bottom: -2rem;
 }
-.hero-avatar-btn .hero-avatar-img {
-  transform: none; margin-bottom: 0;
-  transition: transform 0.35s ease;
-}
-.hero-avatar-btn:hover .hero-avatar-img { transform: scale(1.03); }
-.hero-avatar-zoom {
-  position: absolute; right: 0.25rem; bottom: 0.25rem;
-  width: 2rem; height: 2rem; border-radius: 50%;
+.hero-ava-btn .hero-ava { transition: transform 0.35s ease; }
+.hero-ava-btn:hover .hero-ava { transform: scale(1.03); }
+.hero-ava-zoom {
+  position: absolute; right: 0.125rem; bottom: 0.125rem;
+  width: 1.75rem; height: 1.75rem; border-radius: 50%;
   background: rgba(15, 20, 15, 0.55); color: #fff;
   border: 0.125rem solid var(--paper);
   display: grid; place-items: center;
   opacity: 0; transition: opacity 0.2s ease;
 }
-.hero-avatar-btn:hover .hero-avatar-zoom,
-.hero-avatar-btn:focus-visible .hero-avatar-zoom { opacity: 1; }
-.hero-avatar-zoom svg { width: 1rem; height: 1rem; }
+.hero-ava-btn:hover .hero-ava-zoom,
+.hero-ava-btn:focus-visible .hero-ava-zoom { opacity: 1; }
+.hero-ava-zoom svg { width: 0.875rem; height: 0.875rem; }
 
 .lesson-list { display: flex; flex-direction: column; gap: 0.6rem; }
 .lesson-card {
@@ -3126,31 +4017,472 @@ onMounted(async () => {
 .du-btn-danger { background: var(--btn-danger-fg); color: #FDF3EF; border-color: var(--btn-danger-fg); }
 .du-btn-danger:hover:not(:disabled) { background: #96422F; border-color: #96422F; }
 
+.modal {
+  position: fixed; inset: 0; z-index: 200; display: grid; place-items: center;
+  padding: 1rem; background: rgba(15, 20, 15, 0.5);
+}
+.modal-box {
+  width: min(34rem, 100%); max-height: 90vh; overflow-y: auto;
+  background: var(--paper); border-radius: var(--radius-lg);
+  box-shadow: 0 1.5rem 3rem rgba(15, 20, 15, 0.28);
+}
+.modal-head { display: flex; align-items: flex-start; gap: 0.75rem; padding: 1.25rem 1.25rem 0.75rem; }
+.modal-title {
+  font-family: var(--font-serif); font-size: 1.25rem; font-weight: 600;
+  color: var(--ink-strong); margin: 0; flex: 1; line-height: 1.25;
+}
+.modal-sub { font-size: 0.875rem; color: var(--ink-muted); margin: 0.25rem 0 0; }
+.modal-body { padding: 0 1.25rem 1rem; }
+.modal-foot {
+  display: flex; justify-content: flex-end; gap: 0.5rem;
+  padding: 1rem 1.25rem 1.25rem; border-top: 0.0625rem solid var(--line-soft); flex-wrap: wrap;
+}
+.field { display: block; margin-bottom: 0.875rem; }
+.field-key {
+  display: block; font-size: 0.8125rem; font-weight: 600;
+  color: var(--ink-muted); margin-bottom: 0.3125rem;
+}
+.req { color: var(--rose-700); font-weight: 600; }
+.field-err {
+  display: block; margin: 0.3125rem 0 0; font-size: 0.8125rem;
+  line-height: 1.4; color: var(--rose-700); font-weight: 500;
+}
+.input {
+  width: 100%; min-height: 2.75rem; padding: 0.5625rem 0.75rem; font-size: 0.9375rem;
+  font-family: inherit; border: 0.0625rem solid var(--line-strong);
+  border-radius: var(--radius-md); background: var(--paper); color: var(--ink-strong);
+}
+.input:focus-visible { outline: none; border-color: var(--stage); box-shadow: 0 0 0 0.1875rem var(--stage-line); }
+textarea.input { min-height: 5rem; resize: vertical; }
+.field-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 0.875rem; }
+.check {
+  display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.875rem;
+  font-size: 0.875rem; color: var(--ink-strong); cursor: pointer;
+}
+.check input { width: 1.125rem; height: 1.125rem; accent-color: var(--action); }
+.term-note {
+  font-size: 0.8125rem; line-height: 1.45; color: var(--ink-strong);
+  background: var(--amber-50); border: 0.0625rem solid var(--amber-100);
+  border-left: 0.1875rem solid var(--amber-700);
+  border-radius: var(--radius-sm); padding: 0.625rem 0.75rem;
+}
+.term-note b { font-weight: 700; }
+.modal-note {
+  font-size: 0.8125rem; color: var(--ink-muted); background: var(--paper-soft);
+  border-radius: var(--radius-sm); padding: 0.625rem 0.75rem; line-height: 1.45;
+}
+
+.col { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
+.split { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; align-items: start; }
+
+.card-foot {
+  display: flex; align-items: center; justify-content: center; gap: 0.375rem; width: 100%;
+  padding: 0.75rem; border: none; border-top: 0.0625rem solid var(--line-soft);
+  background: none; font-size: 0.875rem; font-weight: 500; color: var(--sage-700);
+  cursor: pointer; transition: background 0.15s;
+}
+.card-foot:hover { background: var(--sage-50); }
+.card-foot svg { width: 0.875rem; height: 0.875rem; }
+
+.badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 1.5rem; height: 1.5rem; padding: 0 0.45rem;
+  background: var(--sage-100); color: var(--sage-700);
+  font-size: 0.8rem; font-weight: 700; border-radius: 62.5rem;
+}
+
+.empty { text-align: center; padding: 1.25rem; color: var(--ink-muted); font-size: 0.9375rem; }
+
+.subtitle {
+  font-size: 0.8125rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.08em; color: var(--ink-muted); margin: 0 0 0.75rem;
+}
+
+.person-ava {
+  flex: 0 0 2.5rem; width: 2.5rem; height: 2.5rem; border-radius: 50%;
+  display: grid; place-items: center; font-size: 0.8125rem; font-weight: 600;
+  background: var(--rose-100); color: var(--rose-700);
+}
+.person-ava.sage { background: var(--sage-100); color: var(--sage-700); }
+
+.event {
+  display: flex; gap: 0.75rem; padding: 0.625rem 0;
+  border-bottom: 0.0625rem solid var(--line-soft); align-items: flex-start;
+}
+.event:last-child { border-bottom: none; }
+.event .event-date {
+  flex: 0 0 2.875rem; width: auto; height: auto; display: block;
+  text-align: center; border-radius: var(--radius-sm);
+  background: var(--paper-soft); color: var(--ink-strong); padding: 0.3125rem 0;
+}
+.event .event-date.is-cycle { background: var(--cycle-tint); color: var(--cycle); }
+.event .event-date.is-cycle .event-day { color: var(--cycle); }
+.event .event-day { display: block; line-height: 1; }
+.event .event-mon { display: block; letter-spacing: 0.06em; color: var(--ink-muted); }
+.event .event-date.is-cycle .event-mon { color: var(--cycle); }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 0.3125rem;
+  font-size: 0.75rem; font-weight: 700; padding: 0.1875rem 0.5625rem;
+  border-radius: 62.5rem; white-space: nowrap;
+}
+.pill svg { width: 0.8125rem; height: 0.8125rem; }
+.pill-ok { background: var(--sage-100); color: var(--sage-700); }
+.pill-wait { background: var(--amber-50); color: var(--amber-700); border: 0.0625rem solid var(--amber-100); }
+.pill-stop { background: var(--rose-50); color: var(--rose-700); border: 0.0625rem solid var(--rose-100); }
+.pill-stage { background: var(--cycle-tint); color: var(--cycle); border: 0.0625rem solid var(--cycle-line); }
+.pill-mute { background: var(--paper-soft); color: var(--ink-muted); }
+
+.pd-note {
+  display: flex; align-items: center; gap: 0.625rem; flex-wrap: wrap;
+  background: var(--paper-soft); border: 0.0625rem solid var(--line);
+  border-radius: var(--radius-md); padding: 0.625rem 0.75rem; margin-bottom: 0.75rem;
+}
+.pd-note-ic {
+  flex: 0 0 1.75rem; width: 1.75rem; height: 1.75rem; border-radius: 0.5rem;
+  background: var(--paper-sunken); color: var(--ink-muted); display: grid; place-items: center;
+}
+.pd-note-ic svg { width: 1rem; height: 1rem; }
+.pd-note-text { flex: 1 1 12rem; font-size: 0.8125rem; color: var(--ink-muted); line-height: 1.4; }
+.pd-note-btn {
+  display: inline-flex; align-items: center; gap: 0.375rem; min-height: 2.25rem;
+  padding: 0.375rem 0.75rem; border: 0.0625rem solid var(--action); border-radius: 0.5rem;
+  background: var(--action); color: var(--action-ink);
+  font-size: 0.8125rem; font-weight: 600; font-family: inherit; cursor: pointer;
+}
+.pd-note-btn:hover { background: var(--action-hover); border-color: var(--action-hover); }
+.pd-note-btn svg { width: 0.875rem; height: 0.875rem; }
+
+.kv.is-secret .kv-val { gap: 0.5rem; }
+.kv-mask {
+  font-size: 0.9375rem; letter-spacing: 0.14em; color: var(--ink-muted);
+  background: var(--paper-sunken); border-radius: 0.375rem; padding: 0.0625rem 0.5rem;
+}
+.kv-tools { display: inline-flex; gap: 0.25rem; margin-left: auto; }
+.kv-tool {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 2.25rem; height: 2.25rem; flex: 0 0 2.25rem;
+  border: 0.0625rem solid var(--line-strong); border-radius: 0.5rem;
+  background: var(--paper); color: var(--ink-muted); cursor: pointer;
+}
+.kv-tool:hover { background: var(--paper-soft); color: var(--action); border-color: var(--ink-muted); }
+.kv-tool svg { width: 1rem; height: 1rem; }
+.kv-open { font-size: 0.75rem; font-weight: 600; color: var(--sage-700); }
+
+.fs-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.625rem; }
+.fs-item {
+  padding: 0.6875rem 0.875rem; background: var(--sage-50);
+  border: 0.0625rem solid var(--sage-100); border-radius: var(--radius-md);
+}
+.fs-name { display: block; font-size: 0.9375rem; font-weight: 600; color: var(--sage-700); }
+.fs-hint { display: block; margin-top: 0.1875rem; font-size: 0.8125rem; color: var(--ink-muted); }
+
+.cyc-bar { display: flex; gap: 0.5rem; overflow-x: auto; padding-bottom: 0.375rem; scrollbar-width: none; margin-bottom: 1rem; }
+.cyc-bar::-webkit-scrollbar { display: none; }
+.cyc-tab {
+  display: flex; flex-direction: column; gap: 0.1875rem; align-items: flex-start;
+  min-width: 11rem; padding: 0.625rem 0.75rem; text-align: left; cursor: pointer;
+  border: 0.0625rem solid var(--line); border-radius: var(--radius-md); background: var(--paper);
+  font-family: inherit;
+}
+.cyc-tab:hover { border-color: var(--line-strong); background: var(--paper-soft); }
+.cyc-tab[aria-selected="true"] { border-color: var(--cycle); background: var(--cycle-tint); box-shadow: inset 0 0 0 0.0625rem var(--cycle); }
+.cyc-tab.is-active { border-color: var(--sage-100); background: var(--sage-50); }
+.cyc-tab.is-active:hover { background: var(--sage-100); border-color: var(--sage-500); }
+.cyc-tab.is-active[aria-selected="true"] { border-color: var(--sage-700); background: var(--sage-50); box-shadow: inset 0 0 0 0.0625rem var(--sage-700); }
+.cyc-tab-name { font-size: 0.9375rem; font-weight: 600; color: var(--ink-strong); }
+.cyc-tab-meta { font-size: 0.75rem; color: var(--ink-muted); }
+.cyc-summary {
+  display: flex; flex-wrap: wrap; gap: 0.75rem 1.75rem; align-items: center;
+  padding: 0.875rem 1rem; margin-bottom: 1.125rem;
+  border: 0.0625rem solid var(--cycle-line); border-left: 0.25rem solid var(--cycle);
+  border-radius: var(--radius-md); background: var(--cycle-tint);
+}
+.cyc-summary.is-active { background: var(--sage-50); border-color: var(--sage-100); border-left-color: var(--sage-700); }
+.cyc-fact { min-width: 7rem; }
+.cyc-fact-k { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; color: var(--ink-muted); }
+.cyc-fact-v { font-family: var(--font-serif); font-size: 1.25rem; font-weight: 600; color: var(--ink-strong); line-height: 1.15; }
+.cyc-fact-v .unit { font-family: var(--font-sans); font-size: 0.8125rem; font-weight: 500; color: var(--ink-muted); }
+
+.diag { border: 0.0625rem solid var(--line); border-radius: var(--radius-md); background: var(--paper); margin-bottom: 0.75rem; overflow: hidden; }
+.diag[open] { box-shadow: var(--shadow-md); }
+.diag-head {
+  display: flex; flex-wrap: wrap; gap: 0.5rem 0.875rem; align-items: center;
+  padding: 0.875rem 1rem; background: var(--paper); cursor: pointer; list-style: none;
+  border-left: 0.25rem solid var(--line-strong);
+}
+.diag-head::-webkit-details-marker { display: none; }
+.diag-head::after {
+  content: ""; width: 0.5rem; height: 0.5rem; flex: 0 0 0.5rem; margin-left: auto;
+  border-right: 0.125rem solid var(--ink-muted); border-bottom: 0.125rem solid var(--ink-muted);
+  transform: rotate(45deg); transition: transform 0.15s;
+}
+.diag[open] > .diag-head::after { transform: rotate(-135deg); }
+.diag[open] > .diag-head { border-bottom: 0.0625rem solid var(--line-soft); }
+.diag-head:hover { filter: brightness(0.985); }
+.diag-head:focus-visible { outline: 0.1875rem solid var(--stage); outline-offset: -0.1875rem; }
+.diag.is-ok > .diag-head { background: #F2F6EA; border-left-color: var(--sage-500); }
+.diag.is-wait > .diag-head { background: #FBF1DD; border-left-color: var(--amber-700); }
+.diag.is-stop > .diag-head { background: #FAE9E0; border-left-color: var(--rose-500); }
+.diag.is-mute > .diag-head { background: var(--paper); border-left-color: var(--line-strong); }
+.diag-verdict { font-size: 1rem; font-weight: 700; color: var(--ink-strong); flex: 1 1 12rem; }
+.diag-when { font-size: 0.8125rem; color: var(--ink-muted); }
+.diag-body { padding: 0.5rem 1rem 1rem; }
+
+.dir { border-bottom: 0.0625rem solid var(--line-soft); }
+.dir:last-of-type { border-bottom: none; }
+.dir > summary {
+  display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;
+  padding: 0.625rem 0.75rem; cursor: pointer; list-style: none; min-height: 2.75rem;
+  border-radius: var(--radius-md); transition: background 0.12s;
+}
+.dir > summary::-webkit-details-marker { display: none; }
+.dir > summary::after {
+  content: ""; width: 0.5rem; height: 0.5rem; flex: 0 0 0.5rem; margin-left: 0.25rem;
+  border-right: 0.125rem solid var(--ink-muted); border-bottom: 0.125rem solid var(--ink-muted);
+  transform: rotate(45deg); transition: transform 0.15s;
+}
+.dir[open] > summary::after { transform: rotate(-135deg); }
+.dir > summary:hover { background: var(--paper-soft); }
+.dir > summary:focus-visible { outline: 0.1875rem solid var(--stage); outline-offset: -0.1875rem; }
+.dir-ic {
+  flex: 0 0 2.125rem; width: 2.125rem; height: 2.125rem;
+  display: grid; place-items: center; border-radius: 0.625rem;
+  background: var(--paper-soft); color: var(--ink-muted);
+  transition: background 0.12s, color 0.12s;
+}
+.dir-ic svg { width: 1.125rem; height: 1.125rem; }
+.dir[open] > summary .dir-ic { background: var(--sage-100); color: var(--sage-700); }
+.dir > summary:hover .dir-ic { background: var(--sage-50); color: var(--sage-700); }
+.dir-name { font-size: 0.9375rem; font-weight: 600; color: var(--ink-strong); flex: 1 1 10rem; min-width: 0; }
+.dir-spec { font-size: 0.8125rem; color: var(--ink-muted); }
+.dir-score { font-family: var(--font-serif); font-size: 1.125rem; font-weight: 600; color: var(--ink-strong); min-width: 2.5rem; text-align: right; margin-left: auto; }
+.dir-score .unit { font-family: var(--font-sans); font-size: 0.75rem; color: var(--ink-muted); font-weight: 500; }
+.dir-body { padding: 0.625rem 0.75rem 1rem; }
+.dir-comment { background: #FBF9F5; border: 0.0625rem solid var(--line-soft); border-left: 0.1875rem solid var(--sage-100); border-radius: var(--radius-md); padding: 0.75rem 0.875rem; }
+.dir-comment-k { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; color: var(--ink-muted); margin-bottom: 0.25rem; }
+.dir-comment-p { font-size: 0.9375rem; color: var(--ink-strong); margin: 0; line-height: 1.5; }
+
+.crit { margin-top: 0.5rem; }
+.crit-sum {
+  display: inline-flex; align-items: center; gap: 0.4375rem;
+  padding: 0.5rem 0.75rem; min-height: 2.5rem; cursor: pointer; list-style: none;
+  font-size: 0.875rem; font-weight: 600; color: var(--sage-700);
+  border-radius: var(--radius-md); transition: background 0.12s;
+}
+.crit-sum::-webkit-details-marker { display: none; }
+.crit-sum::before {
+  content: ""; width: 0.4375rem; height: 0.4375rem; flex: 0 0 0.4375rem;
+  border-right: 0.125rem solid currentColor; border-bottom: 0.125rem solid currentColor;
+  transform: rotate(-45deg); transition: transform 0.15s;
+}
+.crit[open] > .crit-sum::before { transform: rotate(45deg); }
+.crit-sum:hover { background: var(--sage-50); }
+.crit-sum:focus-visible { outline: 0.1875rem solid var(--stage); outline-offset: -0.1875rem; }
+.crit-count { font-size: 0.75rem; font-weight: 700; color: var(--ink-muted); background: var(--paper-soft); border: 0.0625rem solid var(--line); border-radius: 62.5rem; padding: 0.0625rem 0.4375rem; }
+.crit-body { padding: 0.5rem 0.25rem 0.25rem; }
+.crit-row { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; padding: 0.4375rem 0.5rem; border-radius: var(--radius-sm); }
+.crit-row:nth-child(odd) { background: #FBF9F5; }
+.crit-row.is-blank .crit-label { color: var(--ink-muted); }
+.crit-empty { font-size: 0.8125rem; color: var(--ink-muted); margin: 0 0.5rem 0.5rem; line-height: 1.4; }
+.crit-label { font-size: 0.875rem; color: var(--ink-strong); flex: 1 1 11rem; min-width: 0; }
+.crit-scale { display: inline-flex; flex-wrap: wrap; gap: 0.1875rem; margin-left: auto; justify-content: flex-end; }
+.crit-answer { margin-left: auto; font-size: 0.875rem; font-weight: 600; color: var(--sage-700); text-align: right; }
+.tick {
+  width: 1.5rem; height: 1.5rem; border-radius: 0.375rem; display: grid; place-items: center;
+  font-size: 0.75rem; font-weight: 600; color: var(--ink-subtle);
+  background: var(--paper); border: 0.0625rem solid var(--line);
+}
+.tick.on { background: var(--action); color: var(--action-ink); border-color: var(--action); }
+.crit-hint { font-size: 0.75rem; color: var(--ink-subtle); margin: 0.625rem 0.5rem 0; line-height: 1.4; }
+
+.diag-concl { margin-top: 0.875rem; padding: 0.875rem 1rem; border-radius: var(--radius-md); background: var(--sage-50); border: 0.0625rem solid var(--sage-100); }
+.diag-concl.is-stop { background: var(--rose-50); border-color: var(--rose-100); }
+.diag-concl-h { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--sage-700); margin-bottom: 0.375rem; }
+.diag-concl.is-stop .diag-concl-h { color: var(--rose-700); }
+.diag-concl-p { font-size: 0.9375rem; color: var(--ink-strong); margin: 0 0 0.5rem; line-height: 1.5; }
+.diag-concl-m { font-size: 0.8125rem; color: var(--ink-muted); }
+
+.subtabs {
+  display: flex; gap: 0.25rem; margin: 0 auto 1.25rem; background: var(--paper-sunken);
+  padding: 0.25rem; border-radius: 0.75rem; width: max-content; max-width: 100%;
+  overflow-x: auto; scrollbar-width: none;
+}
+.subtabs::-webkit-scrollbar { display: none; }
+.subtab {
+  padding: 0.5rem 0.875rem; min-height: 2.5rem; border: none; border-radius: 0.5rem; background: none;
+  font-family: inherit; font-size: 0.875rem; font-weight: 500; color: var(--ink-muted);
+  cursor: pointer; white-space: nowrap;
+}
+.subtab[aria-selected="true"] { background: var(--paper); color: var(--ink-strong); font-weight: 600; box-shadow: var(--shadow-sm); }
+.docs-add { display: flex; justify-content: flex-end; margin-bottom: 1rem; }
+
+.doc-table { margin: 0; }
+.doc-tr {
+  display: grid; grid-template-columns: minmax(11rem, 17rem) minmax(0, 1fr);
+  gap: 0.25rem 1.25rem; align-items: start;
+  padding: 0.875rem 0.75rem; border-bottom: 0.0625rem solid var(--line-soft);
+  border-left: 0.1875rem solid transparent; border-radius: var(--radius-sm);
+}
+.split .doc-tr { grid-template-columns: 1fr; gap: 0.375rem; }
+.split .doc-k { flex-direction: row; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
+.doc-tr:last-child { border-bottom: none; }
+.doc-tr:hover { background: #FBF9F5; }
+.doc-tr.is-missing { border-left-color: var(--amber-700); background: var(--amber-50); }
+.doc-tr.is-missing:hover { background: #F8EBD3; }
+.doc-k { display: flex; flex-direction: column; gap: 0.1875rem; min-width: 0; }
+.doc-name { font-size: 0.9375rem; font-weight: 600; color: var(--ink-strong); line-height: 1.35; }
+.doc-req { font-size: 0.6875rem; text-transform: uppercase; letter-spacing: 0.07em; font-weight: 600; color: var(--ink-subtle); }
+.doc-tr.is-missing .doc-req { color: var(--amber-700); }
+.doc-v { margin: 0; min-width: 0; display: flex; flex-direction: column; gap: 0.3125rem; }
+.doc-state { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.doc-term { font-size: 0.875rem; color: var(--ink-strong); }
+.doc-ver { font-size: 0.75rem; font-weight: 600; color: var(--ink-muted); background: var(--paper-soft); border: 0.0625rem solid var(--line); border-radius: 62.5rem; padding: 0.0625rem 0.4375rem; }
+.doc-file { font-size: 0.8125rem; color: var(--ink-subtle); word-break: break-word; }
+.doc-acts { display: flex; gap: 0.25rem 0.875rem; flex-wrap: wrap; align-items: center; margin-top: 0.1875rem; }
+.doc-act {
+  display: inline-flex; align-items: center; gap: 0.3125rem; min-height: 2.25rem;
+  padding: 0.25rem 0.375rem; margin-left: -0.375rem; border: none; background: none; border-radius: 0.5rem;
+  font-family: inherit; font-size: 0.8125rem; font-weight: 600; color: var(--sage-700); cursor: pointer;
+  transition: background 0.12s, color 0.12s; text-decoration: none;
+}
+.doc-act svg { width: 0.875rem; height: 0.875rem; flex: 0 0 0.875rem; }
+.doc-act:hover { background: var(--sage-50); color: var(--action); }
+.btn-sm { min-height: 2.25rem; padding: 0.375rem 0.75rem; font-size: 0.8125rem; }
+
+.hist { list-style: none; margin: 0; padding: 0; }
+.hist-item { padding: 0.875rem 0; border-bottom: 0.0625rem solid var(--line-soft); }
+.hist-item:last-child { border-bottom: none; }
+.hist-head { display: flex; gap: 0.625rem; flex-wrap: wrap; align-items: baseline; margin-bottom: 0.1875rem; }
+.hist-date { font-size: 0.875rem; font-weight: 600; color: var(--ink-strong); }
+.hist-author { font-size: 0.8125rem; color: var(--ink-muted); }
+.hist-reason { font-size: 0.9375rem; color: var(--ink-strong); }
+.hist-fields { font-size: 0.8125rem; color: var(--ink-muted); margin-top: 0.1875rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.hist-head .pill { margin-left: auto; }
+
+@media (max-width: 48rem) {
+  .cyc-summary { gap: 0.625rem 1.25rem; }
+  .cyc-fact-v { font-size: 1.125rem; }
+  .dir > summary { padding: 0.625rem 0.125rem; }
+  .dir-score { margin-left: auto; }
+  .doc-tr { grid-template-columns: 1fr; gap: 0.375rem; }
+  .doc-k { flex-direction: row; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
+}
+
 @media (max-width: 75rem) {
   .grid { grid-template-columns: 1fr; }
-  .mini-stats { grid-template-columns: repeat(2, 1fr); }
+  .steps { grid-template-columns: repeat(3, 1fr); gap: 0.75rem 0.5rem; }
+}
+@media (max-width: 34rem) {
+  .field-row { grid-template-columns: 1fr; }
+}
+@media (max-width: 60rem) {
+  .split { grid-template-columns: 1fr; }
 }
 @media (max-width: 48rem) {
-  .hero-body { grid-template-columns: 1fr; padding: 0 1.125rem 1.125rem; }
-  .hero-avatar, .hero-avatar-img, .hero-avatar-btn { justify-self: start; }
-  .hero-name { font-size: 2rem; }
-  .stage-track, .mini-stats { padding-left: 1.125rem; padding-right: 1.125rem; }
-  .stage-steps { grid-template-columns: repeat(3, 1fr); gap: 0.75rem 0.5rem; }
+  .hero-body { grid-template-columns: auto minmax(0, 1fr); gap: 1rem; padding: 1.125rem; }
+  .hero-actions { grid-column: 1 / -1; }
+  .hero-actions .btn { flex: 1 1 auto; }
+  .hero-ava { width: 4rem; height: 4rem; flex: 0 0 4rem; font-size: 1.375rem; }
+  .hero-name { font-size: 1.625rem; }
+  .route { padding: 1rem; }
+  .steps { grid-template-columns: 1fr; gap: 0.5rem; }
+  .step { padding-top: 0; padding-left: 0.875rem; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+  .step::before { top: 0; bottom: 0; left: 0; right: auto; width: 0.25rem; height: auto; }
   .kv-grid { grid-template-columns: 1fr; }
+  .card-body { padding: 1rem; }
+  .card-head { padding: 0.875rem 1rem 0.75rem; }
   .rd-assign-grid { grid-template-columns: 1fr; }
   .du-grid { grid-template-columns: 1fr; }
-  .du-modal { max-height: 94vh; }
-  .du-overlay { padding: 0.625rem; }
   .rd-history-kv-row { grid-template-columns: 1fr; gap: 0.125rem; }
-  .alert { flex-wrap: wrap; }
-  .alert-action { width: 100%; }
 }
 @media (max-width: 30rem) {
-  .mini-stats { grid-template-columns: 1fr; }
-  .stage-steps { grid-template-columns: repeat(2, 1fr); }
-  .hero-actions .btn { flex: 1 1 auto; }
-  .stage-assign-btn { width: 100%; justify-content: center; }
   .du-foot { flex-direction: column-reverse; }
   .du-foot .du-btn { width: 100%; }
+}
+
+@media (max-width: 768px) {
+  .tabs {
+    justify-content: flex-start;
+    padding: 0.3125rem;
+    border-radius: var(--radius-md);
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+  .tab { padding: 0.5rem 0.75rem; font-size: 0.875rem; flex: 0 0 auto; white-space: nowrap; }
+
+  .breadcrumb { font-size: 0.8125rem; }
+  .alert { flex-wrap: wrap; }
+  .alert .btn { width: 100%; }
+
+  .hero-actions { flex-wrap: wrap; }
+  .hero-name-row { flex-wrap: wrap; }
+
+  .cyc-tab { min-width: 9.5rem; }
+  .subtabs { width: 100%; }
+  .subtab { flex: 1 1 auto; text-align: center; }
+
+  .card-foot { min-height: 2.75rem; }
+  .doc-acts { gap: 0.375rem 0.625rem; }
+  .doc-acts .btn { flex: 1 1 auto; }
+
+  .modal { padding: 0; place-items: stretch; overflow: hidden; }
+  .modal-box {
+    width: 100%;
+    max-width: none;
+    height: calc(100dvh - var(--kb, 0px));
+    max-height: calc(100dvh - var(--kb, 0px));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 0;
+    border-left: none;
+    border-right: none;
+    padding-left: var(--safe-left, 0px);
+    padding-right: var(--safe-right, 0px);
+  }
+  .modal-head { flex: 0 0 auto; padding: calc(1rem + var(--safe-top, 0px)) 1rem 0.75rem; }
+  .modal-body {
+    flex: 1 1 auto; min-height: 0;
+    overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain;
+    padding: 0 1rem 1rem;
+  }
+  .modal-foot {
+    flex: 0 0 auto;
+    padding: 0.875rem 1rem calc(0.875rem + var(--safe-bottom, 0px));
+    flex-direction: column-reverse;
+    background: var(--paper);
+  }
+  .modal-foot > .btn { width: 100%; }
+
+  .du-overlay { padding: 0; align-items: stretch; overflow: hidden; }
+  .du-modal {
+    width: 100%;
+    height: calc(100dvh - var(--kb, 0px));
+    max-height: calc(100dvh - var(--kb, 0px));
+    border-radius: 0; border: none;
+    padding-left: var(--safe-left, 0px); padding-right: var(--safe-right, 0px);
+  }
+  .du-head { padding-top: calc(1.125rem + var(--safe-top, 0px)); padding-left: 1rem; padding-right: 1rem; }
+  .du-body { padding-left: 1rem; padding-right: 1rem; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+  .du-foot { padding: 0.875rem 1rem calc(0.875rem + var(--safe-bottom, 0px)); }
+
+  .rd-lightbox { padding: 1rem; }
+  .rd-lightbox-close { top: calc(0.75rem + var(--safe-top, 0px)); right: max(0.75rem, var(--safe-right, 0px)); }
+
+  .crit-row { flex-direction: column; align-items: stretch; gap: 0.375rem; }
+  .crit-scale { margin-left: 0; justify-content: flex-start; }
+  .crit-answer { margin-left: 0; text-align: left; }
+  .tick { width: 2rem; height: 2rem; }
+
+  .kv-tools { margin-left: 0; }
+  .rd-lightbox img { max-width: 96vw; }
+}
+
+@media (max-width: 30rem) {
+  .hero-tags { gap: 0.375rem; }
+  .id-chip, .status, .stage-chip { font-size: 0.6875rem; }
+  .dir > summary { gap: 0.5rem; }
+  .dir-spec { flex-basis: 100%; }
 }
 </style>

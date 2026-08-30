@@ -16,6 +16,8 @@ const RecipientDoc = sequelize.define('RecipientDoc', {
   regAddress: { type: DataTypes.STRING(500), allowNull: false },
   factAddress: { type: DataTypes.STRING(500), allowNull: false },
   factSameReg: { type: DataTypes.BOOLEAN, defaultValue: false },
+  district: { type: DataTypes.STRING(64), allowNull: true },
+  area: { type: DataTypes.STRING(120), allowNull: true },
   educationPlace: { type: DataTypes.STRING(255), allowNull: false },
   specialNote: { type: DataTypes.TEXT, allowNull: false }
 }, {

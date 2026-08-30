@@ -10,7 +10,10 @@ import {
 import { DIAGNOSTIC_BLOCKS } from '../src/utils/diagnosticBlocks.js';
 import { summarizeDraft } from '../src/utils/recipientDraft.js';
 import { hasGrant, loadGrants } from '../services/dataAccess.js';
-import { ENROLL_DOCS, findPendingEnrollment } from '../services/enrollmentDocs.js';
+import {
+  ENROLL_DOCS, findPendingEnrollment,
+  signedEnrollCodesFor, hasAllRequiredEnrollDocs
+} from '../services/enrollmentDocs.js';
 
 const router = express.Router();
 
@@ -698,8 +701,401 @@ router.get('/employee-alerts', authMiddleware, roleMiddleware('admin', 'employee
   }
 });
 
+
+const blockTouched = (a) => {
+  if (a.blockStatus === 'completed') return true;
+  const crit = a.results?.criteria;
+  if (!crit || typeof crit !== 'object') return false;
+  return Object.values(crit).some((v) => v !== null && v !== undefined && v !== '');
+};
+
+const NO_SHOW_GRACE_MIN = 60;
+
+const STATUS_META = {
+  enrolled:    { label: 'Зачислен',                  pill: 'pill-ok',    verdict: 'ok',   done: true  },
+  recommended: { label: 'Рекомендовано к зачислению', pill: 'pill-ok',    verdict: 'ok',   done: false },
+  trial:       { label: 'Пробные занятия',            pill: 'pill-wait',  verdict: 'wait', done: true  },
+  rejected:    { label: 'Не рекомендовано',           pill: 'pill-stop',  verdict: 'stop', done: true  },
+  noshow:      { label: 'Неявка',                     pill: 'pill-stop',  verdict: 'stop', done: false },
+  running:     { label: 'Идёт диагностика',           pill: 'pill-stage', verdict: 'now',  done: false },
+  waiting:     { label: 'Ожидает',                    pill: 'pill-wait',  verdict: '',     done: false }
+};
+
+const KIND_LABELS = {
+  primary: 'Первичная диагностика',
+  repeat: 'Повторная диагностика',
+  interim: 'Промежуточная диагностика',
+  final: 'Итоговая диагностика'
+};
+
+const fmtRuFull = (v) => {
+  const s = dateOnly(v);
+  if (!s) return '';
+  const [y, m, d] = s.split('-');
+  return `${d}.${m}.${y}`;
+};
+
+const fmtRuTime = (v) => {
+  if (!v) return '';
+  const d = v instanceof Date ? v : new Date(v);
+  return Number.isNaN(d.getTime())
+    ? ''
+    : `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+};
+
+const sessionStartTime = (session, assignments) => {
+  const times = (assignments || []).map((a) => a.startTime).filter(Boolean).sort();
+  return times[0] || session.reservedFrom || null;
+};
+
+function resolveSessionStatus({ session, assignments, conclusion, signedCodes, date, today, nowMin }) {
+  if (conclusion) {
+    if (conclusion.verdict === 'rejected') return 'rejected';
+    if (conclusion.verdict === 'trial') return 'trial';
+    if (conclusion.verdict === 'recommended') {
+      return hasAllRequiredEnrollDocs(signedCodes) ? 'enrolled' : 'recommended';
+    }
+    return 'recommended';
+  }
+
+  if (assignments.some(blockTouched)) return 'running';
+
+  const start = minutesOf(sessionStartTime(session, assignments));
+  if (date > today) return 'waiting';
+  if (date < today) return 'noshow';
+  if (!Number.isFinite(start)) return nowMin >= 12 * 60 ? 'noshow' : 'waiting';
+  return nowMin > start + NO_SHOW_GRACE_MIN ? 'noshow' : 'waiting';
+}
+
+function sessionNote({ status, session, assignments, conclusion, signed, date, today, startTime }) {
+  const done = assignments.filter((a) => a.blockStatus === 'completed').length;
+  const kind = KIND_LABELS[session.kind] || 'Диагностика';
+
+  if (status === 'enrolled') {
+    return `Заключение ${fmtRuFull(conclusion.issuedAt)} · документы подписаны и загружены`;
+  }
+  if (status === 'recommended') {
+    return signed
+      ? `Заключение ${fmtRuFull(conclusion.issuedAt)} · подписано ${signed} из ${ENROLL_DOCS.length} документов`
+      : `Заключение ${fmtRuFull(conclusion.issuedAt)} · документы не готовились`;
+  }
+  if (status === 'trial') {
+    return `Заключение ${fmtRuFull(conclusion.issuedAt)} · зачисление не требуется`;
+  }
+  if (status === 'rejected') {
+    const why = (conclusion.summary || '').trim().split(/\n/)[0];
+    return why ? `Причина: ${why.slice(0, 120)}` : `Заключение ${fmtRuFull(conclusion.issuedAt)}`;
+  }
+  if (status === 'running') {
+    return `${kind} · сдано ${done} из ${assignments.length} ${plural(assignments.length, 'направления', 'направлений', 'направлений')}`;
+  }
+  if (status === 'noshow') {
+    const when = date === today
+      ? `на ${hhmm(startTime) || 'сегодня'}`
+      : `на ${fmtRuFull(date)}`;
+    return `Назначено ${when} · визит не отмечен`;
+  }
+  return assignments.length
+    ? `${kind} · ${assignments.length} ${plural(assignments.length, 'направление', 'направления', 'направлений')}`
+    : `${kind} · специалисты не назначены`;
+}
+
+async function loadDayRows(date, today, nowMin) {
+  const nameAttrs = ['id', 'firstName', 'middleName', 'lastName'];
+
+  const sessions = await DiagnosticSession.findAll({
+    where: { date, status: { [Op.ne]: 'cancelled' } },
+    attributes: ['id', 'recipientId', 'kind', 'date', 'reservedFrom', 'reservedTo', 'status'],
+    include: [
+      { model: Recipient, as: 'recipient', attributes: nameAttrs },
+      {
+        model: DiagnosticAssignment, as: 'assignments', required: false,
+        attributes: ['id', 'blockStatus', 'results', 'startTime']
+      }
+    ],
+    order: [['reservedFrom', 'ASC'], ['id', 'ASC']]
+  });
+  if (!sessions.length) return [];
+
+  const [conclusions, signedMap] = await Promise.all([
+    DiagnosticConclusion.findAll({
+      where: { sessionId: { [Op.in]: sessions.map((s) => s.id) } },
+      attributes: ['id', 'sessionId', 'verdict', 'summary', 'issuedAt']
+    }),
+    signedEnrollCodesFor(sessions.map((s) => s.recipientId))
+  ]);
+  const conclusionOf = new Map(conclusions.map((c) => [c.sessionId, c]));
+
+  return sessions.map((s) => {
+    const assignments = s.assignments || [];
+    const conclusion = conclusionOf.get(s.id) || null;
+    const signedCodes = signedMap.get(s.recipientId) || new Set();
+    const startTime = sessionStartTime(s, assignments);
+    const startMin = minutesOf(startTime);
+    const status = resolveSessionStatus({
+      session: s, assignments, conclusion, signedCodes, date, today, nowMin
+    });
+    const meta = STATUS_META[status];
+    const past = date < today
+      || (date === today && Number.isFinite(startMin) && nowMin > startMin);
+
+    return {
+      sessionId: s.id,
+      recipientId: s.recipientId,
+      name: s.recipient ? recipientFullName(s.recipient) : 'Без имени',
+      initials: initialsOf(s.recipient),
+      time: hhmm(startTime),
+      status,
+      statusLabel: meta.label,
+      pill: meta.pill,
+      verdict: meta.verdict,
+      done: meta.done,
+      signedCount: signedCodes.size,
+      totalDocs: ENROLL_DOCS.length,
+      isPast: past && status !== 'running' && status !== 'waiting',
+      note: sessionNote({
+        status, session: s, assignments, conclusion,
+        signed: signedCodes.size, date, today, startTime
+      })
+    };
+  });
+}
+
+router.get('/day-board', authMiddleware, roleMiddleware('admin', 'employee', 'teacher'), async (req, res, next) => {
+  try {
+    const now = new Date();
+    const today = localDate(now);
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const raw = String(req.query.date || '').slice(0, 10);
+    const date = /^\d{4}-\d{2}-\d{2}$/.test(raw) ? raw : today;
+
+    const rows = await loadDayRows(date, today, nowMin);
+    const d = new Date(`${date}T00:00:00`);
+
+    res.json({
+      date,
+      today,
+      isToday: date === today,
+      label: `${RU_WEEKDAYS_SHORT[d.getDay()]}, ${d.getDate()} ${RU_MONTHS[d.getMonth()]}`,
+      title: date === today
+        ? 'Записаны на сегодня'
+        : `Записаны на ${RU_WEEKDAYS_ACC[d.getDay()]}, ${d.getDate()} ${RU_MONTHS[d.getMonth()]}`,
+      rows,
+      doneCount: rows.filter((r) => r.done).length,
+      todoCount: rows.filter((r) => !r.done).length
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const tile = ({ key, title, tone, unit, qual, action, items }) => ({
+  key,
+  title,
+  tone: items.length ? tone : 'zero',
+  count: items.length,
+  unit: plural(items.length, unit[0], unit[1], unit[2]),
+  qual: items.length ? (qual ? qual(items) : null) : null,
+  action: action || null,
+  items: items.slice(0, 8)
+});
+
+const EXPIRY_HORIZON_DAYS = 90;
+
+router.get('/employee-tiles', authMiddleware, roleMiddleware('admin', 'employee', 'teacher'), async (req, res, next) => {
+  try {
+    const now = new Date();
+    const today = localDate(now);
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const horizon = localDate(new Date(now.getTime() + EXPIRY_HORIZON_DAYS * MS_DAY));
+    const nameAttrs = ['id', 'firstName', 'middleName', 'lastName'];
+
+    const daysLeft = (v) => {
+      const s = dateOnly(v);
+      if (!s) return null;
+      const diff = Math.round((Date.parse(`${s}T00:00:00Z`) - Date.parse(`${today}T00:00:00Z`)) / MS_DAY);
+      return Number.isFinite(diff) ? diff : null;
+    };
+
+    const [expiringDocs, expiringScans, activeRecipients, scanTypes, currentScans, drafts, staleSessions] =
+      await Promise.all([
+        RecipientDoc.findAll({
+          where: {
+            mseIndefinite: false,
+            mseValidDate: { [Op.gte]: today, [Op.lte]: horizon }
+          },
+          attributes: ['id', 'recipientId', 'mseValidDate'],
+          include: [{
+            model: Recipient, as: 'recipient', attributes: nameAttrs,
+            required: true, where: { status: { [Op.ne]: 'archived' } }
+          }]
+        }),
+        RecipientScanDoc.findAll({
+          where: {
+            isCurrent: true, perpetual: false,
+            validUntil: { [Op.gte]: today, [Op.lte]: horizon }
+          },
+          attributes: ['id', 'recipId', 'docType', 'validUntil']
+        }),
+        Recipient.findAll({ where: { status: 'active' }, attributes: nameAttrs }),
+        DocType.findAll({
+          where: { category: 'scan', isRequired: true },
+          attributes: ['id', 'code', 'name']
+        }),
+        RecipientScanDoc.findAll({ where: { isCurrent: true }, attributes: ['recipId', 'docType'] }),
+        RecipientDraft.findAll({
+          attributes: ['id', 'lastName', 'firstName', 'middleName', 'repName', 'payload', 'createdBy', 'createdByName', 'updatedAt'],
+          order: [['updatedAt', 'DESC']],
+          limit: 30
+        }),
+        DiagnosticSession.findAll({
+          where: { date: { [Op.lte]: today }, status: { [Op.ne]: 'cancelled' } },
+          attributes: ['id', 'recipientId', 'kind', 'date', 'reservedFrom', 'status'],
+          include: [
+            { model: Recipient, as: 'recipient', attributes: nameAttrs },
+            {
+              model: DiagnosticAssignment, as: 'assignments', required: false,
+              attributes: ['id', 'blockStatus', 'results', 'startTime']
+            }
+          ],
+          order: [['date', 'DESC']]
+        })
+      ]);
+
+    const scanTypeName = new Map((await DocType.findAll({ attributes: ['id', 'name'] })).map((t) => [t.id, t.name]));
+    const recipientById = new Map(activeRecipients.map((r) => [r.id, r]));
+
+    const expiringItems = [
+      ...expiringDocs.map((d) => ({
+        recipientId: d.recipientId,
+        name: recipientFullName(d.recipient),
+        note: `Справка МСЭ до ${fmtRuFull(d.mseValidDate)}`,
+        left: daysLeft(d.mseValidDate)
+      })),
+      ...expiringScans
+        .filter((s) => recipientById.has(s.recipId))
+        .map((s) => ({
+          recipientId: s.recipId,
+          name: recipientFullName(recipientById.get(s.recipId)),
+          note: `${scanTypeName.get(s.docType) || 'Документ'} до ${fmtRuFull(s.validUntil)}`,
+          left: daysLeft(s.validUntil)
+        }))
+    ]
+      .sort((a, b) => (a.left ?? 1e9) - (b.left ?? 1e9))
+      .map((i) => ({ ...i, days: i.left == null ? null : daysWord(i.left), tab: 'documents' }));
+
+    const haveScans = new Map();
+    currentScans.forEach((s) => {
+      if (!haveScans.has(s.recipId)) haveScans.set(s.recipId, new Set());
+      haveScans.get(s.recipId).add(s.docType);
+    });
+    const scanItems = [];
+    for (const r of activeRecipients) {
+      const have = haveScans.get(r.id) || new Set();
+      const missing = scanTypes.filter((t) => !have.has(t.id));
+      if (!missing.length) continue;
+      scanItems.push({
+        recipientId: r.id,
+        name: recipientFullName(r),
+        note: `Не загружено: ${missing.map((t) => t.name).join(', ')}`,
+        missing: missing.length,
+        tab: 'documents'
+      });
+    }
+    scanItems.sort((a, b) => b.missing - a.missing);
+
+    const draftItems = drafts.map((d) => {
+      const s = summarizeDraft(d.payload) || { done: 0, total: 0, steps: [] };
+      const step = s.steps?.[0]?.step || 3;
+      const who = d.createdBy === req.user.id ? 'я' : (d.createdByName || 'коллега');
+      return {
+        draftId: d.id,
+        recipientId: null,
+        name: [d.lastName, d.firstName].filter(Boolean).join(' ') || (d.repName ? `Ребёнок ${d.repName}` : 'Без имени'),
+        note: `Шаг ${step} из 3 · ${s.done} из ${s.total} полей · ${who}, ${fmtRuTime(d.updatedAt)}`,
+        mine: d.createdBy === req.user.id
+      };
+    });
+
+    const noShowItems = [];
+    for (const s of staleSessions) {
+      if ((s.assignments || []).some(blockTouched)) continue;
+      const day = dateOnly(s.date);
+      const startTime = sessionStartTime(s, s.assignments);
+      if (day === today) {
+        const start = minutesOf(startTime);
+        if (!Number.isFinite(start) || nowMin <= start + NO_SHOW_GRACE_MIN) continue;
+      }
+      const ago = daysSince(day, today);
+      noShowItems.push({
+        recipientId: s.recipientId,
+        sessionId: s.id,
+        name: s.recipient ? recipientFullName(s.recipient) : 'Без имени',
+        note: `Не пришли ${day === today ? `сегодня, ${hhmm(startTime)}` : fmtRuFull(day)}`,
+        days: ago === 0 ? 'сегодня' : daysWord(ago)
+      });
+    }
+    noShowItems.sort((a, b) => String(b.note).localeCompare(String(a.note)));
+
+    const conclusionsOfStale = await DiagnosticConclusion.findAll({
+      where: { sessionId: { [Op.in]: staleSessions.map((s) => s.id).concat(0) } },
+      attributes: ['sessionId']
+    });
+    const concluded = new Set(conclusionsOfStale.map((c) => c.sessionId));
+    const noShows = noShowItems.filter((i) => !concluded.has(i.sessionId));
+
+    const card = ['карточка', 'карточки', 'карточек'];
+
+    res.json({
+      date: today,
+      tiles: [
+        tile({
+          key: 'expiring', tone: 'amber', unit: card,
+          title: 'Документы подходят к сроку',
+          action: { page: 'documents', title: 'Документы' },
+          items: expiringItems,
+          qual: (list) => {
+            const soonest = list.find((i) => i.left != null);
+            return soonest ? `Ближайший истекает через ${daysWord(soonest.left)}` : null;
+          }
+        }),
+        tile({
+          key: 'scans', tone: 'rose', unit: card,
+          title: 'Пакет сканов неполный',
+          action: { page: 'documents', title: 'Документы' },
+          items: scanItems
+        }),
+        tile({
+          key: 'drafts', tone: 'amber', unit: ['черновик', 'черновика', 'черновиков'],
+          title: 'Незаполненные черновики',
+          action: { page: 'recipients', title: 'Реабилитанты', params: { tab: 'drafts' } },
+          items: draftItems,
+          qual: (list) => {
+            const mine = list.filter((i) => i.mine).length;
+            return mine ? `${mine} из них ${plural(mine, 'мой', 'мои', 'моих')}` : 'Заведены коллегами';
+          }
+        }),
+        tile({
+          key: 'noshow', tone: 'rose', unit: ['человек', 'человека', 'человек'],
+          title: 'Не пришли на диагностику',
+          action: { page: 'schedule', title: 'Расписание' },
+          items: noShows
+        })
+      ]
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 const RU_WEEKDAYS = [
   'Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'
+];
+
+const RU_WEEKDAYS_SHORT = ['вс', 'пн', 'вт', 'ср', 'чт', 'пт', 'сб'];
+
+const RU_WEEKDAYS_ACC = [
+  'воскресенье', 'понедельник', 'вторник', 'среду', 'четверг', 'пятницу', 'субботу'
 ];
 
 const greetingWord = (h) => {

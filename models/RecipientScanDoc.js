@@ -14,6 +14,10 @@ const RecipientScanDoc = sequelize.define('RecipientScanDoc', {
   checksum_sha256: { type: DataTypes.CHAR(64), allowNull: false },
   fileData: { type: DataTypes.BLOB('long'), allowNull: true },
 
+  issuedAt: { type: DataTypes.DATEONLY, allowNull: true },
+  validUntil: { type: DataTypes.DATEONLY, allowNull: true },
+  perpetual: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+
   uploadedBy: { type: DataTypes.INTEGER, allowNull: true },
   uploadedAt: { type: DataTypes.DATE, allowNull: true },
   updateReason: { type: DataTypes.STRING(500), allowNull: true },

@@ -902,4 +902,22 @@ const sendMessage = async () => {
 @media (max-width: 480px) {
   .chat-window { width: calc(100vw - 2rem); right: 1rem; }
 }
+
+@media (max-width: 768px) {
+  .fab {
+    bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + var(--kb) + 0.75rem + var(--fab-offset, 0rem));
+    right: max(1rem, var(--safe-right));
+    width: 3rem;
+    height: 3rem;
+  }
+  .chat-window {
+    left: max(0.75rem, var(--safe-left));
+    right: max(0.75rem, var(--safe-right));
+    bottom: calc(var(--bottom-nav-h) + var(--safe-bottom) + var(--kb) + 4.5rem + var(--fab-offset, 0rem));
+    width: auto;
+    max-width: none;
+  }
+  .chat-body { height: min(50dvh, 22rem); }
+  .cm-grid { grid-template-columns: 1fr; }
+}
 </style>

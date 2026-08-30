@@ -3,8 +3,14 @@
     <div class="spinner"></div>
     <p>Загрузка...</p>
   </div>
-  <div v-else-if="authStore.isAuthenticated" class="app">
+  <div v-else-if="authStore.isAuthenticated" class="app" :class="{ 'app--drawer': ui.drawerOpen }">
     <Sidebar />
+    <div
+      v-if="ui.isMobile && ui.drawerOpen"
+      class="drawer-backdrop"
+      aria-hidden="true"
+      @click="ui.closeDrawer()"
+    ></div>
     <div class="main">
       <Topbar />
       <div class="content">
@@ -14,7 +20,7 @@
       </div>
     </div>
     <ChatFab />
-    <MobileBottomNav v-if="isMobile" />
+    <MobileBottomNav v-if="ui.isMobile && !staffNav" />
   </div>
   <div v-else class="auth-wrapper">
     <div class="auth-card">
@@ -29,6 +35,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from './stores/auth';
 import { usePageStore } from './stores/page';
+import { useUiStore } from './stores/ui';
 import Sidebar from './components/Sidebar.vue';
 import Topbar from './components/Topbar.vue';
 import ChatFab from './components/ChatFab.vue';
@@ -51,7 +58,11 @@ import Schedule from './views/Schedule.vue';
 
 const authStore = useAuthStore();
 const pageStore = usePageStore();
-const isMobile = ref(window.innerWidth <= 768);
+const ui = useUiStore();
+
+const staffNav = computed(
+  () => authStore.isTeacher || authStore.isAdmin || authStore.isEmployee
+);
 
 const componentMap = {
   dashboard: Dashboard,
@@ -75,24 +86,30 @@ const currentComponent = computed(() => {
   return componentMap[pageStore.current] || Dashboard;
 });
 
-const handleResize = () => {
-  isMobile.value = window.innerWidth <= 768;
+let stopViewportWatch = null;
+
+const onKeydown = (e) => {
+  if (e.key === 'Escape') ui.closeDrawer();
 };
 
 watch(() => pageStore.current, () => {
+  ui.closeDrawer();
   window.scrollTo(0, 0);
   document.documentElement.scrollTop = 0;
   document.body.scrollTop = 0;
 }, { flush: 'post' });
 
 onMounted(async () => {
+  stopViewportWatch = ui.watchViewport();
+  window.addEventListener('keydown', onKeydown);
   await authStore.checkAuth();
   pageStore.initHistory();
-  window.addEventListener('resize', handleResize);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('resize', handleResize);
+  if (stopViewportWatch) stopViewportWatch();
+  window.removeEventListener('keydown', onKeydown);
+  ui.unlockScroll(true);
 });
 </script>
 
@@ -103,6 +120,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg-app);
 }
 .spinner {
@@ -168,6 +186,14 @@ onUnmounted(() => {
   --shadow-md: 0 4px 12px rgba(0,0,0,0.06);
   --shadow-lg: 0 12px 32px rgba(0,0,0,0.1);
   --transition: 0.2s ease;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --kb: 0px;
+  --tap: 2.75rem;
+  --bottom-nav-h: 4.375rem;
 }
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
@@ -178,19 +204,133 @@ body {
   transition: background var(--transition), color var(--transition);
 }
 input, select, textarea, button { font-family: inherit; }
-.app { display: flex; min-height: 100vh; }
-.main { flex: 1; margin-left: var(--sidebar-width, 260px); display: flex; flex-direction: column; }
+.app { display: flex; min-height: 100vh; min-height: 100dvh; }
+.main { flex: 1; margin-left: var(--sidebar-width, 260px); display: flex; flex-direction: column; min-width: 0; }
 .content { padding: 1.75rem; }
+
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(11, 43, 63, 0.45);
+  z-index: 95;
+  touch-action: none;
+}
+
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
+body {
+  overscroll-behavior-y: contain;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.is-scroll-locked { overflow: hidden; }
+
+* { -webkit-tap-highlight-color: transparent; }
+a, button, [role="button"], label, summary, select, input, textarea {
+  touch-action: manipulation;
+}
+button, [role="button"], .btn, nav, .tabs { -webkit-touch-callout: none; }
+
+input[type="text"],
+input[type="search"],
+input[type="email"],
+input[type="password"],
+input[type="tel"],
+input[type="number"],
+input[type="url"],
+textarea {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+@media (hover: none) {
+  .btn-primary:hover:not(:disabled) {
+    background: var(--btn-primary-bg);
+    border-color: var(--btn-primary-bg);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--btn-secondary-bg);
+    border-color: var(--btn-secondary-border);
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background: transparent;
+    color: var(--btn-ghost-fg);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background: var(--btn-danger-fg);
+    border-color: var(--btn-danger-fg);
+  }
+  .btn-ghost-danger:hover:not(:disabled) { background: transparent; }
+
+  #app .t-rcard:hover,
+  #app .item-card:hover,
+  #app .qa-btn:hover,
+  #app .cm-tile:hover,
+  #app .stage-tile:hover,
+  #app .gmfcs-card:hover,
+  #app .sch-ev:hover,
+  #app .sch-add:hover,
+  #app .dm-tick:hover:not(:disabled),
+  #app .dm-btn--primary:hover:not(:disabled) { transform: none; }
+
+  #app button:not(:disabled):active,
+  #app .btn:not(:disabled):active,
+  #app a[role="button"]:active { opacity: 0.6; }
+}
+
 @media (max-width: 768px) {
-  .main { margin-left: 0; margin-bottom: 70px; }
-  .content { padding: 1rem; }
+  body { overflow-x: hidden; }
+
+  .main {
+    margin-left: 0;
+    margin-bottom: calc(var(--bottom-nav-h) + var(--safe-bottom));
+  }
+  .content {
+    padding: 0.875rem;
+    padding-left: max(0.875rem, var(--safe-left));
+    padding-right: max(0.875rem, var(--safe-right));
+    padding-bottom: calc(0.875rem + var(--kb));
+  }
+
+  #app input,
+  #app select,
+  #app textarea { font-size: max(16px, 1rem); }
+
+  #app button,
+  #app .btn,
+  #app a[role="button"] { min-height: var(--tap); }
+  #app button.icon-btn,
+  #app button.icon-btn-sm { min-height: 2.25rem; }
+
+  #app .table-container,
+  #app .table-scroll,
+  #app .diag-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-x: contain;
+  }
+
+  #app .card,
+  #app .panel,
+  #app section { min-width: 0; }
+}
+
+@media (max-width: 480px) {
+  .content { padding: 0.75rem; padding-bottom: calc(0.75rem + var(--kb)); }
 }
 .auth-wrapper {
   display: flex;
   align-items: center;
   justify-content: center;
   min-height: 100vh;
+  min-height: 100dvh;
   background: var(--bg-app);
+  padding: max(1rem, var(--safe-top)) max(1rem, var(--safe-right))
+           max(1rem, var(--safe-bottom)) max(1rem, var(--safe-left));
 }
 .auth-card {
   background: var(--bg-surface);
@@ -273,6 +413,7 @@ input, select, textarea, button { font-family: inherit; }
   align-items: center;
   justify-content: center;
   min-height: 100vh;
+  min-height: 100dvh;
 }
 .spinner {
   width: 40px;

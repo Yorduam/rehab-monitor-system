@@ -754,6 +754,7 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
         carry('firstName', representative.firstName);
         carry('middleName', representative.middleName);
         carry('lastName', representative.lastName);
+        carry('relation', representative.relation);
         carry('telephone', repPhone);
         carry('passportIssuer', representative.passportIssuer);
         carry('passportIssuerDate', representative.passportIssuerDate);
@@ -765,6 +766,7 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
           firstName: representative.firstName || '',
           middleName: representative.middleName || '',
           lastName: representative.lastName || '',
+          relation: representative.relation || null,
           telephone: repPhone,
           email: `lr-${onlyDigits(repPhone) || 'na'}-${uniqSuffix}@intake.local`,
           passportSeries: repSeries,
@@ -818,6 +820,8 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
           regAddress: doc.regAddress,
           factAddress: doc.factSameReg ? doc.regAddress : (doc.factAddress || doc.regAddress),
           factSameReg: !!doc.factSameReg,
+          district: doc.district || null,
+          area: doc.area || null,
           educationPlace: doc.educationPlace,
           specialNote: doc.specialNote || ''
         }, { transaction: t });
@@ -877,6 +881,76 @@ router.put('/:id', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'
 
     const updated = await Recipient.findByPk(recipient.id, { include: detailInclude });
     res.json(updated);
+  } catch (err) {
+    next(err);
+  }
+});
+
+const CARD_RECIPIENT_FIELDS = ['firstName', 'middleName', 'lastName', 'birthDate'];
+const CARD_DOC_FIELDS = ['educationPlace', 'district'];
+
+const sameValue = (a, b) => String(a ?? '').slice(0, 250) === String(b ?? '').slice(0, 250);
+
+router.patch('/:id/card', authMiddleware, roleMiddleware('admin', 'employee'), loadGrants, async (req, res, next) => {
+  try {
+    const recipient = await Recipient.findByPk(req.params.id);
+    if (!recipient) return res.status(404).json({ message: 'Реабилитант не найден' });
+
+    const reason = String(req.body?.reason ?? '').trim();
+    if (reason.length < 3) {
+      return res.status(400).json({
+        message: 'Укажите причину изменения (обязательное поле, не менее 3 символов)',
+        field: 'reason'
+      });
+    }
+
+    const doc = await RecipientDoc.findOne({ where: { recipientId: recipient.id } });
+
+    const recipientPatch = {};
+    for (const f of CARD_RECIPIENT_FIELDS) {
+      if (req.body[f] === undefined) continue;
+      const next = f === 'birthDate' ? String(req.body[f] || '').slice(0, 10) : String(req.body[f] ?? '').trim();
+      const prev = f === 'birthDate' ? String(recipient.birthDate ?? '').slice(0, 10) : recipient.get(f);
+      if (!sameValue(prev, next)) recipientPatch[f] = next;
+    }
+
+    const docPatch = {};
+    if (doc) {
+      for (const f of CARD_DOC_FIELDS) {
+        if (req.body[f] === undefined) continue;
+        const next = String(req.body[f] ?? '').trim();
+        if (!sameValue(doc.get(f), next)) docPatch[f] = next;
+      }
+    }
+
+    const changedFields = [...Object.keys(recipientPatch), ...Object.keys(docPatch)];
+    if (!changedFields.length) {
+      return res.status(400).json({ message: 'Данные карточки не изменились' });
+    }
+
+    if (doc) {
+      await RecipientDocVersion.create({
+        docId: doc.id,
+        recipientId: recipient.id,
+        snapshot: {
+          ...doc.toJSON(),
+          firstName: recipient.firstName,
+          middleName: recipient.middleName,
+          lastName: recipient.lastName,
+          birthDate: recipient.birthDate
+        },
+        changedFields,
+        reason,
+        changedBy: req.user.id,
+        changedAt: new Date()
+      });
+    }
+
+    if (Object.keys(recipientPatch).length) await recipient.update(recipientPatch);
+    if (Object.keys(docPatch).length) await doc.update(docPatch);
+
+    const updated = await Recipient.findByPk(recipient.id, { include: detailInclude });
+    res.json({ recipient: redactRecipient(updated, req), changedFields, reason });
   } catch (err) {
     next(err);
   }
@@ -959,6 +1033,12 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
     const codeToName = new Map(docTypes.map((d) => [d.code, d.name]));
 
     if (!canReplace) {
+      if (scans.some((s) => String(s.docKey || '').startsWith('signed-'))) {
+        return res.status(403).json({
+          message: 'Загружать подписанные документы на зачисление могут только сотрудник и администратор'
+        });
+      }
+
       const requestedTypeIds = scans
         .map((s) => codeToId.get(s.docKey))
         .filter((v) => v !== undefined);
@@ -977,9 +1057,16 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
     const now = new Date();
     const created = [];
     const superseded = [];
+    const asDate = (v) => {
+      const s = String(v ?? '').slice(0, 10);
+      return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+    };
+
     for (const scan of scans) {
       const { docKey, entityType, originalName, mimeType, base64 } = scan;
       if (!docKey || !base64) continue;
+
+      const perpetual = scan.perpetual === true || scan.perpetual === 'true';
 
       const docTypeId = codeToId.get(docKey);
       if (!docTypeId) continue;
@@ -1013,6 +1100,9 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
         sizeBytes: buffer.length,
         checksum_sha256: checksum,
         fileData: buffer,
+        issuedAt: asDate(scan.issuedAt),
+        validUntil: perpetual ? null : asDate(scan.validUntil),
+        perpetual,
         uploadedBy: req.user.id,
         uploadedAt: now,
         updateReason: prev ? (reason || null) : null,

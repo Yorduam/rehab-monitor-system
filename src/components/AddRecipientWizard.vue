@@ -740,7 +740,11 @@
           </button>
           <button v-else class="rw-btn rw-btn-primary" type="button" :disabled="saving || !f.consentConfirmed" :title="!f.consentConfirmed ? 'Подтвердите комплектность пакета документов, чтобы сохранить карточку' : ''" @click="save">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            {{ saving ? 'Сохранение…' : 'Сохранить и создать карточку' }}
+            <span v-if="saving">Сохранение…</span>
+            <template v-else>
+              <span class="rw-sb-save-long">Сохранить и создать карточку</span>
+              <span class="rw-sb-save-short">Сохранить</span>
+            </template>
           </button>
         </div>
       </div>
@@ -782,6 +786,10 @@ import {
   draftPersonFields, summarizeDraft, touchDraftSavedAt, forgetDraftSavedAt,
   readDraftServerId, rememberDraftServerId, forgetDraftServerId
 } from '../utils/recipientDraft';
+import { useScrollLock } from '../utils/scrollLock';
+
+useScrollLock();
+
 
 const props = defineProps({
   groupsList: { type: Array, default: () => [] },
@@ -2008,6 +2016,7 @@ onUnmounted(() => {
   width: 100%;
   max-width: 76rem;
   max-height: 92vh;
+  max-height: 92dvh;
   background: var(--rw-canvas);
   border: 1px solid var(--rw-line-strong);
   border-radius: var(--rw-radius-lg);
@@ -2814,6 +2823,7 @@ onUnmounted(() => {
 .rw-sbp-fill.is-full { background: var(--rw-sage-500); }
 .rw-sbp-pct { font-variant-numeric: tabular-nums; min-width: 2.5rem; text-align: right; }
 .rw-sb-actions { display: inline-flex; gap: 0.5rem; }
+.rw-sb-save-short { display: none; }
 @media (max-width: 56rem) {
   .rw-topbar-inner,
   .rw-content,
@@ -2824,18 +2834,36 @@ onUnmounted(() => {
   .rw-gen-docs { grid-template-columns: 1fr; }
 }
 @media (max-width: 40rem) {
-  .rw-overlay { padding: 0; }
-  .rw-modal { max-width: none; max-height: 100vh; height: 100%; border-radius: 0; border: none; }
+  .rw-overlay { padding: 0; align-items: stretch; overflow: hidden; }
+  .rw-modal {
+    max-width: none;
+    height: calc(100dvh - var(--kb, 0px));
+    max-height: calc(100dvh - var(--kb, 0px));
+    border-radius: 0; border: none;
+  }
+  .rw-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
   .rw-stepper-list { display: none; }
   .rw-stepper-mobile { display: block; }
+  .rw-topbar-inner { height: auto; min-height: 3.5rem; padding-top: var(--safe-top, 0px); }
+  .rw-sb-inner { padding-bottom: calc(0.75rem + var(--safe-bottom, 0px)); }
   .rw-topbar-inner,
   .rw-content,
-  .rw-sb-inner { padding-left: 1rem; padding-right: 1rem; }
+  .rw-sb-inner {
+    padding-left: max(1rem, var(--safe-left, 0px));
+    padding-right: max(1rem, var(--safe-right, 0px));
+  }
   .rw-card-head, .rw-card-body { padding-left: 1rem; padding-right: 1rem; }
   .rw-c4, .rw-c6, .rw-c8, .rw-c3 { grid-column: span 12; }
   .rw-uploads-grid { grid-template-columns: 1fr; }
   .rw-sb-progress { display: none; }
-  .rw-sb-info { font-size: 0.8125rem; }
+  .rw-sb-inner { gap: 0.5rem 0.625rem; }
+  .rw-sb-info { flex: 1 1 100%; font-size: 0.8125rem; }
+  .rw-sb-info strong { white-space: normal; overflow-wrap: anywhere; }
+  .rw-sb-missing { flex: 1 1 100%; }
+  .rw-sb-actions { flex: 1 1 100%; min-width: 0; justify-content: flex-end; }
+  .rw-sb-actions .rw-btn { min-width: 0; white-space: normal; }
+  .rw-sb-save-long { display: none; }
+  .rw-sb-save-short { display: inline; }
   .rw-btn { padding: 0.625rem 0.875rem; font-size: 0.875rem; }
   .rw-ph-title { font-size: 1.5rem; }
   .rw-save-state { display: none; }
@@ -2980,7 +3008,7 @@ onUnmounted(() => {
   .rw-mf-panel { width: calc(100vw - 2rem); right: auto; left: 0; }
   .rw-mf-body { max-height: 15rem; }
   .rw-sb-ok { display: none; }
-  .rw-mf-btn { padding: 0.625rem 0.75rem; font-size: 0.875rem; }
+  .rw-mf-btn { width: 100%; padding: 0.625rem 0.75rem; font-size: 0.875rem; }
 }
 
 .rw-dup {
@@ -3110,5 +3138,19 @@ onUnmounted(() => {
   .rw-pv-box { max-width: none; height: 100%; border-radius: 0; }
   .rw-pv-img { max-height: none; }
   .rw-pv-frame { height: 100%; }
+}
+@media (max-width: 768px) {
+  .rw-pv-head {
+    padding-top: calc(0.875rem + var(--safe-top, 0px));
+    padding-left: max(1.125rem, var(--safe-left, 0px));
+    padding-right: max(1.125rem, var(--safe-right, 0px));
+  }
+  .rw-pv-body {
+    padding-bottom: calc(1rem + var(--safe-bottom, 0px));
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  .rw-pv-btn { min-height: var(--tap, 2.75rem); }
+  .rw-pv-close { min-width: var(--tap, 2.75rem); justify-content: center; }
 }
 </style>

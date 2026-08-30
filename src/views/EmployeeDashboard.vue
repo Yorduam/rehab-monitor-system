@@ -1,121 +1,175 @@
 <template>
-  <div class="emp-dash">
+  <div class="rd emp-home">
 
     <div class="greet">
-      <div class="greet-row">
-        <div class="greet-main">
-          <div class="eyebrow">{{ todayLabel }}</div>
-          <h1>{{ greeting }}</h1>
-          <p class="lede">{{ ledeText }}</p>
-        </div>
-        <button class="btn btn-secondary" type="button" :aria-expanded="String(searchOpen)" @click="toggleSearch">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <span>{{ searchOpen ? 'Скрыть поиск' : 'Найти реабилитанта' }}</span>
+      <div class="greet-eyebrow">{{ todayLabel }}</div>
+      <h1>{{ greeting }}</h1>
+    </div>
+
+    <div class="findbar">
+      <label class="find-field">
+        <span class="sr-only">Поиск реабилитанта по ФИО</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input
+          v-model="searchQuery"
+          class="find-input"
+          type="search"
+          autocomplete="off"
+          placeholder="Фамилия или имя — сначала проверьте, есть ли человек в базе"
+        />
+      </label>
+      <button type="button" class="btn btn-primary" @click="addOpen = true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>
+        Добавить реабилитанта
+      </button>
+      <div v-if="searchTerm" class="find-results" aria-live="polite">
+        <div v-if="searchLoading" class="empty-note">Поиск…</div>
+        <div v-else-if="!searchResults.length" class="empty-note">Ничего не найдено — можно завести нового.</div>
+        <button
+          v-for="r in searchResults" :key="r.id"
+          type="button" class="tl-row"
+          @click="openRecipient(r.id)"
+        >
+          <span class="ava" :class="avaTone(r.id)" aria-hidden="true">{{ initials(fullName(r)) }}</span>
+          <span class="tl-main">
+            <span class="tl-name">{{ fullName(r) }}</span>
+            <span class="tl-note">{{ r.diagnosis || 'Диагноз не указан' }}</span>
+          </span>
+          <span v-if="statusWord(r)" class="pill pill-mute">{{ statusWord(r) }}</span>
         </button>
       </div>
     </div>
 
-    <div v-show="searchOpen" class="card search-card">
-      <div class="card-body">
-        <div class="search-wrap">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input
-            ref="searchInput"
-            v-model="searchQuery"
-            class="search-input"
-            type="search"
-            autocomplete="off"
-            placeholder="ФИО — сначала проверьте, есть ли человек в базе"
-          />
+    <section class="sec" ref="daySection">
+      <div class="sec-head is-sticky">
+        <h2 class="sec-t">{{ day.title }}</h2>
+        <span v-if="dayTodo" class="sec-badge" :title="dayTodoTitle">
+          <span class="sr-only">Требуют действия:</span>{{ dayTodo }}
+        </span>
+        <button
+          type="button" class="sec-fold"
+          :aria-expanded="String(dayOpen)"
+          :aria-label="dayOpen ? 'Свернуть список записей' : 'Развернуть список записей'"
+          @click="toggleDay"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="datenav">
+          <button type="button" class="dn-btn" aria-label="Предыдущий день" @click="shiftDay(-1)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span class="dn-label" aria-live="polite">{{ day.label }}</span>
+          <button type="button" class="dn-btn" aria-label="Следующий день" @click="shiftDay(1)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+          </button>
+          <button type="button" class="dn-today" :disabled="day.isToday" @click="goToday">Сегодня</button>
         </div>
-        <div class="search-hint">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
-          Если реабилитант уже в базе — не регистрируйте заново, откройте карточку и назначьте новую диагностику.
+        <button type="button" class="sec-link" @click="goTo('schedule', 'Расписание')">
+          Всё расписание
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+        </button>
+      </div>
+
+      <div v-show="dayOpen" class="card">
+        <div class="listbar">
+          <label class="switch">
+            <input v-model="hideDone" type="checkbox" />
+            <span class="switch-ui" aria-hidden="true"></span>
+            <span class="switch-txt">Скрыть завершённые</span>
+          </label>
+          <span class="listbar-note">{{ doneNote }}</span>
         </div>
-        <div class="search-results" aria-live="polite">
-          <div v-if="searchLoading" class="sr-empty">Поиск…</div>
-          <template v-else-if="searchQuery.trim().length">
-            <div v-if="!searchResults.length" class="sr-empty">Ничего не найдено — можно зарегистрировать нового.</div>
-            <div v-for="r in searchResults" :key="r.id" class="sr-row">
-              <span class="avatar" :class="avatarClass(r.id)" aria-hidden="true">{{ initials(fullName(r)) }}</span>
-              <div class="sr-main">
-                <div class="sr-name">
-                  {{ fullName(r) }}
-                  <span v-if="statusTag(r)" class="tag" :class="statusTag(r).cls">{{ statusTag(r).text }}</span>
-                </div>
-                <div class="sr-sub">
-                  {{ r.diagnosis || 'Диагноз не указан' }}<span v-if="r.attentionNote" class="warn"> · {{ r.attentionNote }}</span>
-                </div>
-              </div>
-              <div class="sr-actions">
-                <button class="btn btn-secondary btn-sm" type="button" @click="openRecipient(r.id)">Открыть</button>
-              </div>
+
+        <div class="card-body day-body">
+          <div v-if="dayLoading" class="empty-note">Загрузка…</div>
+          <div v-else-if="dayError" class="empty-note">{{ dayError }}</div>
+          <div v-else-if="!visibleRows.length" class="empty-note">
+            {{ day.rows.length ? 'Все записи этого дня скрыты фильтром' : 'На этот день записей нет' }}
+          </div>
+
+          <div
+            v-for="r in visibleRows" :key="r.sessionId"
+            class="res with-time"
+            :class="[r.verdict ? 'v-' + r.verdict : '', { 'is-past': r.isPast }]"
+          >
+            <span class="res-time">{{ r.time || '—' }}</span>
+            <span class="ava" :class="avaTone(r.recipientId, r.verdict)" aria-hidden="true">{{ r.initials }}</span>
+            <div class="res-main">
+              <div class="res-name">{{ r.name }}</div>
+              <div class="res-line"><span class="pill" :class="r.pill">{{ r.statusLabel }}</span></div>
+              <div class="res-note">{{ r.note }}</div>
             </div>
-          </template>
-          <div v-else class="sr-empty">Начните вводить фамилию или имя…</div>
+            <div class="res-end">
+              <button
+                v-if="r.status === 'recommended'"
+                type="button" class="btn btn-primary btn-sm"
+                @click="openRecipient(r.recipientId, 'enrollment')"
+              >{{ r.signedCount ? 'Продолжить документы' : 'Подготовить документы' }}</button>
+              <button
+                v-if="r.status === 'noshow'"
+                type="button" class="btn btn-secondary btn-sm"
+                @click="reschedule(r)"
+              >Перенести</button>
+              <button
+                v-if="r.status !== 'noshow'"
+                type="button" class="btn btn-secondary btn-sm"
+                @click="openRecipient(r.recipientId)"
+              >Открыть</button>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <div v-if="alertsError" class="err-bar" role="alert">
-      <span>{{ alertsError }}</span>
-      <button class="btn btn-secondary btn-sm" type="button" @click="loadAlerts">Повторить</button>
-    </div>
-
-    <section v-for="g in alertGroups" :key="g.key" class="alerts">
-      <div class="alerts-head">
-        <div class="section-eyebrow">{{ g.title }}</div>
-        <div v-if="g.subtitle" class="alerts-sub">{{ g.subtitle }}</div>
+    <section class="sec" ref="docsSection">
+      <div class="sec-head">
+        <h2 class="sec-t">Карточки и документы</h2>
+        <span v-if="docsTodo" class="sec-badge" :title="'Карточек и документов, ждущих решения: ' + docsTodo">
+          <span class="sr-only">Требуют действия:</span>{{ docsTodo }}
+        </span>
+        <button
+          type="button" class="sec-fold"
+          :aria-expanded="String(docsOpen)"
+          :aria-label="docsOpen ? 'Свернуть карточки и документы' : 'Развернуть карточки и документы'"
+          @click="toggleDocs"
+        >
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
       </div>
 
-      <div class="tiles" :class="'tiles-' + g.tiles.length">
+      <div v-show="docsOpen" class="tiles tiles-4" :class="{ 'has-open': openTile }">
         <div
-          v-for="t in g.tiles"
-          :key="t.key"
-          class="tile"
-          :class="[t.count ? 'tone-' + t.tone : 'tone-calm', { open: openTile === t.key }]"
+          v-for="t in tiles" :key="t.key"
+          class="tile" :class="['tone-' + t.tone, { 'is-open': openTile === t.key }]"
         >
           <button
-            class="tile-btn"
-            type="button"
-            :disabled="!t.count"
+            type="button" class="tile-face"
             :aria-expanded="String(openTile === t.key)"
+            :disabled="!t.count"
             @click="toggleTile(t)"
           >
             <span class="tile-title">
               {{ t.title }}
-              <svg v-if="t.count" class="tile-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+              <svg v-if="t.count" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
             </span>
-            <span class="tile-meta">{{ t.count ? t.meta : t.empty }}</span>
-            <span class="tile-num">
-              <b>{{ t.count }}</b>
-              <i>{{ t.unit }}</i>
-            </span>
+            <span v-if="t.qual" class="tile-qual">{{ t.qual }}</span>
+            <span class="tile-num">{{ t.count }}<i>{{ t.unit }}</i></span>
           </button>
 
           <div v-if="openTile === t.key" class="tile-list">
             <button
-              v-for="(it, idx) in t.items"
-              :key="t.key + '-' + idx"
-              class="tl-row"
-              type="button"
-              @click="openRecipient(it.recipientId, it.tab)"
+              v-for="(it, i) in t.items" :key="t.key + '-' + i"
+              type="button" class="tl-row"
+              @click="openTileItem(t, it)"
             >
-              <span class="avatar" :class="avatarClass(it.recipientId)" aria-hidden="true">{{ initials(it.name) }}</span>
+              <span class="ava" :class="tileAva(t.tone)" aria-hidden="true">{{ initials(it.name) }}</span>
               <span class="tl-main">
                 <span class="tl-name">{{ it.name }}</span>
                 <span class="tl-note">{{ it.note }}</span>
               </span>
-              <span v-if="it.days !== null && it.days !== undefined" class="tl-days">
-                {{ it.days }} {{ plural(it.days, 'день', 'дня', 'дней') }}
-              </span>
+              <span v-if="it.days" class="tl-days">{{ it.days }}</span>
             </button>
-            <button
-              v-if="t.action"
-              class="tl-all"
-              type="button"
-              @click="goTo(t.action.page, t.action.title)"
-            >
+            <button v-if="t.action" type="button" class="tl-all" @click="goTo(t.action.page, t.action.title, t.action.params)">
               Открыть раздел «{{ t.action.title }}»
             </button>
           </div>
@@ -123,258 +177,16 @@
       </div>
     </section>
 
-    <section class="draft">
-      <div class="alerts-head dr-head">
-        <div>
-          <div class="section-eyebrow">Незаконченная карточка</div>
-        </div>
-        <button
-          v-if="draftsTotal"
-          class="btn btn-secondary btn-sm dr-all-btn"
-          type="button"
-          @click="openDraftsTab"
-        >Все черновики · {{ draftsTotal }}</button>
-      </div>
-
-      <div class="card">
-        <div v-if="draftLoading" class="card-body empty-note">Загрузка…</div>
-
-        <div v-else-if="!draft" class="card-body">
-          <div class="dr-empty-t">Незаконченных карточек нет</div>
-          <div class="dr-empty-s">
-            Если закрыть мастер регистрации на половине, начатая карточка появится здесь — и её можно будет дозаполнить, не вводя всё заново.
-            <template v-if="draftsTotal">
-              У коллег такие карточки есть: {{ draftsTotal }} {{ plural(draftsTotal, 'штука', 'штуки', 'штук') }} в разделе
-              <button class="p-link" type="button" @click="openDraftsTab">«Черновики»</button>.
-            </template>
-          </div>
-        </div>
-
-        <div v-else class="card-body dr-body">
-          <div class="dr-top">
-            <span class="avatar av-amber" aria-hidden="true">{{ initials(draftTitle) }}</span>
-            <div class="dr-id">
-              <div class="dr-name">{{ draftTitle }}</div>
-              <div class="dr-sub">{{ draftSub }}</div>
-            </div>
-            <button class="btn btn-primary" type="button" @click="openDraftWizard">Дозаполнить карточку</button>
-          </div>
-
-          <div class="dr-progress">
-            <div class="dr-bar"><span :style="{ width: draft.pct + '%' }"></span></div>
-            <div class="dr-figures">
-              Заполнено <b>{{ draft.done }}</b> из {{ draft.total }} {{ plural(draft.total, 'обязательного поля', 'обязательных полей', 'обязательных полей') }} на первых двух шагах
-            </div>
-          </div>
-
-          <div v-if="draft.steps.length" class="dr-steps">
-            <div v-for="s in draft.steps" :key="s.step" class="dr-step">
-              <div class="dr-step-head">
-                <span>Шаг {{ s.step }} · {{ s.label }}</span>
-                <span class="dr-step-num">{{ s.done }} из {{ s.total }}</span>
-              </div>
-              <div class="dr-chips">
-                <span v-for="(m, i) in s.missing" :key="s.step + '-' + i" class="dr-chip">{{ m.l }}</span>
-              </div>
-            </div>
-          </div>
-          <div v-else class="dr-step-done">
-            Личные данные заполнены полностью. Остался третий шаг мастера — сканы, пакет документов и подтверждение комплектности.
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <div class="qa-wrap">
-      <div class="qa-head">
-        <div class="section-eyebrow">Быстрые действия</div>
-        <button class="qa-collapse" type="button" :aria-expanded="String(qaOpen)" aria-label="Свернуть быстрые действия" @click="qaOpen = !qaOpen">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
-        </button>
-      </div>
-      <div v-show="qaOpen" class="qa qa-4">
-        <button class="qa-btn" type="button" @click="goTo('recipients', 'Реабилитанты')">
-          <span class="qa-ic ic-sage" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></span>
-          <span class="qa-txt"><span class="qa-t">Зарегистрировать нового</span></span>
-        </button>
-        <button class="qa-btn" type="button" @click="goTo('schedule', 'Расписание')">
-          <span class="qa-ic ic-blue" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg></span>
-          <span class="qa-txt"><span class="qa-t">Назначить диагностику</span></span>
-        </button>
-        <button class="qa-btn" type="button" @click="goTo('documents', 'Документы')">
-          <span class="qa-ic ic-amber" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg></span>
-          <span class="qa-txt"><span class="qa-t">Печать документов</span></span>
-        </button>
-        <button class="qa-btn" type="button" @click="goTo('documents', 'Документы')">
-          <span class="qa-ic ic-plum" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg></span>
-          <span class="qa-txt"><span class="qa-t">Принять документы</span></span>
-        </button>
-      </div>
-    </div>
-
-    <div v-if="attnList.length" class="card attn attn-block">
-      <div class="card-head">
-        <div><div class="card-title-sans">Требует внимания</div><div class="card-sub">Реабилитанты с неполным пакетом документов</div></div>
-        <span class="tag tag-rose">{{ attnCount }} {{ plural(attnCount, 'без документов', 'без документов', 'без документов') }}</span>
-      </div>
-      <div class="card-body">
-        <div class="tasks">
-          <div v-for="r in attnList" :key="r.id" class="task">
-            <span class="task-ic ic-rose" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
-            <div class="task-main">
-              <div class="t-title">
-                <button class="p-link" type="button" @click="openRecipient(r.id)">{{ r.fullName }}</button> — документы не готовы
-              </div>
-              <div class="t-sub">{{ r.groupName }} · куратор {{ r.curator }}</div>
-            </div>
-            <div class="task-end">
-              <button class="btn btn-secondary btn-sm" type="button" @click="openRecipient(r.id)">Открыть</button>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div class="grid grid-main-aside">
-      <div class="stack">
-
-        <div class="card">
-          <div class="card-head">
-            <div><div class="card-title">Список дел</div><div class="card-sub">Текучка на сегодня, по времени</div></div>
-            <span class="tag tag-amber">{{ demoTasks.filter(t => !t.done).length }} активных</span>
-          </div>
-          <div class="card-body">
-            <div class="tasks">
-              <div v-for="t in demoTasks" :key="t.id" class="task" :class="{ done: t.done }">
-                <span class="task-ic" :class="t.ic" aria-hidden="true">
-                  <svg v-if="t.icon === 'check'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  <svg v-else-if="t.icon === 'users'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg>
-                  <svg v-else-if="t.icon === 'printer'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-                  <svg v-else-if="t.icon === 'scan'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zM14 2v6h6M12 18v-6M9 15l3 3 3-3"/></svg>
-                  <svg v-else-if="t.icon === 'diag'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9 12l2 2 4-4"/></svg>
-                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M8 2v4M16 2v4M3 10h18"/></svg>
-                </span>
-                <div class="task-main">
-                  <div class="t-title">{{ t.title }}</div>
-                  <div class="t-sub"><span v-if="t.due" class="due">{{ t.due }}</span><span v-if="t.due && t.sub"> · </span>{{ t.sub }}</div>
-                </div>
-                <div class="task-end">
-                  <span v-if="t.done" class="tag tag-sage">Готово</span>
-                  <button v-else class="btn btn-sm" :class="t.primary ? 'btn-primary' : 'btn-secondary'" type="button" @click="t.run && t.run()">{{ t.action }}</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <div><div class="card-title">Заявки в работе</div><div class="card-sub">Общий список — берите свободные в работу</div></div>
-            <button class="card-link" type="button" @click="goTo('recipients', 'Реабилитанты')">Все заявки <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
-          </div>
-          <div class="card-body">
-            <div class="glist">
-              <template v-for="g in demoPipeline" :key="g.key">
-                <button class="g-head" type="button" :aria-expanded="String(!collapsed[g.key])" @click="toggleGroup(g.key)">
-                  <span>{{ g.title }}</span>
-                  <span class="g-count">{{ g.items.length }}</span>
-                  <span v-if="g.note" class="g-note">{{ g.note }}</span>
-                  <span class="g-chev" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-                </button>
-                <div v-show="!collapsed[g.key]" class="g-body">
-                  <div v-for="(m, i) in g.items" :key="i" class="mrow">
-                    <span class="avatar" :class="m.av" aria-hidden="true">{{ m.ini }}</span>
-                    <div class="m-main">
-                      <div class="m-name"><span class="p-link">{{ m.name }}</span></div>
-                      <div class="m-sub">{{ m.sub }}</div>
-                    </div>
-                    <div v-if="m.action || m.phone" class="m-actions">
-                      <button v-if="m.phone" class="icon-mini" type="button" :aria-label="'Позвонить представителю ' + m.name"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg></button>
-                      <button v-if="m.action" class="btn btn-sm" :class="m.primary ? 'btn-primary' : 'btn-secondary'" type="button" @click="m.run && m.run()">{{ m.action }}</button>
-                    </div>
-                  </div>
-                </div>
-              </template>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <aside class="stack">
-        <div class="card">
-          <div class="card-head">
-            <div class="card-title-sans">Записи на сегодня</div>
-            <span class="tag tag-blue">{{ timelineItems.length }}</span>
-          </div>
-          <div class="card-body">
-            <div v-if="loadingToday" class="empty-note">Загрузка…</div>
-            <div v-else-if="!timelineItems.length" class="empty-note">На сегодня записей нет</div>
-            <div v-else class="timeline">
-              <div v-for="ev in timelineItems" :key="ev.id" class="tl-item">
-                <div class="tl-time">{{ ev.time }}</div>
-                <div class="tl-body">
-                  <div class="tl-rail" :class="ev.rail">
-                    <div class="tl-name">
-                      <button v-if="ev.recipientId" class="p-link" type="button" @click="openRecipient(ev.recipientId)">{{ ev.name }}</button>
-                      <template v-else>{{ ev.name }}</template>
-                    </div>
-                    <div class="tl-sub"><span>{{ ev.sub }}</span></div>
-                    <div v-if="ev.rail === 'now'" class="tl-actions">
-                      <button class="btn btn-primary btn-sm" type="button" @click="goTo('schedule', 'Расписание')">Открыть</button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="card-head">
-            <div class="card-title-sans">Реабилитанты сегодня</div>
-            <span class="tag tag-blue">{{ recipientsToday.length }}</span>
-          </div>
-          <div class="card-body">
-            <div v-if="loadingToday" class="empty-note">Загрузка…</div>
-            <div v-else-if="!recipientsToday.length" class="empty-note">Сегодня никто не записан</div>
-            <div v-else class="mlist">
-              <div v-for="r in recipientsToday" :key="r.id" class="mrow">
-                <span class="avatar" :class="avatarClass(r.id)" aria-hidden="true">{{ initials(r.name) }}</span>
-                <div class="m-main">
-                  <div class="m-name">
-                    {{ r.name }}
-                    <span v-if="r.diagnosis" class="flag-warn lvl-amber" tabindex="0">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                      {{ r.diagnosis }}
-                      <span class="flag-tip" role="tooltip">Диагноз реабилитанта. Учитывайте при взаимодействии; подробности — в карточке.</span>
-                    </span>
-                  </div>
-                  <div class="m-sub">{{ r.meta }}</div>
-                </div>
-                <button class="icon-mini" type="button" :aria-label="'Открыть карточку ' + r.name" @click="openRecipient(r.id)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg></button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </aside>
-    </div>
-
-    <AddRecipientWizard
-      v-if="draftWizardOpen"
-      @saved="onDraftSaved"
-      @close="closeDraftWizard"
-    />
-
+    <AddRecipientWizard v-if="addOpen" @saved="onRecipientSaved" @close="addOpen = false" />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { usePageStore } from '../stores/page';
 import { useAuthStore } from '../stores/auth';
 import api from '../api';
 import AddRecipientWizard from '../components/AddRecipientWizard.vue';
-import { readDraft, readDraftSavedAt, countDraftFiles, summarizeDraft } from '../utils/recipientDraft';
 
 const pageStore = usePageStore();
 const authStore = useAuthStore();
@@ -382,23 +194,18 @@ const authStore = useAuthStore();
 const goTo = (page, label, params) => pageStore.setPage(page, label || page, params || {});
 const openRecipient = (id, tab) => {
   if (!id) return;
-  const params = { recipientId: id };
-  if (tab) params.tab = tab;
-  pageStore.setPage('recipient-details', 'Карточка реабилитанта', params);
+  pageStore.setPage('recipient-details', 'Карточка реабилитанта', tab ? { recipientId: id, tab } : { recipientId: id });
 };
 
 const now = new Date();
 const MONTHS_GEN = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря'];
 const DOW = ['Воскресенье', 'Понедельник', 'Вторник', 'Среда', 'Четверг', 'Пятница', 'Суббота'];
-const nowMinutes = now.getHours() * 60 + now.getMinutes();
-const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
 
-const todayLabel = computed(() => `${DOW[now.getDay()]}, ${now.getDate()} ${MONTHS_GEN[now.getMonth()]}`);
+const todayLabel = `${DOW[now.getDay()]}, ${now.getDate()} ${MONTHS_GEN[now.getMonth()]} ${now.getFullYear()}`;
 const greeting = computed(() => {
   const h = now.getHours();
-  const part = h < 6 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер';
-  const name = authStore.user?.firstName || 'коллега';
-  return `${part}, ${name}`;
+  const part = h < 5 ? 'Доброй ночи' : h < 12 ? 'Доброе утро' : h < 18 ? 'Добрый день' : 'Добрый вечер';
+  return `${part}, ${authStore.user?.firstName || 'коллега'}`;
 });
 
 function plural(n, one, few, many) {
@@ -410,53 +217,36 @@ function plural(n, one, few, many) {
   return many;
 }
 const fullName = (r) => [r.lastName, r.firstName, r.middleName].filter(Boolean).join(' ') || 'Без имени';
-const shortName = (r) => [r.lastName, r.firstName].filter(Boolean).join(' ') || (r.email || 'Без имени');
-const specialistShort = (u) => (u ? `${(u.firstName || '').charAt(0)}${u.firstName ? '. ' : ''}${u.lastName || ''}`.trim() : '');
 const initials = (name) => {
-  const parts = (name || '').split(' ').filter(Boolean);
-  return ((parts[0]?.[0] || '') + (parts[1]?.[0] || '')).toUpperCase() || '—';
+  const p = (name || '').split(' ').filter(Boolean);
+  return ((p[0]?.[0] || '') + (p[1]?.[0] || '')).toUpperCase() || '—';
 };
-const fmtTime = (t) => String(t || '').slice(0, 5);
-const toMin = (t) => {
-  const [h, m] = String(t || '0:0').split(':');
-  return (parseInt(h, 10) || 0) * 60 + (parseInt(m, 10) || 0);
+const AVA = ['', 'av-amber', 'av-cycle', 'av-rose'];
+const avaTone = (id, verdict) => {
+  if (verdict === 'stop') return 'av-rose';
+  if (verdict === 'wait') return 'av-amber';
+  if (verdict === 'ok') return 'av-cycle';
+  if (verdict === 'now') return '';
+  return AVA[Math.abs(Number(id) || 0) % AVA.length];
 };
-const AV = ['av-sage', 'av-blue', 'av-amber', 'av-plum', 'av-teal', 'av-rose'];
-const avatarClass = (id) => AV[Math.abs(Number(id) || 0) % AV.length];
+const tileAva = (tone) => (tone === 'rose' ? 'av-rose' : tone === 'amber' ? 'av-amber' : '');
 
-const activityLabel = (ev) => {
-  const base = ev.type === 'diagnostic' ? 'Диагностика' : (ev.title || 'Занятие');
-  return ev.direction?.name ? `${base} · ${ev.direction.name}` : base;
-};
-
-const searchOpen = ref(false);
+const addOpen = ref(false);
 const searchQuery = ref('');
 const searchResults = ref([]);
 const searchLoading = ref(false);
-const searchInput = ref(null);
+const searchTerm = computed(() => searchQuery.value.trim());
 let searchTimer = null;
 
-const toggleSearch = async () => {
-  searchOpen.value = !searchOpen.value;
-  if (searchOpen.value) {
-    await nextTick();
-    searchInput.value?.focus();
-  }
-};
-const statusTag = (r) => {
-  if (r.status === 'active') return { text: 'активен', cls: 'tag-sage' };
-  if (r.status === 'draft') return { text: 'черновик', cls: 'tag-amber' };
-  if (r.status === 'archived') return { text: 'в архиве', cls: 'tag-neutral' };
-  return null;
-};
-watch(searchQuery, (q) => {
+const statusWord = (r) => (r.status === 'draft' ? 'черновик' : r.status === 'archived' ? 'в архиве' : '');
+
+watch(searchQuery, () => {
   clearTimeout(searchTimer);
-  const term = q.trim();
-  if (!term) { searchResults.value = []; searchLoading.value = false; return; }
+  if (!searchTerm.value) { searchResults.value = []; searchLoading.value = false; return; }
   searchLoading.value = true;
   searchTimer = setTimeout(async () => {
     try {
-      const { data } = await api.get('/recipients', { params: { search: term, limit: 6, page: 1 } });
+      const { data } = await api.get('/recipients', { params: { search: searchTerm.value, limit: 6, page: 1 } });
       searchResults.value = data.data || [];
     } catch (e) {
       console.error('search:', e);
@@ -467,517 +257,526 @@ watch(searchQuery, (q) => {
   }, 300);
 });
 
-const qaOpen = ref(true);
+const STICKY = 56;
+let spacer = null;
+let scrollAnim = 0;
 
-const todayEvents = ref([]);
-const loadingToday = ref(true);
+const reduceMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const maxScroll = () => Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
 
-const timelineItems = computed(() =>
-  todayEvents.value.map((ev) => {
-    const s = toMin(ev.startTime);
-    const e = toMin(ev.endTime);
-    const rail = ev.status === 'completed' ? 'done' : (nowMinutes >= s && nowMinutes < e ? 'now' : '');
-    return {
-      id: ev.id,
-      time: fmtTime(ev.startTime),
-      name: ev.recipient ? shortName(ev.recipient) : (ev.title || 'Событие'),
-      recipientId: ev.recipient?.id || null,
-      sub: activityLabel(ev),
-      rail
-    };
-  })
-);
-
-const recipientsToday = computed(() => {
-  const map = new Map();
-  for (const ev of todayEvents.value) {
-    if (!ev.recipient) continue;
-    const id = ev.recipient.id;
-    if (map.has(id)) continue;
-    const meta = [fmtTime(ev.startTime), activityLabel(ev)];
-    if (ev.specialist) meta.push(specialistShort(ev.specialist));
-    map.set(id, {
-      id,
-      name: shortName(ev.recipient),
-      diagnosis: ev.recipient.diagnosis || '',
-      meta: meta.filter(Boolean).join(' · ')
-    });
+function smoothTo(y, done) {
+  y = Math.max(0, y);
+  const start = window.pageYOffset;
+  const dist = y - start;
+  if (reduceMotion() || Math.abs(dist) < 2) {
+    window.scrollTo(0, y);
+    if (done) done();
+    return;
   }
-  return [...map.values()];
-});
+  const t0 = performance.now();
+  const dur = Math.min(450, 200 + Math.abs(dist) * 0.35);
+  const id = ++scrollAnim;
+  const step = (t) => {
+    if (id !== scrollAnim) return;
+    const p = Math.min(1, (t - t0) / dur);
+    const e = p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+    window.scrollTo(0, start + dist * e);
+    if (p < 1) requestAnimationFrame(step);
+    else if (done) done();
+  };
+  requestAnimationFrame(step);
+}
 
-const loadToday = async () => {
-  loadingToday.value = true;
+async function keepScroll(mutate, target) {
+  if (!spacer) { await mutate(); return; }
+  const y = window.pageYOffset;
+  const beforeH = document.documentElement.scrollHeight;
+
+  await mutate();
+
+  const afterH = document.documentElement.scrollHeight - parseFloat(spacer.style.height || 0);
+  const shrink = beforeH - afterH;
+  if (shrink > 0) spacer.style.height = shrink + 'px';
+  window.scrollTo(0, y);
+
+  const want = target ? target(y) : y;
+  const to = Math.min(want, Math.max(0, afterH - window.innerHeight));
+
+  smoothTo(to, () => {
+    if (spacer) spacer.style.height = '0px';
+    if (window.pageYOffset > maxScroll()) window.scrollTo(0, maxScroll());
+  });
+}
+
+const topOf = (el) => (el ? el.getBoundingClientRect().top + window.pageYOffset - STICKY - 8 : 0);
+const upTo = (el) => (y) => {
+  const top = topOf(el);
+  return y > top ? top : y;
+};
+
+const daySection = ref(null);
+const docsSection = ref(null);
+
+const pad = (n) => String(n).padStart(2, '0');
+const isoOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+
+const dayDate = ref(isoOf(now));
+const day = ref({ title: 'Записаны на сегодня', label: '', isToday: true, rows: [] });
+const dayLoading = ref(true);
+const dayError = ref('');
+const dayOpen = ref(true);
+const hideDone = ref(false);
+
+const loadDay = async () => {
+  dayLoading.value = true;
+  dayError.value = '';
   try {
-    const { data } = await api.get('/schedule/events', { params: { from: todayStr, to: todayStr } });
-    todayEvents.value = Array.isArray(data) ? data : [];
+    const { data } = await api.get('/dashboard/day-board', { params: { date: dayDate.value } });
+    day.value = {
+      title: data.title,
+      label: data.label,
+      isToday: !!data.isToday,
+      rows: Array.isArray(data.rows) ? data.rows : []
+    };
   } catch (e) {
-    console.error('schedule:', e);
-    todayEvents.value = [];
+    dayError.value = e?.response?.data?.message || 'Не удалось загрузить записи дня';
+    day.value = { ...day.value, rows: [] };
   } finally {
-    loadingToday.value = false;
+    dayLoading.value = false;
   }
 };
 
-const alertGroups = ref([]);
-const alertsError = ref('');
+const visibleRows = computed(() =>
+  hideDone.value ? day.value.rows.filter((r) => !r.done) : day.value.rows
+);
+
+const doneRows = computed(() => day.value.rows.filter((r) => r.done));
+const doneNote = computed(() => {
+  const n = doneRows.value.length;
+  if (!n) return 'Завершённых записей нет';
+  return hideDone.value ? `Скрыто записей: ${n}` : `Завершено и без задач: ${n}`;
+});
+
+const dayTodo = computed(() => day.value.rows.filter((r) => !r.done).length);
+const dayTodoTitle = computed(() =>
+  dayTodo.value === 1 ? 'Одна запись ждёт действия' : `Записей, ждущих действия: ${dayTodo.value}`
+);
+
+const shiftDay = (delta) => {
+  const d = new Date(`${dayDate.value}T00:00:00`);
+  d.setDate(d.getDate() + delta);
+  dayDate.value = isoOf(d);
+  keepScroll(loadDay, upTo(daySection.value));
+};
+const goToday = () => {
+  if (day.value.isToday) return;
+  dayDate.value = isoOf(new Date());
+  keepScroll(loadDay, upTo(daySection.value));
+};
+
+const toggleDay = () => {
+  const wasOpen = dayOpen.value;
+  keepScroll(() => { dayOpen.value = !wasOpen; }, (y) => (wasOpen ? upTo(daySection.value)(y) : y));
+};
+
+watch(hideDone, () => keepScroll(() => {}, upTo(daySection.value)));
+
+const reschedule = (row) => {
+  goTo('schedule', 'Расписание', { recipientId: row.recipientId, sessionId: row.sessionId });
+};
+
+const tiles = ref([]);
+const docsOpen = ref(true);
 const openTile = ref('');
 
-const loadAlerts = async () => {
+const docsTodo = computed(() => tiles.value.reduce((n, t) => n + (t.count || 0), 0));
+
+const loadTiles = async () => {
   try {
-    const { data } = await api.get('/dashboard/employee-alerts');
-    alertGroups.value = Array.isArray(data?.groups) ? data.groups : [];
-    alertsError.value = '';
+    const { data } = await api.get('/dashboard/employee-tiles');
+    tiles.value = Array.isArray(data?.tiles) ? data.tiles : [];
   } catch (e) {
-    alertsError.value = e?.response?.data?.message || 'Не удалось загрузить сводку';
-    alertGroups.value = [];
+    console.error('employee-tiles:', e);
+    tiles.value = [];
   }
 };
 
 const toggleTile = (t) => {
   if (!t.count) return;
-  openTile.value = openTile.value === t.key ? '' : t.key;
+  const wasOpen = openTile.value === t.key;
+  keepScroll(() => { openTile.value = wasOpen ? '' : t.key; }, (y) => y);
 };
 
-const draft = ref(null);
-const draftSavedAt = ref(null);
-const draftLoading = ref(true);
-const draftWizardOpen = ref(false);
-
-const loadDraftCard = async () => {
-  draftLoading.value = true;
-  try {
-    const raw = readDraft();
-    const files = raw ? await countDraftFiles() : 0;
-    draft.value = summarizeDraft(raw, files);
-    draftSavedAt.value = draft.value ? readDraftSavedAt() : null;
-  } catch (e) {
-    console.error('draft:', e);
-    draft.value = null;
-    draftSavedAt.value = null;
-  } finally {
-    draftLoading.value = false;
-  }
+const toggleDocs = () => {
+  const wasOpen = docsOpen.value;
+  keepScroll(() => { docsOpen.value = !wasOpen; }, (y) => (wasOpen ? upTo(docsSection.value)(y) : y));
 };
 
-const draftsTotal = ref(0);
-const loadDraftsTotal = async () => {
-  try {
-    const { data } = await api.get('/recipients/drafts');
-    draftsTotal.value = data.total ?? (data.data || []).length;
-  } catch (e) {
-    console.error('drafts:', e);
-  }
+const openTileItem = (t, it) => {
+  if (it.recipientId) openRecipient(it.recipientId, it.tab);
+  else if (t.action) goTo(t.action.page, t.action.title, t.action.params);
 };
 
-const openDraftsTab = () => {
-  pageStore.setPage('recipients', 'Реабилитанты', { tab: 'drafts' });
+const onRecipientSaved = () => {
+  addOpen.value = false;
+  loadDay();
+  loadTiles();
 };
 
-const openDraftWizard = () => { draftWizardOpen.value = true; };
-const closeDraftWizard = () => {
-  draftWizardOpen.value = false;
-  loadDraftCard();
-  loadDraftsTotal();
+const onKeydown = (e) => {
+  if (e.key === 'Escape' && searchTerm.value) searchQuery.value = '';
 };
-const onDraftSaved = () => {
-  loadAttn();
-  loadAlerts();
-  loadDraftsTotal();
-};
-
-const draftTitle = computed(() => {
-  if (!draft.value) return '';
-  if (draft.value.name) return draft.value.name;
-  if (draft.value.repName) return `Ребёнок ${draft.value.repName}`;
-  return 'Имя пока не введено';
-});
-
-const savedAgo = (d) => {
-  if (!d) return '';
-  const mins = Math.floor((Date.now() - d.getTime()) / 60000);
-  if (mins < 1) return 'сохранено только что';
-  if (mins < 60) return `сохранено ${mins} ${plural(mins, 'минуту', 'минуты', 'минут')} назад`;
-  const hours = Math.floor(mins / 60);
-  if (hours < 24) return `сохранено ${hours} ${plural(hours, 'час', 'часа', 'часов')} назад`;
-  const days = Math.floor(hours / 24);
-  return `сохранено ${days} ${plural(days, 'день', 'дня', 'дней')} назад`;
-};
-
-const draftSub = computed(() => {
-  if (!draft.value) return '';
-  const parts = [];
-  if (draft.value.name && draft.value.repName) parts.push(`представитель — ${draft.value.repName}`);
-  if (draft.value.fileCount) {
-    parts.push(`${draft.value.fileCount} ${plural(draft.value.fileCount, 'скан приложен', 'скана приложено', 'сканов приложено')}`);
-  }
-  const ago = savedAgo(draftSavedAt.value);
-  if (ago) parts.push(ago);
-  return parts.join(' · ') || 'Регистрация начата, но не завершена';
-});
-
-const attnList = ref([]);
-const attnCount = ref(0);
-const loadAttn = async () => {
-  try {
-    const { data } = await api.get('/dashboard/missing-docs');
-    attnList.value = (data.list || []).filter((r) => r.docCount === 0).slice(0, 4);
-    attnCount.value = data.missingCount || attnList.value.length;
-  } catch (e) {
-    console.error('missing-docs:', e);
-  }
-};
-
-const ledeText = computed(() => {
-  const n = timelineItems.value.length;
-  const parts = [`Сегодня ${n} ${plural(n, 'запись', 'записи', 'записей')}.`];
-  if (attnCount.value > 0) {
-    parts.push(`${attnCount.value} ${plural(attnCount.value, 'реабилитант', 'реабилитанта', 'реабилитантов')} без полного пакета документов.`);
-  } else {
-    parts.push('Пакеты документов в порядке.');
-  }
-  return parts.join(' ');
-});
-
-const demoTasks = [
-  { id: 1, icon: 'check',   ic: 'ic-sage', title: 'Подтвердить запись Елены Петровой на 14:00', sub: 'Выполнено в 09:15', done: true },
-  { id: 2, icon: 'users',   ic: 'ic-rose', title: 'Принять семью Романовых', due: 'Запись на 12:30 — сейчас', sub: 'первичная консультация', action: 'Принять', primary: true, run: () => goTo('schedule', 'Расписание') },
-  { id: 3, icon: 'printer', ic: 'ic-amber', title: 'Распечатать договор для Елены Петровой', sub: 'К её приходу в 14:00 · подписание договора', action: 'Печать', run: () => goTo('documents', 'Документы') },
-  { id: 4, icon: 'scan',    ic: 'ic-teal', title: 'Отсканировать подписанные документы Льва Орлова', sub: 'Нужно для зачисления', action: 'Сканировать', run: () => goTo('documents', 'Документы') },
-  { id: 5, icon: 'diag',    ic: 'ic-blue', title: 'Назначить диагностику Ивану Соколову', sub: 'Повторный реабилитант · активной диагностики нет', action: 'Назначить', run: () => goTo('schedule', 'Расписание') },
-  { id: 6, icon: 'calendar', ic: 'ic-plum', title: 'Загрузить сканы паспорта Петра Васина', sub: 'Регистрация, этап 2 из 3', action: 'Загрузить', run: () => goTo('documents', 'Документы') }
-];
-
-const demoPipeline = [
-  { key: 'app', title: 'Заявка', note: '2 не взяты в работу', items: [
-    { ini: 'МС', av: 'av-plum', name: 'Максим Семёнов, 9', sub: 'С сайта · 2 ч назад · +7 985 310-42-17', phone: true, action: 'Взять', primary: true },
-    { ini: 'ДК', av: 'av-teal', name: 'Дарья Кравцова, 17', sub: 'По телефону · сегодня · +7 926 118-77-40', phone: true, action: 'Взять', primary: true },
-    { ini: 'ТБ', av: 'av-rose', name: 'Тимур Беков, 12', sub: 'С сайта · вчера · +7 903 771-02-54', phone: true }
-  ] },
-  { key: 'cons', title: 'Консультация', items: [
-    { ini: 'КР', av: 'av-blue', name: 'Семья Романовых', sub: 'Запись на 12:30 · сегодня', action: 'Принять', run: () => goTo('schedule', 'Расписание') }
-  ] },
-  { key: 'reg', title: 'Регистрация', items: [
-    { ini: 'ПВ', av: 'av-amber', name: 'Пётр Васин, 11', sub: 'Этап 2 из 3 · осталось загрузить сканы', action: 'Продолжить', run: () => goTo('recipients', 'Реабилитанты') },
-    { ini: 'АМ', av: 'av-sage', name: 'Анна Морозова, 13', sub: 'Этап 1 из 3 · заполнение данных' }
-  ] },
-  { key: 'docs', title: 'Документы', items: [
-    { ini: 'ДК', av: 'av-blue', name: 'Дмитрий Кузнецов, 10', sub: 'К печати: согласие, договор', action: 'Печать', run: () => goTo('documents', 'Документы') },
-    { ini: 'ИС', av: 'av-plum', name: 'Иван Соколов, 16', sub: 'На подписи у представителя' },
-    { ini: 'ЛО', av: 'av-sage', name: 'Лев Орлов, 7', sub: 'Подписаны · отсканировать и загрузить в БД', action: 'Сканировать', run: () => goTo('documents', 'Документы') }
-  ] },
-  { key: 'diag', title: 'Диагностика', items: [
-    { ini: 'ОЗ', av: 'av-teal', name: 'Ольга Зайцева, 8', sub: 'Сегодня 13:00 · Е. Титова, каб. 301' },
-    { ini: 'ПВ', av: 'av-amber', name: 'Пётр Васин, 11', sub: 'Сегодня 16:00 · М. Громов, каб. 305', action: 'Перенести', run: () => goTo('schedule', 'Расписание') }
-  ] },
-  { key: 'enr', title: 'Зачисление', items: [
-    { ini: 'ЛО', av: 'av-sage', name: 'Лев Орлов, 7', sub: 'Диагностика пройдена · ждёт комплект документов', action: 'Принять документы', run: () => goTo('documents', 'Документы') }
-  ] }
-];
-const collapsed = reactive({});
-
-const toggleGroup = (key) => { collapsed[key] = !collapsed[key]; };
 
 onMounted(() => {
-  document.documentElement.style.setProperty('--bg-app', '#F7F4ED');
-  loadToday();
-  loadAttn();
-  loadAlerts();
-  loadDraftCard();
-  loadDraftsTotal();
+  document.documentElement.style.setProperty('--bg-app', '#F3EEE4');
+  spacer = document.createElement('div');
+  spacer.setAttribute('aria-hidden', 'true');
+  spacer.style.cssText = 'height:0;pointer-events:none;';
+  document.body.appendChild(spacer);
+  window.addEventListener('keydown', onKeydown);
+  loadDay();
+  loadTiles();
 });
+
 onUnmounted(() => {
-  clearTimeout(searchTimer);
   document.documentElement.style.removeProperty('--bg-app');
+  clearTimeout(searchTimer);
+  scrollAnim += 1;
+  window.removeEventListener('keydown', onKeydown);
+  if (spacer) { spacer.remove(); spacer = null; }
 });
 </script>
 
 <style scoped>
-.emp-dash {
-  --font-serif: 'Lora', 'Times New Roman', Georgia, serif;
-  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+.emp-home{
+  --font-serif:'Lora','Times New Roman',Georgia,serif;
+  --font-sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
 
-  --fs-11: 0.6875rem; --fs-12: 0.75rem;   --fs-13: 0.8125rem;
-  --fs-14: 0.875rem;  --fs-15: 0.9375rem; --fs-16: 1rem;
-  --fs-18: 1.125rem;  --fs-20: 1.25rem;   --fs-24: 1.5rem;
-  --fs-28: 1.75rem;   --fs-32: 2rem;      --fs-40: 2.5rem;
+  --paper:#FFFFFF;
+  --paper-soft:#F3EEE4;
+  --paper-sunken:#EDE8DD;
+  --ink:#1A211A;
+  --ink-strong:#0F140F;
+  --ink-muted:#454C40;
+  --ink-subtle:#4A5044;
+  --line:#E4DECF;
+  --line-soft:#EFEADC;
+  --line-strong:#D6CFBE;
 
-  --space-1: 0.25rem; --space-2: 0.5rem; --space-3: 0.75rem;
-  --space-4: 1rem;    --space-5: 1.25rem; --space-6: 1.5rem;
-  --space-8: 2rem;
-  --tap-min: 2.75rem;
+  --action:#1E2F1E;
+  --action-hover:#2A4129;
+  --action-ink:#F4F8EC;
 
-  --canvas: #F7F4ED;
-  --paper: #FFFFFF;
-  --paper-soft: #F2ECDF;
-  --paper-sunken: #E8E1D0;
+  --cycle:#453A2C;
+  --cycle-tint:#F0E9DC;
+  --cycle-line:#DDD2BE;
 
-  --ink: #131713;
-  --ink-strong: #0A0D0A;
-  --ink-muted: #3A4036;
-  --ink-subtle: #4F5749;
+  --stage:#144A63;
+  --stage-tint:#E6EEF3;
+  --stage-line:#C3D6E1;
 
-  --line: #D6CFBE;
-  --line-soft: #E4DECF;
-  --line-strong: #B8AF9A;
+  --sage-700:#2F4A2F;
+  --sage-500:#5F7E45;
+  --sage-100:#E0EBD1;
+  --sage-50:#EEF4E2;
+  --amber-700:#6F4514;
+  --amber-100:#F5E3C4;
+  --amber-50:#FBF1DD;
+  --rose-700:#6E2B22;
+  --rose-500:#B0533F;
+  --rose-100:#F3D8CE;
+  --rose-50:#FAE9E0;
 
-  --sage-900: #112211; --sage-800: #1B331B; --sage-700: #234623;
-  --sage-500: #3F6E3F; --sage-100: #D6E4BE; --sage-50: #EBF2D8;
-  --amber-700: #6B3E0E; --amber-500: #B97718; --amber-100: #F2DCB1; --amber-50: #FBF0D6;
-  --rose-700: #6B2519;  --rose-500: #B14B39;  --rose-100: #EDCABE;  --rose-50: #F8E2D7;
-  --blue-700: #1F3E55;  --blue-500: #41698A;  --blue-100: #C8D7E3;  --blue-50: #E0EAF1;
-  --plum-700: #4C2B52;  --plum-500: #845B8B;  --plum-100: #E5D6E8;  --plum-50: #F2E8F5;
-  --teal-700: #1E4A4A;  --teal-500: #437A7A;  --teal-100: #D0E5E5;  --teal-50: #E5F0F0;
+  --radius-sm:.5rem; --radius-md:.75rem; --radius-lg:1.125rem;
+  --shadow-sm:0 .0625rem .125rem rgba(30,47,30,.05);
+  --shadow-md:0 .25rem .875rem rgba(30,47,30,.06),0 .0625rem .125rem rgba(30,47,30,.04);
 
-  --r-sm: 0.375rem; --r-md: 0.625rem; --r-lg: 1rem; --r-xl: 1.375rem;
-  --shadow-xs: 0 1px 0 rgba(17,34,17,0.03);
-  --shadow-sm: 0 1px 2px rgba(17,34,17,0.04), 0 1px 0 rgba(17,34,17,0.03);
-  --shadow-md: 0 0.25rem 0.875rem rgba(17,34,17,0.06), 0 1px 2px rgba(17,34,17,0.04);
-  --shadow-lg: 0 0.75rem 2.5rem rgba(17,34,17,0.09), 0 2px 6px rgba(17,34,17,0.04);
-  --focus-ring: 0 0 0 0.1875rem rgba(63,110,63,0.9);
+  --bleed-l:1.75rem;
+  --bleed-r:1.75rem;
 
-  color: var(--ink);
-  font-size: var(--fs-15);
-  line-height: 1.55;
-  animation: empIn 0.4s cubic-bezier(0.2,0.7,0.2,1);
+  font-family:var(--font-sans);
+  color:var(--ink);
+  line-height:1.55;
 }
-@keyframes empIn { from { opacity: 0; transform: translateY(0.5rem); } to { opacity: 1; transform: none; } }
+.emp-home :deep(*),
+.emp-home :deep(*::before),
+.emp-home :deep(*::after){box-sizing:border-box;}
 
-.emp-dash button { cursor: pointer; }
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0;}
+:focus-visible{outline:.1875rem solid var(--stage);outline-offset:.125rem;border-radius:.25rem;}
 
-.greet { margin-bottom: var(--space-6); }
-.greet-row { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; }
-.greet-row .greet-main { flex: 1; min-width: 16rem; }
-.greet .eyebrow { font-size: var(--fs-13); color: var(--ink-muted); font-weight: 500; letter-spacing: 0.01em; }
-.greet h1 { font-family: var(--font-serif); font-weight: 600; letter-spacing: -0.025em; color: var(--ink-strong); line-height: 1.06; font-size: var(--fs-40); margin-top: 0.125rem; }
-.greet .lede { font-size: var(--fs-16); color: var(--ink-muted); margin-top: var(--space-2); max-width: 46rem; }
-
-.btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.4375rem; min-height: var(--tap-min); padding: 0.6875rem 1.125rem; border-radius: 0.625rem; font-size: var(--fs-15); font-weight: 500; white-space: nowrap; border: 0.0625rem solid transparent; transition: background 0.15s, border-color 0.15s, color 0.15s; }
-.btn svg { width: 0.9375rem; height: 0.9375rem; flex: 0 0 0.9375rem; }
-.btn-primary { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: var(--btn-primary-bg); }
-.btn-primary:hover { background: var(--btn-primary-bg-hover); border-color: var(--btn-primary-bg-hover); }
-.btn-secondary { background: var(--btn-secondary-bg); color: var(--btn-secondary-fg); border-color: var(--btn-secondary-border); }
-.btn-secondary:hover { background: var(--btn-secondary-bg-hover); border-color: var(--btn-secondary-border-hover); }
-.btn-sm { min-height: 2.25rem; padding: 0.4375rem 0.75rem; font-size: var(--fs-14); }
-
-.grid { display: grid; gap: var(--space-5); align-items: start; }
-.grid-main-aside { grid-template-columns: minmax(0,1fr) 22rem; }
-.stack { display: grid; gap: var(--space-5); align-content: start; min-width: 0; }
-
-.card { background: var(--paper); border: 0.0625rem solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); overflow: hidden; }
-.search-card, .qa-wrap, .attn-block { margin-bottom: var(--space-5); }
-.qa-wrap { margin-bottom: var(--space-5); }
-.card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 0.875rem; padding: 1.125rem 1.5rem 0.875rem; border-bottom: 0.0625rem solid var(--line-soft); }
-.card-title { font-family: var(--font-serif); font-size: var(--fs-20); font-weight: 600; letter-spacing: -0.015em; color: var(--ink-strong); line-height: 1.2; }
-.card-title-sans { font-size: var(--fs-16); font-weight: 600; color: var(--ink-strong); line-height: 1.2; }
-.card-sub { font-size: var(--fs-14); color: var(--ink-muted); margin-top: 0.25rem; }
-.card-link { font-size: var(--fs-14); font-weight: 500; color: var(--sage-700); display: inline-flex; align-items: center; gap: 0.25rem; padding: 0.25rem 0.4375rem; margin: -0.25rem -0.4375rem; border-radius: var(--r-sm); transition: background 0.15s; background: none; border: none; }
-.card-link:hover { background: var(--sage-50); }
-.card-link svg { width: 0.875rem; height: 0.875rem; }
-.card-body { padding: 1.25rem 1.5rem 1.5rem; }
-.empty-note { padding: 1.25rem 0; text-align: center; color: var(--ink-subtle); font-size: var(--fs-14); }
-
-.tag { display: inline-flex; align-items: center; gap: 0.3125rem; font-size: var(--fs-13); padding: 0.1875rem 0.625rem; border-radius: 62.5rem; font-weight: 500; white-space: nowrap; }
-.tag-neutral { background: var(--paper-soft); color: var(--ink-muted); }
-.tag-blue { background: var(--blue-50); color: var(--blue-700); }
-.tag-amber { background: var(--amber-50); color: var(--amber-700); }
-.tag-sage { background: var(--sage-50); color: var(--sage-700); }
-.tag-rose { background: var(--rose-50); color: var(--rose-700); }
-
-.card.attn { border-left: 0.25rem solid var(--rose-500); }
-
-.tasks { display: flex; flex-direction: column; }
-.task { display: flex; align-items: center; gap: 0.875rem; padding: 0.875rem 0; border-bottom: 0.0625rem solid var(--line-soft); }
-.task:last-child { border-bottom: 0; padding-bottom: 0; }
-.task:first-child { padding-top: 0; }
-.task-ic { width: 2.375rem; height: 2.375rem; flex: 0 0 2.375rem; border-radius: var(--r-md); display: grid; place-items: center; }
-.task-ic svg { width: 1.125rem; height: 1.125rem; }
-.ic-amber { background: var(--amber-50); color: var(--amber-700); }
-.ic-rose { background: var(--rose-50); color: var(--rose-700); }
-.ic-blue { background: var(--blue-50); color: var(--blue-700); }
-.ic-sage { background: var(--sage-50); color: var(--sage-700); }
-.ic-plum { background: var(--plum-50); color: var(--plum-700); }
-.ic-teal { background: var(--teal-50); color: var(--teal-700); }
-.task-main { flex: 1; min-width: 0; }
-.task-main .t-title { font-size: var(--fs-15); font-weight: 600; color: var(--ink-strong); }
-.task-main .t-sub { font-size: var(--fs-13); color: var(--ink-muted); margin-top: 0.0625rem; }
-.task-main .t-sub .due { color: var(--rose-700); font-weight: 600; }
-.task-end { flex: 0 0 auto; }
-.task.done .t-title { text-decoration: line-through; color: var(--ink-muted); }
-.task.done { opacity: 0.75; }
-
-.timeline { display: flex; flex-direction: column; }
-.tl-item { display: grid; grid-template-columns: 4rem 1fr; gap: 0.875rem; padding: 0.875rem 0; border-bottom: 0.0625rem solid var(--line-soft); }
-.tl-item:last-child { border-bottom: 0; padding-bottom: 0; }
-.tl-item:first-child { padding-top: 0; }
-.tl-time { font-size: var(--fs-14); font-weight: 600; color: var(--ink-strong); font-variant-numeric: tabular-nums; }
-.tl-body { min-width: 0; }
-.tl-rail { position: relative; padding-left: 1.125rem; }
-.tl-rail::before { content: ''; position: absolute; left: 0.3125rem; top: 0.375rem; bottom: -0.875rem; width: 0.125rem; background: var(--line); }
-.tl-item:last-child .tl-rail::before { display: none; }
-.tl-rail::after { content: ''; position: absolute; left: 0; top: 0.25rem; width: 0.75rem; height: 0.75rem; border-radius: 50%; background: var(--paper); border: 0.1875rem solid var(--sage-500); }
-.tl-rail.done::after { background: var(--sage-500); }
-.tl-rail.now::after { border-color: var(--amber-500); box-shadow: 0 0 0 0.25rem var(--amber-100); }
-.tl-name { font-size: var(--fs-15); font-weight: 600; color: var(--ink-strong); }
-.tl-sub { font-size: var(--fs-13); color: var(--ink-muted); margin-top: 0.125rem; display: flex; flex-wrap: wrap; gap: 0.25rem 0.75rem; }
-.tl-actions { margin-top: 0.5rem; display: flex; gap: 0.375rem; flex-wrap: wrap; }
-
-.mlist { display: flex; flex-direction: column; }
-.mrow { display: flex; align-items: center; gap: 0.75rem; padding: 0.6875rem 0; border-bottom: 0.0625rem solid var(--line-soft); }
-.mrow:last-child { border-bottom: 0; padding-bottom: 0; }
-.mrow:first-child { padding-top: 0; }
-.avatar { width: 2.25rem; height: 2.25rem; flex: 0 0 2.25rem; border-radius: 50%; display: grid; place-items: center; font-size: var(--fs-13); font-weight: 600; }
-.av-amber { background: var(--amber-100); color: var(--amber-700); }
-.av-blue { background: var(--blue-100); color: var(--blue-700); }
-.av-plum { background: var(--plum-100); color: var(--plum-700); }
-.av-sage { background: var(--sage-100); color: var(--sage-700); }
-.av-teal { background: var(--teal-100); color: var(--teal-700); }
-.av-rose { background: var(--rose-100); color: var(--rose-700); }
-.mrow .m-main { flex: 1; min-width: 0; }
-.mrow .m-name { font-size: var(--fs-14); font-weight: 600; color: var(--ink-strong); display: flex; align-items: center; gap: 0.375rem; flex-wrap: wrap; }
-.mrow .m-sub { font-size: var(--fs-12); color: var(--ink-muted); margin-top: 0.0625rem; }
-.m-actions { display: flex; align-items: center; gap: 0.5rem; flex: 0 0 auto; margin-left: auto; flex-wrap: wrap; justify-content: flex-end; }
-
-.glist { display: flex; flex-direction: column; }
-.g-head { display: flex; align-items: center; gap: 0.625rem; margin-top: var(--space-4); padding: 0.5625rem 0.875rem; background: var(--paper-soft); border: 0.0625rem solid var(--line-soft); border-radius: var(--r-md); font-family: var(--font-serif); font-size: var(--fs-16); font-weight: 600; letter-spacing: -0.01em; color: var(--ink-strong); width: 100%; text-align: left; }
-.glist .g-head:first-child { margin-top: 0; }
-.g-count { font-family: var(--font-sans); font-size: var(--fs-12); font-weight: 700; color: var(--ink-strong); background: var(--paper); border: 0.0625rem solid var(--line); border-radius: 62.5rem; padding: 0.0625rem 0.5rem; font-variant-numeric: tabular-nums; }
-.g-head .g-note { margin-left: auto; font-family: var(--font-sans); font-size: var(--fs-12); font-weight: 500; color: var(--ink-subtle); }
-.g-chev { margin-left: auto; display: grid; place-items: center; color: var(--ink-subtle); }
-.g-head .g-note + .g-chev { margin-left: 0.5rem; }
-.g-chev svg { width: 0.875rem; height: 0.875rem; transition: transform 0.2s ease; }
-.g-head[aria-expanded="false"] .g-chev svg { transform: rotate(-90deg); }
-.g-body .mrow { padding-left: 0.875rem; padding-right: 0.875rem; }
-.g-body .mrow:first-child { padding-top: 0.6875rem; }
-
-.p-link { display: inline; padding: 0; font: inherit; font-weight: inherit; color: inherit; background: none; border: none; border-bottom: 0.0625rem dashed var(--line-strong); border-radius: 0.125rem; cursor: pointer; transition: color 0.15s, border-color 0.15s; }
-.p-link:hover { color: var(--sage-700); border-bottom-color: var(--sage-500); }
-
-.search-wrap { position: relative; }
-.search-wrap svg { position: absolute; left: 0.875rem; top: 50%; transform: translateY(-50%); width: 1.125rem; height: 1.125rem; color: var(--ink-subtle); pointer-events: none; }
-.search-input { width: 100%; min-height: 3.25rem; padding: 0.75rem 1rem 0.75rem 2.75rem; font: inherit; font-size: var(--fs-16); color: var(--ink); background: var(--paper); border: 0.0625rem solid var(--line-strong); border-radius: var(--r-md); transition: border-color 0.15s, box-shadow 0.15s; }
-.search-input::placeholder { color: var(--ink-subtle); }
-.search-input:focus-visible { outline: none; border-color: var(--sage-500); box-shadow: var(--focus-ring); }
-.search-hint { font-size: var(--fs-13); color: var(--ink-muted); margin-top: 0.5rem; display: flex; align-items: center; gap: 0.4375rem; }
-.search-hint svg { width: 0.875rem; height: 0.875rem; flex: 0 0 0.875rem; color: var(--sage-700); }
-.search-results { margin-top: 0.5rem; }
-.sr-row { display: flex; align-items: center; gap: 0.875rem; flex-wrap: wrap; padding: 0.75rem 0; border-bottom: 0.0625rem solid var(--line-soft); }
-.sr-row:last-child { border-bottom: 0; padding-bottom: 0; }
-.sr-main { flex: 1; min-width: 12rem; }
-.sr-name { font-size: var(--fs-15); font-weight: 600; color: var(--ink-strong); display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-.sr-sub { font-size: var(--fs-13); color: var(--ink-muted); margin-top: 0.125rem; }
-.sr-sub .warn { color: var(--amber-700); font-weight: 600; }
-.sr-empty { font-size: var(--fs-14); color: var(--ink-muted); padding: 0.75rem 0 0.25rem; }
-.sr-actions { display: flex; gap: 0.375rem; flex: 0 0 auto; }
-
-.flag-warn { position: relative; display: inline-flex; align-items: center; gap: 0.25rem; font-size: var(--fs-12); font-weight: 700; white-space: nowrap; color: var(--rose-700); background: var(--rose-50); border: 0.0625rem solid var(--rose-100); padding: 0.0625rem 0.5rem; border-radius: 62.5rem; cursor: help; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
-.flag-warn svg { width: 0.75rem; height: 0.75rem; flex: 0 0 0.75rem; }
-.flag-warn.lvl-amber { color: var(--amber-700); background: var(--amber-50); border-color: var(--amber-100); }
-.flag-warn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
-.flag-tip { position: absolute; bottom: calc(100% + 0.5rem); left: 0; z-index: 30; width: max-content; max-width: 18rem; white-space: normal; background: var(--ink-strong); color: #F4F3EE; font-size: var(--fs-13); font-weight: 400; line-height: 1.45; padding: 0.625rem 0.75rem; border-radius: var(--r-md); box-shadow: var(--shadow-lg); opacity: 0; pointer-events: none; transform: translateY(0.25rem); transition: opacity 0.15s ease, transform 0.15s ease; }
-.flag-tip::after { content: ''; position: absolute; top: 100%; left: 0.875rem; border: 0.375rem solid transparent; border-top-color: var(--ink-strong); }
-.flag-warn:hover .flag-tip, .flag-warn:focus-visible .flag-tip, .flag-warn:focus-within .flag-tip { opacity: 1; transform: none; }
-
-.icon-mini { width: 2.25rem; height: 2.25rem; flex: 0 0 2.25rem; display: grid; place-items: center; border-radius: 50%; border: 0.0625rem solid var(--line-strong); background: var(--paper); color: var(--ink-muted); transition: background 0.15s, color 0.15s, border-color 0.15s; }
-.icon-mini:hover { background: var(--sage-50); color: var(--sage-700); border-color: var(--sage-500); }
-.icon-mini svg { width: 1rem; height: 1rem; }
-
-.qa-head { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.625rem; }
-.section-eyebrow { font-size: var(--fs-12); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 700; color: var(--ink-muted); }
-.qa-collapse { width: 1.75rem; height: 1.75rem; flex: 0 0 1.75rem; display: grid; place-items: center; border-radius: var(--r-sm); color: var(--ink-muted); background: none; border: none; transition: background 0.15s, color 0.15s; }
-.qa-collapse:hover { background: var(--paper-soft); color: var(--ink-strong); }
-.qa-collapse svg { width: 0.875rem; height: 0.875rem; transition: transform 0.2s ease; }
-.qa-collapse[aria-expanded="false"] svg { transform: rotate(-90deg); }
-.qa { display: grid; grid-template-columns: repeat(auto-fit, minmax(13rem, 1fr)); gap: 0.75rem; }
-.qa-btn { display: flex; align-items: center; gap: 0.75rem; text-align: left; background: var(--paper); border: 0.0625rem solid var(--line); border-radius: var(--r-lg); padding: 1rem 1.125rem; box-shadow: var(--shadow-sm); transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s; min-height: var(--tap-min); }
-.qa-btn:hover { border-color: var(--sage-500); box-shadow: var(--shadow-md); transform: translateY(-0.0625rem); }
-.qa-ic { width: 2.5rem; height: 2.5rem; flex: 0 0 2.5rem; border-radius: var(--r-md); display: grid; place-items: center; }
-.qa-ic svg { width: 1.1875rem; height: 1.1875rem; }
-.qa-txt .qa-t { font-size: var(--fs-15); font-weight: 600; color: var(--ink-strong); }
-
-.err-bar { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); flex-wrap: wrap; background: var(--rose-50); border: 0.0625rem solid var(--rose-100); color: var(--rose-700); border-radius: var(--r-md); padding: 0.75rem 1rem; font-size: var(--fs-14); margin-bottom: var(--space-5); }
-
-.alerts { margin-bottom: var(--space-5); }
-.alerts-head { margin-bottom: 0.625rem; }
-.alerts-sub { font-size: var(--fs-13); color: var(--ink-subtle); margin-top: 0.125rem; }
-
-.tiles { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
-.tiles-1 { grid-template-columns: minmax(14rem, 24rem); }
-
-.tile { background: var(--paper); border: 0.0625rem solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow-sm); overflow: hidden; transition: border-color 0.15s, box-shadow 0.15s; }
-.tile.open { border-color: var(--line-strong); box-shadow: var(--shadow-md); }
-
-.tile-btn { display: flex; flex-direction: column; align-items: stretch; gap: 0.125rem; width: 100%; text-align: left; background: none; border: none; padding: 1rem 1.125rem 1.0625rem; transition: background 0.15s; }
-.tile-btn:not(:disabled):hover { background: var(--paper-soft); }
-.tile-btn:disabled { cursor: default; }
-
-.tile-title { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: var(--fs-15); font-weight: 600; color: var(--ink-strong); line-height: 1.25; }
-.tile-chevron { width: 0.8125rem; height: 0.8125rem; flex: 0 0 0.8125rem; color: var(--ink-subtle); transition: transform 0.2s ease; }
-.tile.open .tile-chevron { transform: rotate(180deg); }
-
-.tile-meta { font-size: var(--fs-13); color: var(--ink-subtle); line-height: 1.35; min-height: 1.15rem; }
-
-.tile-num { display: flex; align-items: baseline; gap: 0.4375rem; margin-top: 0.75rem; }
-.tile-num b { font-family: var(--font-serif); font-size: var(--fs-40); font-weight: 600; letter-spacing: -0.03em; line-height: 1; }
-.tile-num i { font-style: normal; font-size: var(--fs-14); font-weight: 500; }
-
-.tone-rose .tile-num b { color: var(--rose-500); }
-.tone-rose .tile-num i { color: var(--rose-700); }
-.tone-amber .tile-num b { color: var(--amber-500); }
-.tone-amber .tile-num i { color: var(--amber-700); }
-.tone-sage .tile-num b { color: var(--sage-500); }
-.tone-sage .tile-num i { color: var(--sage-700); }
-.tone-sage .tile-meta { color: var(--sage-700); }
-.tone-calm .tile-num b { color: var(--sage-500); }
-.tone-calm .tile-num i { color: var(--ink-subtle); }
-.tone-calm .tile-meta { color: var(--sage-700); }
-
-.tile-list { border-top: 0.0625rem solid var(--line-soft); background: var(--paper-soft); }
-.tl-row { display: flex; align-items: center; gap: 0.625rem; width: 100%; text-align: left; background: none; border: none; border-bottom: 0.0625rem solid var(--line-soft); padding: 0.625rem 1.125rem; min-height: var(--tap-min); transition: background 0.15s; }
-.tl-row:hover { background: var(--paper); }
-.tl-main { display: grid; gap: 0.0625rem; min-width: 0; flex: 1; }
-.tl-name { font-size: var(--fs-14); font-weight: 600; color: var(--ink-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tl-note { font-size: var(--fs-12); color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tl-days { font-size: var(--fs-12); font-weight: 600; color: var(--ink-subtle); white-space: nowrap; }
-.tl-all { display: block; width: 100%; text-align: left; background: none; border: none; padding: 0.625rem 1.125rem; font-size: var(--fs-13); font-weight: 500; color: var(--sage-700); min-height: var(--tap-min); transition: background 0.15s; }
-.tl-all:hover { background: var(--paper); }
-
-.draft { margin-bottom: var(--space-5); }
-
-.dr-empty-t { font-size: var(--fs-15); font-weight: 600; color: var(--ink-strong); }
-.dr-empty-s { font-size: var(--fs-13); color: var(--ink-subtle); line-height: 1.45; margin-top: 0.1875rem; max-width: 44rem; }
-
-.dr-body { display: grid; gap: 1rem; }
-.dr-top { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; }
-.dr-id { flex: 1; min-width: 11rem; }
-.dr-name { font-size: var(--fs-16); font-weight: 600; color: var(--ink-strong); }
-.dr-sub { font-size: var(--fs-13); color: var(--ink-subtle); margin-top: 0.0625rem; }
-
-.dr-progress { display: grid; gap: 0.375rem; }
-.dr-bar { height: 0.4375rem; border-radius: 62.5rem; background: var(--paper-sunken); overflow: hidden; }
-.dr-bar span { display: block; height: 100%; border-radius: 62.5rem; background: var(--amber-500); transition: width 0.25s ease; }
-.dr-figures { font-size: var(--fs-13); color: var(--ink-muted); }
-.dr-figures b { font-weight: 700; color: var(--ink-strong); }
-
-.dr-steps { display: grid; gap: 0.75rem; }
-.dr-step-head { display: flex; align-items: baseline; justify-content: space-between; gap: 0.5rem; font-size: var(--fs-13); font-weight: 600; color: var(--ink-strong); margin-bottom: 0.375rem; }
-.dr-step-num { font-weight: 500; color: var(--ink-subtle); white-space: nowrap; }
-.dr-chips { display: flex; flex-wrap: wrap; gap: 0.3125rem; }
-.dr-chip { font-size: var(--fs-12); padding: 0.1875rem 0.5rem; border-radius: var(--r-sm); background: var(--amber-50); color: var(--amber-700); border: 0.0625rem solid var(--amber-100); }
-.dr-step-done { font-size: var(--fs-13); color: var(--sage-700); background: var(--sage-50); border: 0.0625rem solid var(--sage-100); border-radius: var(--r-md); padding: 0.625rem 0.75rem; line-height: 1.45; }
-
-.dr-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 0.875rem; flex-wrap: wrap; }
-.dr-all-btn { flex: 0 0 auto; }
-
-@media (max-width: 75rem) {
-  .grid-main-aside { grid-template-columns: 1fr; }
-  .qa { grid-template-columns: 1fr 1fr; }
-  .tiles { grid-template-columns: 1fr 1fr; }
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:.4375rem;
+  padding:.625rem 1rem;min-height:2.75rem;border-radius:.625rem;
+  font-size:.9375rem;font-weight:500;border:.0625rem solid transparent;
+  cursor:pointer;white-space:nowrap;text-decoration:none;font-family:var(--font-sans);
+  transition:background .15s,border-color .15s,color .15s;
 }
-@media (max-width: 36rem) {
-  .greet h1 { font-size: var(--fs-32); }
-  .qa { grid-template-columns: 1fr; }
-  .tiles { grid-template-columns: 1fr; }
-  .dr-top .btn { width: 100%; }
+.btn svg{width:1rem;height:1rem;flex:0 0 1rem;}
+.btn-primary{background:var(--action);color:var(--action-ink);border-color:var(--action);}
+.btn-primary:hover{background:var(--action-hover);border-color:var(--action-hover);}
+.btn-secondary{background:var(--paper);color:var(--ink);border-color:var(--line-strong);}
+.btn-secondary:hover{background:var(--paper-soft);border-color:var(--ink-muted);}
+.btn:disabled{opacity:.55;cursor:not-allowed;}
+.btn-sm{min-height:2.25rem;padding:.375rem .75rem;font-size:.8125rem;}
+
+.card{background:var(--paper);border:.0625rem solid var(--line);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);overflow:hidden;}
+.card-body{padding:1.125rem 1.25rem 1.25rem;}
+
+.pill{display:inline-flex;align-items:center;gap:.3125rem;font-size:.75rem;font-weight:700;padding:.1875rem .5625rem;border-radius:62.5rem;white-space:nowrap;}
+.pill-ok{background:var(--sage-100);color:var(--sage-700);}
+.pill-wait{background:var(--amber-50);color:var(--amber-700);border:.0625rem solid var(--amber-100);}
+.pill-stop{background:var(--rose-50);color:var(--rose-700);border:.0625rem solid var(--rose-100);}
+.pill-stage{background:var(--cycle-tint);color:var(--cycle);border:.0625rem solid var(--cycle-line);}
+.pill-mute{background:var(--paper-soft);color:var(--ink-muted);}
+
+.ava{
+  flex:0 0 2.25rem;width:2.25rem;height:2.25rem;border-radius:50%;
+  display:grid;place-items:center;font-size:.75rem;font-weight:600;
+  background:var(--sage-100);color:var(--sage-700);
+}
+.ava.av-amber{background:var(--amber-100);color:var(--amber-700);}
+.ava.av-rose{background:var(--rose-100);color:var(--rose-700);}
+.ava.av-cycle{background:var(--cycle-tint);color:var(--cycle);}
+
+.empty-note{padding:1.25rem;text-align:center;color:var(--ink-muted);font-size:.9375rem;}
+
+.greet{margin-bottom:1.25rem;}
+.greet-eyebrow{font-size:.75rem;text-transform:uppercase;letter-spacing:.1em;font-weight:600;color:var(--ink-muted);}
+.greet h1{font-family:var(--font-serif);font-size:1.875rem;font-weight:500;letter-spacing:-.02em;color:var(--ink-strong);margin:.25rem 0 0;line-height:1.15;}
+
+.findbar{
+  display:flex;gap:.625rem;flex-wrap:wrap;align-items:center;
+  padding:.75rem;margin-bottom:1.5rem;
+  background:var(--paper);border:.0625rem solid var(--line);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);
+}
+.find-field{
+  flex:1 1 20rem;display:flex;align-items:center;gap:.5rem;min-width:0;
+  padding:.5rem .75rem;min-height:2.75rem;
+  border:.0625rem solid var(--line-strong);border-radius:var(--radius-md);background:var(--paper);
+}
+.find-field:focus-within{border-color:var(--stage);box-shadow:0 0 0 .1875rem var(--stage-line);}
+.find-field svg{width:1.0625rem;height:1.0625rem;flex:0 0 1.0625rem;color:var(--ink-muted);}
+.find-input{flex:1;min-width:0;border:none;outline:none;background:none;font-size:1rem;color:var(--ink-strong);font-family:var(--font-sans);}
+.find-results{flex:1 1 100%;border-top:.0625rem solid var(--line-soft);padding-top:.375rem;}
+
+.sec{margin-bottom:1.75rem;}
+.sec-head{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.875rem;}
+.sec-t{font-family:var(--font-serif);font-size:1.375rem;font-weight:600;color:var(--ink-strong);margin:0;line-height:1.2;}
+.sec-link{
+  display:inline-flex;align-items:center;gap:.3125rem;
+  background:none;border:none;padding:.375rem .5rem;border-radius:.5rem;
+  font-size:.875rem;font-weight:600;color:var(--sage-700);cursor:pointer;
+}
+.sec-link:hover{background:var(--sage-50);color:var(--action);}
+.sec-link svg{width:.875rem;height:.875rem;}
+.sec-badge{
+  display:inline-flex;align-items:center;justify-content:center;
+  min-width:1.75rem;height:1.75rem;padding:0 .5rem;
+  font-size:.875rem;font-weight:700;
+  color:var(--amber-700);background:var(--amber-50);
+  border:.0625rem solid var(--amber-100);border-radius:62.5rem;
+}
+.sec-fold{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:2.5rem;height:2.5rem;flex:0 0 2.5rem;
+  border:.0625rem solid var(--stage-line);border-radius:.625rem;
+  background:var(--stage-tint);color:var(--stage);cursor:pointer;
+}
+.sec-fold svg{width:1.0625rem;height:1.0625rem;transition:transform .15s;}
+.sec-fold[aria-expanded="false"] svg{transform:rotate(-90deg);}
+.sec-fold:hover{background:#D8E5ED;border-color:var(--stage);}
+
+.sec-head.is-sticky{
+  position:sticky;top:4rem;z-index:40;
+  padding:.625rem var(--bleed-r) .625rem var(--bleed-l);
+  margin:0 calc(-1 * var(--bleed-r)) .875rem calc(-1 * var(--bleed-l));
+  background:var(--paper-soft);
+  border-bottom:.0625rem solid var(--line);
+}
+
+.datenav{display:flex;align-items:center;gap:.25rem;margin-left:auto;flex-wrap:nowrap;}
+.dn-btn{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:2.5rem;height:2.5rem;flex:0 0 2.5rem;
+  border:.0625rem solid var(--line-strong);border-radius:.625rem;
+  background:var(--paper);color:var(--ink-muted);cursor:pointer;
+}
+.dn-btn svg{width:1.0625rem;height:1.0625rem;}
+.dn-btn:hover{background:var(--paper-soft);color:var(--action);border-color:var(--ink-muted);}
+.dn-label{
+  min-width:8.5rem;text-align:center;padding:0 .5rem;
+  font-size:.9375rem;font-weight:600;color:var(--ink-strong);white-space:nowrap;
+}
+.dn-today{
+  min-height:2.5rem;padding:.4375rem .875rem;margin-left:.25rem;
+  border:.0625rem solid var(--line-strong);border-radius:.625rem;
+  background:var(--paper);font-size:.875rem;font-weight:600;color:var(--action);cursor:pointer;white-space:nowrap;
+}
+.dn-today:hover{background:var(--paper-soft);border-color:var(--ink-muted);}
+.dn-btn:disabled,.dn-today:disabled{opacity:.45;cursor:not-allowed;}
+
+.listbar{
+  display:flex;align-items:center;justify-content:space-between;gap:.75rem;flex-wrap:wrap;
+  padding:.625rem 1rem;border-bottom:.0625rem solid var(--line-soft);background:#FBF9F5;
+}
+.listbar-note{font-size:.8125rem;color:var(--ink-subtle);}
+.switch{display:inline-flex;align-items:center;gap:.5rem;cursor:pointer;font-size:.875rem;font-weight:600;color:var(--ink-strong);}
+.switch input{position:absolute;opacity:0;width:0;height:0;}
+.switch-ui{
+  position:relative;flex:0 0 2.5rem;width:2.5rem;height:1.4375rem;border-radius:62.5rem;
+  background:var(--paper-sunken);border:.0625rem solid var(--line-strong);transition:background .15s,border-color .15s;
+}
+.switch-ui::after{
+  content:"";position:absolute;top:.125rem;left:.125rem;width:1.0625rem;height:1.0625rem;
+  border-radius:50%;background:var(--paper);box-shadow:var(--shadow-sm);transition:transform .15s;
+}
+.switch input:checked + .switch-ui{background:var(--action);border-color:var(--action);}
+.switch input:checked + .switch-ui::after{transform:translateX(1.0625rem);}
+.switch input:focus-visible + .switch-ui{outline:.1875rem solid var(--stage);outline-offset:.125rem;}
+
+.day-body{padding:.375rem .625rem .625rem;}
+
+.res{
+  display:grid;grid-template-columns:auto minmax(0,1fr) auto;
+  gap:.375rem .875rem;align-items:center;
+  padding:.875rem .75rem;border-bottom:.0625rem solid var(--line-soft);
+  border-left:.1875rem solid transparent;border-radius:var(--radius-sm);
+}
+.res:last-child{border-bottom:none;}
+.res:hover{background:#FBF9F5;}
+.res.v-ok{border-left-color:var(--sage-500);}
+.res.v-wait{border-left-color:var(--amber-700);}
+.res.v-stop{border-left-color:var(--rose-500);}
+.res.v-now{border-left-color:var(--stage);background:var(--stage-tint);}
+.res.v-now:hover{background:#DCE8EF;}
+.res.with-time{grid-template-columns:3.25rem auto minmax(0,1fr) auto;}
+.res-time{font-family:var(--font-serif);font-size:1.125rem;font-weight:600;color:var(--ink-strong);}
+.res.v-now .res-time{color:var(--stage);}
+.res-main{min-width:0;}
+.res-name{font-size:.9375rem;font-weight:600;color:var(--ink-strong);}
+.res.is-past .res-name,
+.res.is-past .res-time{color:var(--ink-subtle);font-weight:500;}
+.res-line{display:flex;align-items:center;gap:.5rem;flex-wrap:wrap;margin-top:.1875rem;}
+.res-note{display:block;margin-top:.25rem;font-size:.8125rem;color:var(--ink-muted);line-height:1.4;}
+.res-end{display:flex;gap:.375rem;flex-wrap:wrap;justify-content:flex-end;}
+
+.tiles{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.875rem;align-items:stretch;grid-auto-rows:1fr;}
+.tiles.has-open{align-items:start;grid-auto-rows:auto;}
+.tiles-4{grid-template-columns:repeat(4,minmax(0,1fr));}
+
+.tile{
+  display:flex;flex-direction:column;
+  background:var(--paper);border:.0625rem solid var(--line);
+  border-left:.25rem solid var(--line-strong);
+  border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);overflow:hidden;
+}
+.tile.is-open{box-shadow:var(--shadow-md);}
+.tile-face{
+  display:flex;flex-direction:column;gap:.1875rem;width:100%;flex:1 0 auto;
+  padding:1rem 1.125rem 1.125rem;cursor:pointer;min-height:7.5rem;
+  border:none;background:none;text-align:left;font:inherit;color:inherit;
+}
+.tile-face:hover:not(:disabled){background:#FBF9F5;}
+.tile-face:disabled{cursor:default;}
+.tile-face:focus-visible{outline:.1875rem solid var(--stage);outline-offset:-.1875rem;}
+.tile-title{display:flex;align-items:center;gap:.375rem;font-size:.9375rem;font-weight:600;color:var(--ink-strong);}
+.tile-title svg{width:.9375rem;height:.9375rem;flex:0 0 .9375rem;color:var(--ink-muted);transition:transform .15s;}
+.tile.is-open .tile-title svg{transform:rotate(180deg);}
+.tile-qual{font-size:.8125rem;color:var(--ink-muted);line-height:1.35;}
+.tile-num{
+  margin-top:auto;padding-top:.625rem;
+  font-family:var(--font-serif);font-size:2.5rem;font-weight:600;line-height:1;color:var(--ink-strong);
+  display:flex;align-items:baseline;gap:.4375rem;
+}
+.tile-num i{font-family:var(--font-sans);font-size:.8125rem;font-style:normal;font-weight:500;color:var(--ink-muted);}
+.tile.tone-sage{border-left-color:var(--sage-500);}
+.tile.tone-amber{border-left-color:var(--amber-700);}
+.tile.tone-rose{border-left-color:var(--rose-500);}
+.tile.tone-stage{border-left-color:var(--stage);}
+.tile.tone-zero{border-left-color:var(--line-strong);}
+.tile.tone-zero .tile-num{color:var(--ink-subtle);}
+
+.tile-list{border-top:.0625rem solid var(--line-soft);padding:.375rem .625rem .625rem;}
+.tl-row{
+  display:flex;align-items:center;gap:.625rem;width:100%;
+  padding:.5rem;border:none;background:none;border-radius:var(--radius-md);
+  text-align:left;cursor:pointer;font:inherit;color:inherit;
+}
+.tl-row:hover{background:var(--paper-soft);}
+.tl-main{flex:1;min-width:0;}
+.tl-name{display:block;font-size:.875rem;font-weight:600;color:var(--ink-strong);}
+.tl-note{display:block;font-size:.8125rem;color:var(--ink-muted);}
+.tl-days{font-size:.8125rem;font-weight:600;color:var(--amber-700);white-space:nowrap;}
+.tl-all{
+  display:block;width:100%;padding:.5rem;margin-top:.25rem;
+  border:none;border-top:.0625rem solid var(--line-soft);background:none;
+  font-size:.8125rem;font-weight:600;color:var(--sage-700);cursor:pointer;border-radius:0 0 .5rem .5rem;
+}
+.tl-all:hover{background:var(--sage-50);}
+
+@media (max-width:64rem){
+  .tiles,.tiles-4{grid-template-columns:repeat(2,minmax(0,1fr));}
+}
+@media (max-width:48rem){
+  .res{grid-template-columns:auto minmax(0,1fr);}
+  .res.with-time{grid-template-columns:2.75rem auto minmax(0,1fr);}
+  .res-end{grid-column:1/-1;justify-content:flex-start;}
+  .res-end .btn{flex:1 1 auto;}
+}
+@media (max-width:37.5rem){
+  .tiles,.tiles-4{grid-template-columns:1fr;}
+  .datenav{margin-left:0;width:100%;}
+  .dn-label{flex:1;min-width:0;}
+}
+@media (max-width:30rem){
+  .res .ava{display:none;}
+  .res.with-time{grid-template-columns:2.75rem minmax(0,1fr);}
+  .res{padding:.75rem .5rem;}
+}
+
+@media (max-width:768px){
+  .emp-home{
+    --bleed-l:max(.875rem, var(--safe-left, 0px));
+    --bleed-r:max(.875rem, var(--safe-right, 0px));
+  }
+  .greet h1{font-size:1.5rem;}
+  .sec-head.is-sticky{
+    top:calc(56px + var(--safe-top, 0px));
+  }
+  .findbar{padding:.625rem;}
+  .card-body{padding:1rem;}
+  .sec-t{font-size:1.1875rem;}
+  .tile-num{font-size:2rem;}
+
+  .btn,
+  .btn-sm,
+  .sec-link,
+  .tl-all,
+  .dn-today{min-height:var(--tap, 2.75rem);}
+  .sec-fold,
+  .dn-btn{
+    width:var(--tap, 2.75rem);height:var(--tap, 2.75rem);
+    flex:0 0 var(--tap, 2.75rem);
+  }
+  .switch{min-height:var(--tap, 2.75rem);flex:1 1 100%;}
+  .listbar{padding:.5rem .75rem;}
+  .listbar-note{flex:1 1 100%;}
+}
+@media (max-width:480px){
+  .emp-home{
+    --bleed-l:max(.75rem, var(--safe-left, 0px));
+    --bleed-r:max(.75rem, var(--safe-right, 0px));
+  }
+}
+@media (hover:none){
+  .res:hover{background:none;}
+  .res.v-now:hover{background:var(--stage-tint);}
+  .tile-face:hover:not(:disabled){background:none;}
+  .tl-row:hover{background:none;}
+}
+@media (prefers-reduced-motion:reduce){
+  .emp-home :deep(*){animation-duration:.01ms!important;transition-duration:.01ms!important;}
 }
 </style>

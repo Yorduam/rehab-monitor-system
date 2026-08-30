@@ -1602,6 +1602,7 @@
         <select id="assignment-target" class="save-bar-assign-select">
           <option value="">— нет назначений —</option>
         </select>
+        <p id="assignment-meta" class="save-bar-assign-meta"></p>
       </div>
       <div class="save-bar-spacer"></div>
       <div class="save-bar-actions">
@@ -1653,6 +1654,8 @@ let employeeReadonlyGuards = null
 let peersPoller = null
 let peersClickHandler = null
 let peersVisibilityHandler = null
+let fabOffsetQuery = null
+let syncFabOffset = null
 const teacherProfileKey = ref('')
 
 const recipientChosen = ref(false)
@@ -1870,7 +1873,17 @@ onMounted(() => {
   }
 
     document.documentElement.style.setProperty('--bg-app', '#F7F4ED');
-    document.documentElement.style.setProperty('--fab-offset', '4.75rem');
+    const saveBarEl = document.querySelector('.diagnostics-page .save-bar');
+    syncFabOffset = () => {
+      const h = saveBarEl ? saveBarEl.getBoundingClientRect().height : 0;
+      document.documentElement.style.setProperty('--save-bar-h', h + 'px');
+      document.documentElement.style.setProperty('--fab-offset', h + 'px');
+    };
+    syncFabOffset();
+    if (saveBarEl) {
+      fabOffsetQuery = new ResizeObserver(syncFabOffset);
+      fabOffsetQuery.observe(saveBarEl);
+    }
 
     const FALLBACK_RECIPIENTS = [
       { id: 184, fullName: 'Мария Петрова', birthDateLabel: '14 мая 2014', age: 11, diagnosis: 'РАС', groupName: 'Средние', code: 'R-000184' },
@@ -2157,12 +2170,38 @@ onMounted(() => {
       }
     }
 
+    const SHORT_PROFILE_NAME = {
+      psy: 'Психолог', log: 'Логопед', izo: 'ИЗО',
+      theatre: 'Театр', vocal: 'Вокал', afk: 'АФК'
+    };
+
+    function assignmentShortArea(a) {
+      const key = a?.profileKey || a?.direction?.profileKey || '';
+      return SHORT_PROFILE_NAME[key]
+        || String(a?.direction?.name || '').replace(/диагностик\S*/gi, '').replace(/\s+/g, ' ').trim()
+        || 'Без направления';
+    }
+
     function assignmentLabel(a) {
-      const dir = a?.direction?.name || 'Направление не указано';
-      const spec = a?.specialistName || a?.specialist?.fullName || 'специалист не указан';
       const date = a?.date ? formatDateRu(a.date) : '';
+      const done = a?.blockStatus === 'completed' ? '✓' : '';
+      return [assignmentShortArea(a), date, done].filter(Boolean).join(' · ');
+    }
+
+    function assignmentDetails(a) {
+      const dir = a?.direction?.name || '';
+      const spec = a?.specialistName || a?.specialist?.fullName || 'специалист не указан';
       const done = a?.blockStatus === 'completed' ? 'этап завершён' : '';
-      return [dir, spec, date, done].filter(Boolean).join(' · ');
+      return [dir, spec, done].filter(Boolean).join(' · ');
+    }
+
+    function renderAssignmentMeta() {
+      const meta = document.getElementById('assignment-meta');
+      if (!meta) return;
+      const select = document.getElementById('assignment-target');
+      const chosen = (diagnosticsRuntime.assignments || [])
+        .find(a => String(a.id) === String(select?.value || ''));
+      meta.textContent = chosen ? assignmentDetails(chosen) : '';
     }
 
     async function loadAssignmentsForRecipient() {
@@ -2267,7 +2306,10 @@ onMounted(() => {
           const reportData = typeof window.__collectReportData === 'function'
             ? window.__collectReportData()
             : {};
-          const results = Object.assign({}, reportData, formState ? { formState } : {});
+          const blockScores = typeof window.__collectBlockScores === 'function'
+            ? window.__collectBlockScores(profileKey)
+            : {};
+          const results = Object.assign({}, reportData, formState ? { formState } : {}, blockScores);
           await api.post('/schedule/assignments/' + a.id + '/complete', { results });
         }
       } catch (err) {
@@ -2303,7 +2345,10 @@ onMounted(() => {
         const formState = typeof window.__snapshotFormState === 'function'
           ? window.__snapshotFormState(profileKey)
           : null;
-        const results = Object.assign({}, reportData, formState ? { formState } : {});
+        const blockScores = typeof window.__collectBlockScores === 'function'
+          ? window.__collectBlockScores(profileKey)
+          : {};
+        const results = Object.assign({}, reportData, formState ? { formState } : {}, blockScores);
         await api.post('/schedule/assignments/' + assignmentId + '/complete', { results });
         showToast('Результаты сохранены в карточке реабилитанта. <strong>Этап диагностики завершён.</strong>', 4600);
         await loadAssignmentsForRecipient();
@@ -3591,7 +3636,10 @@ onMounted(() => {
         }
       }
       window.__applyProfileRestriction = applyProfileRestriction;
-      window.__applyAssignmentProfile = function () { applyProfileRestriction(selectedAssignmentProfileKey()); };
+      window.__applyAssignmentProfile = function () {
+        applyProfileRestriction(selectedAssignmentProfileKey());
+        renderAssignmentMeta();
+      };
 
       const FORM_SEL = '.chip, .seg-btn, .triple-btn, .point-btn, .scale-tick, .gmfcs-card, .level-card, .theatre-option, .verdict-option';
       const FORM_TXT = 'textarea, input[type="text"], input[type="number"], input[type="search"]';
@@ -3613,6 +3661,74 @@ onMounted(() => {
         return { scope: profileKey || null, sel, txt };
       }
       window.__snapshotFormState = snapshotFormState;
+
+      function collectBlockScores(profileKey) {
+        const root = blockRootForProfile(profileKey);
+        if (!root) return {};
+
+        const isOn = (el) => {
+          if (el.hasAttribute('aria-checked')) return el.getAttribute('aria-checked') === 'true';
+          return el.classList.contains('active') || el.classList.contains('selected');
+        };
+        const text = (el) => (el && el.textContent ? el.textContent.replace(/\s+/g, ' ').trim() : '');
+
+        const optionText = (el) => {
+          const title = q('.lvname, .ln, .tn, .opt-title', el);
+          if (!title) return text(el);
+          let head = text(title);
+          const badge = q('.badge-num', title);
+          if (badge) head = head.replace(text(badge), '').trim();
+          const lv = text(q('.lv', el));
+          const desc = text(q('.lvdesc', el));
+          return [lv, head, desc ? '· ' + desc : ''].filter(Boolean).join(' ').trim() || text(el);
+        };
+
+        const labelFor = (el, fallback) => {
+          const rg = el.closest('[role="radiogroup"]');
+          const aria = rg && rg.getAttribute('aria-label');
+          if (aria && aria.trim()) return aria.trim();
+          const row = el.closest('.test-row, .scale-row, .theatre-row');
+          const rowName = row && (q('.tn', row) || q('.scale-name', row));
+          if (rowName && text(rowName)) return text(rowName);
+          const fs = el.closest('fieldset.qgroup, .qgroup');
+          const fsName = fs && q('.qlabel-text', fs);
+          if (fsName && text(fsName)) return text(fsName);
+          return fallback || 'Критерий';
+        };
+
+        const scores = [];
+        qa('.scale-row', root).forEach((row) => {
+          const ticks = qa('.scale-tick', row);
+          if (!ticks.length) return;
+          const max = ticks.reduce((m, t) => Math.max(m, Number(t.dataset.val) || 0), 0);
+          const chosen = ticks.find(isOn);
+          if (!chosen) return;
+          scores.push({
+            key: row.dataset.scale || text(q('.scale-name', row)),
+            label: text(q('.scale-name', row)) || labelFor(ticks[0], row.dataset.scale),
+            value: Number(chosen.dataset.val),
+            max
+          });
+        });
+
+        const groups = new Map();
+        qa('[data-group]', root).forEach((el) => {
+          const key = el.dataset.group;
+          if (!key) return;
+          if (!groups.has(key)) groups.set(key, []);
+          groups.get(key).push(el);
+        });
+
+        const answers = [];
+        groups.forEach((els, key) => {
+          const picked = els.filter(isOn).map(optionText).filter(Boolean);
+          if (!picked.length) return;
+          answers.push({ key, label: labelFor(els[0], key), value: picked.join(', ') });
+        });
+
+        return (scores.length || answers.length) ? { scores, answers } : {};
+      }
+      window.__collectBlockScores = collectBlockScores;
 
       function resetFormState(root) {
         if (!root) return;
@@ -4243,6 +4359,7 @@ onMounted(() => {
       });
       q('#assignment-target')?.addEventListener('change', () => {
         applyProfileRestriction(selectedAssignmentProfileKey());
+        renderAssignmentMeta();
       });
       q('[data-action="download-pdf"]')?.addEventListener('click', downloadReportPdf);
       document.addEventListener('click', (e) => {
@@ -4321,7 +4438,12 @@ onMounted(() => {
         socSubtabsH = socSubtabs ? socSubtabs.offsetHeight : 0;
 
         const prevStickOffset = stickOffset;
-        stickOffset = topbarH + heroH;
+        const heroSticks = getComputedStyle(hero).position === 'sticky';
+        stickOffset = topbarH + (heroSticks ? heroH : 0);
+        if (!heroSticks && hero.classList.contains('is-stuck')) {
+          hero.classList.remove('is-stuck');
+          heroStuck = false;
+        }
         const socHeadVisible = socCard && !socCard.classList.contains('collapsed');
         stickOffsetInner = stickOffset + (socHeadVisible ? socHeadH : 0);
         stickOffsetSubhead = stickOffsetInner + (socHeadVisible ? socSubtabsH : 0);
@@ -4340,7 +4462,8 @@ onMounted(() => {
         const io = new IntersectionObserver((entries) => {
           for (const entry of entries) {
 
-            const shouldStick = !entry.isIntersecting && entry.boundingClientRect.top < 0;
+            const shouldStick = !entry.isIntersecting && entry.boundingClientRect.top < 0
+              && getComputedStyle(hero).position === 'sticky';
             if (shouldStick !== heroStuck) {
               heroStuck = shouldStick;
               hero.classList.toggle('is-stuck', shouldStick);
@@ -5040,6 +5163,10 @@ onMounted(() => {
 onUnmounted(() => {
   document.documentElement.style.removeProperty('--bg-app');
   document.documentElement.style.removeProperty('--fab-offset');
+  document.documentElement.style.removeProperty('--save-bar-h');
+  if (fabOffsetQuery) fabOffsetQuery.disconnect();
+  fabOffsetQuery = null;
+  syncFabOffset = null;
   window.__forcedProfileKey = '';
   window.__openRecipientPicker = null;
   window.__renderPeers = null;
@@ -5267,6 +5394,7 @@ onUnmounted(() => {
     .diagnostics-page{ font-size: 100%; }
     .diagnostics-page{
       min-height: calc(100vh - var(--project-topbar-h, 3.75rem));
+      min-height: calc(100dvh - var(--project-topbar-h, 3.75rem));
       font-family: var(--font-sans);
       font-size: 0.9375rem;
       line-height: 1.55;
@@ -5395,6 +5523,7 @@ onUnmounted(() => {
       width: 100%;
       max-width: 36rem;
       max-height: calc(100vh - 2rem);
+      max-height: calc(100dvh - var(--kb, 0px) - 2rem);
       display: flex;
       flex-direction: column;
       overflow: hidden;
@@ -5549,13 +5678,24 @@ onUnmounted(() => {
     .diagnostics-page .modal-foot-spacer{ flex: 1; }
 
     @media (max-width: 30rem) {
-      .diagnostics-page .modal{ max-height: calc(100vh - 1rem); border-radius: 0.875rem; }
+      .diagnostics-page .modal-backdrop{ align-items: flex-end; padding: 0 0 var(--kb, 0px); }
+      .diagnostics-page .modal{
+        max-height: calc(100dvh - var(--kb, 0px) - 2.5rem);
+        border-radius: 0.875rem 0.875rem 0 0;
+        padding-left: var(--safe-left, 0px);
+        padding-right: var(--safe-right, 0px);
+        animation: modalSheetIn 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+      }
       .diagnostics-page .modal-head{ padding: 1rem 1rem 0.875rem; }
       .diagnostics-page .modal-search{ padding: 0.75rem 1rem; }
-      .diagnostics-page .modal-list{ padding: 0.375rem; }
-      .diagnostics-page .modal-foot{ padding: 0.75rem 1rem; flex-wrap: wrap; }
-      .diagnostics-page .modal-foot .btn{ flex: 1; }
+      .diagnostics-page .modal-list{ padding: 0.375rem; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+      .diagnostics-page .modal-foot{ padding: 0.75rem 1rem calc(0.75rem + var(--safe-bottom, 0px)); flex-wrap: wrap; }
+      .diagnostics-page .modal-foot .btn{ flex: 1; min-height: 2.75rem; }
       .diagnostics-page .modal-foot-spacer{ flex: 1 1 100%; }
+    }
+    @keyframes modalSheetIn {
+      from { transform: translateY(100%); }
+      to { transform: none; }
     }
 
     .diagnostics-page .app{
@@ -6765,6 +6905,7 @@ onUnmounted(() => {
       font-weight: 500;
       margin-top: 0.1875rem;
     }
+    .diagnostics-page .qgroup{ min-width: 0; }
     .diagnostics-page .qgroup + .qgroup{
       border-top: 0.0625rem solid var(--line-soft);
       padding-top: 1.25rem;
@@ -7003,6 +7144,11 @@ onUnmounted(() => {
       border: 0.0625rem solid var(--line-strong); border-radius: 0.5rem;
       background: var(--paper, #fff); color: inherit; cursor: pointer;
     }
+    .diagnostics-page .save-bar-assign-meta{
+      font-size: 0.72rem; color: var(--ink-soft, #6b7280);
+      max-width: 22rem; overflow-wrap: anywhere;
+    }
+    .diagnostics-page .save-bar-assign-meta:empty{ display: none; }
     .diagnostics-page .test-list{ display: grid; gap: 0.75rem; }
     .diagnostics-page .test-row{
       display: grid;
@@ -7541,7 +7687,7 @@ onUnmounted(() => {
       .diagnostics-page .mobile-route{ display: block; margin-bottom: 0.75rem; }
     }
     @media (max-width: 56.25rem) {
-      .diagnostics-page .app{ grid-template-columns: 1fr; }
+      .diagnostics-page .app{ grid-template-columns: minmax(0, 1fr); }
       .diagnostics-page .sidebar{ display: none; }
       .diagnostics-page .content{ padding: 1rem 1rem 10rem; }
       .diagnostics-page .topbar{ padding: 0.75rem 1rem; }
@@ -7597,7 +7743,7 @@ onUnmounted(() => {
       .diagnostics-page .save-state{ display: none; }
       .diagnostics-page .route-tiles{ grid-template-columns: 1fr; }
       .diagnostics-page .stage-meta{ display: none; }
-      .diagnostics-page .stage-head-clickable{ grid-template-columns: auto 1fr auto; gap: 0.5rem; }
+      .diagnostics-page .stage-head-clickable{ grid-template-columns: auto minmax(0, 1fr) auto; gap: 0.5rem; }
       .diagnostics-page .verdict-options{ grid-template-columns: 1fr; }
       .diagnostics-page .scale-tick{ font-size: 0.6875rem; }
     }
@@ -8128,5 +8274,202 @@ onUnmounted(() => {
       .diagnostics-page .ds-start{ flex: 1 1 auto; min-width: 0; }
       .diagnostics-page .ds-kind{ flex: 0 1 auto; min-width: 0; }
       .diagnostics-page .ds-btn-start{ flex: 1 1 auto; min-width: 0; }
+    }
+
+    @media (max-width: 768px){
+      .diagnostics-page .save-bar{
+        left: 0;
+        bottom: calc(var(--bottom-nav-h, 4.375rem) + var(--safe-bottom, 0px));
+        padding: 0.75rem max(1rem, var(--safe-left, 0px)) 0.75rem max(1rem, var(--safe-right, 0px));
+        flex-wrap: wrap;
+        gap: 0.625rem;
+      }
+      .diagnostics-page .save-bar-spacer{ display: none; }
+      .diagnostics-page .save-bar-assign{ flex: 1 1 100%; min-width: 0; }
+      .diagnostics-page .save-bar-assign-select{
+        width: 100%; max-width: none; font-size: 1rem;
+        min-height: var(--tap, 2.75rem); padding: 0.5rem 0.75rem;
+        text-overflow: ellipsis;
+      }
+      .diagnostics-page .save-bar-assign-meta{ max-width: none; font-size: 0.75rem; }
+      .diagnostics-page .save-bar-actions{ flex: 1 1 100%; flex-wrap: wrap; gap: 0.5rem; min-width: 0; }
+      .diagnostics-page .save-bar-actions > .btn{
+        flex: 1 1 0;
+        min-width: 0;
+        white-space: normal;
+        min-height: var(--tap, 2.75rem);
+        font-size: 0.8125rem;
+        padding: 0.5rem 0.625rem;
+      }
+      .diagnostics-page .save-bar-actions > .btn-primary{ flex: 1 1 100%; font-size: 0.9375rem; }
+      .diagnostics-page .toast{
+        left: max(0.75rem, var(--safe-left, 0px));
+        right: max(0.75rem, var(--safe-right, 0px));
+        bottom: calc(var(--bottom-nav-h, 4.375rem) + var(--safe-bottom, 0px) + 0.75rem);
+      }
+
+      .diagnostics-page .hero{
+        position: static;
+        z-index: auto;
+        grid-template-columns: auto 1fr;
+        gap: 0.75rem 0.875rem;
+        padding: 0.875rem 1rem 1rem;
+        margin-bottom: 0.75rem;
+        align-items: start;
+      }
+      .diagnostics-page .hero-sticky-sentinel{ display: none; }
+      .diagnostics-page .hero-avatar{
+        width: 3rem; height: 3rem;
+        flex: 0 0 3rem;
+        font-size: 1.1875rem;
+      }
+      .diagnostics-page .hero-eyebrow{ font-size: 0.6875rem; margin-bottom: 0.125rem; }
+      .diagnostics-page .hero-name{ font-size: 1.3125rem; margin-bottom: 0; }
+      .diagnostics-page .hero-name-row{ gap: 0.5rem; }
+      .diagnostics-page .hero-switch{
+        min-height: var(--tap, 2.75rem);
+        padding: 0.375rem 0.875rem;
+        margin-bottom: 0;
+      }
+      .diagnostics-page .hero-meta{ font-size: 0.8125rem; gap: 0.25rem 0.625rem; margin-top: 0.25rem; }
+      .diagnostics-page .hero-section-tag{ display: none; }
+      .diagnostics-page .hero-progress{
+        grid-column: 1 / -1;
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: baseline;
+        gap: 0.375rem 0.75rem;
+        width: 100%;
+        min-width: 0;
+        margin-top: 0.125rem;
+      }
+      .diagnostics-page .hero-progress .progress-pct{ font-size: 1.125rem; }
+      .diagnostics-page .hero-progress .progress-track{ grid-column: 1 / -1; }
+
+      .diagnostics-page .diag-gate{ min-height: 0; padding: 1.5rem 0.25rem 0.5rem; }
+      .diagnostics-page .diag-gate-card{
+        padding: 1.75rem 1.25rem;
+        gap: 1.25rem;
+        border-radius: 1.25rem;
+        align-items: stretch;
+      }
+      .diagnostics-page .diag-gate-body{ width: 100%; }
+      .diagnostics-page .diag-gate-iconwrap{ width: 7.5rem; height: 7.5rem; align-self: center; }
+      .diagnostics-page .diag-gate-icon{ width: 5.75rem; height: 5.75rem; }
+      .diagnostics-page .diag-gate-icon svg{ width: 2.5rem; height: 2.5rem; }
+      .diagnostics-page .diag-gate-title{ font-size: 1.375rem; }
+      .diagnostics-page .diag-gate-text{ font-size: 0.9375rem; margin-bottom: 1.25rem; }
+      .diagnostics-page .diag-gate-actions{ width: 100%; }
+      .diagnostics-page .diag-gate-btn.btn-primary{ width: 100%; min-height: var(--tap, 2.75rem); }
+
+      .diagnostics-page .diag-switch{ padding: 0.875rem 0.875rem 1rem; margin-bottom: 0.75rem; }
+      .diagnostics-page .ds-tabs{
+        margin: 0 -0.875rem;
+        padding: 0.125rem 0.875rem 0.375rem;
+        scroll-snap-type: x proximity;
+        scroll-padding-left: 0.875rem;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+      }
+      .diagnostics-page .ds-tabs::-webkit-scrollbar{ display: none; }
+      .diagnostics-page .ds-tab{ scroll-snap-align: start; min-height: var(--tap, 2.75rem); padding: 0.5rem 0.875rem 0.625rem; }
+      .diagnostics-page .ds-actions{ gap: 0.5rem; }
+      .diagnostics-page .ds-btn{ min-height: var(--tap, 2.75rem); font-size: 0.875rem; }
+      .diagnostics-page .ds-kind{ min-height: var(--tap, 2.75rem); font-size: 1rem; padding: 0 0.75rem; }
+      .diagnostics-page .ds-note{ font-size: 0.8125rem; }
+
+      .diagnostics-page .route{ padding: 0.875rem 0.875rem 1rem; margin-bottom: 0.75rem; }
+      .diagnostics-page .stage-tile{ min-height: var(--tap, 2.75rem); }
+      .diagnostics-page .mobile-route select{ font-size: 1rem; min-height: var(--tap, 2.75rem); }
+
+      .diagnostics-page .stage-head-clickable{
+        padding: 0.875rem;
+        gap: 0.625rem;
+        min-height: var(--tap, 2.75rem);
+        grid-template-columns: auto minmax(0, 1fr) auto;
+      }
+      .diagnostics-page .stage-num{ width: 2.125rem; height: 2.125rem; flex: 0 0 2.125rem; font-size: 0.875rem; }
+      .diagnostics-page .stage-info .title{ font-size: 1.0625rem; overflow-wrap: anywhere; }
+      .diagnostics-page .stage-info .sub-row{ overflow-wrap: anywhere; }
+      .diagnostics-page .stage-chevron{ width: 1.5rem; flex: 0 0 1.5rem; }
+      .diagnostics-page .stage-body{ padding: 1rem 0.875rem 1.125rem; }
+
+      .diagnostics-page .stage-actions,
+      .diagnostics-page .subblock-actions{ min-width: 0; gap: 0.5rem; }
+      .diagnostics-page .stage-actions .spacer,
+      .diagnostics-page .subblock-actions .spacer{ display: none; }
+      .diagnostics-page .stage-actions .signed-note,
+      .diagnostics-page .subblock-actions .signed-note{ flex: 1 1 100%; min-width: 0; }
+      .diagnostics-page .stage-actions > .btn,
+      .diagnostics-page .subblock-actions > .btn{
+        flex: 1 1 100%;
+        min-width: 0;
+        white-space: normal;
+        min-height: var(--tap, 2.75rem);
+      }
+      .diagnostics-page .hint-pending{ flex: 1 1 100%; min-width: 0; }
+      .diagnostics-page .subtabs-wrap{
+        margin: 0 -0.875rem 1rem;
+        padding: 0.25rem 0.875rem;
+        border-radius: 0;
+        scroll-snap-type: x proximity;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior-x: contain;
+        scrollbar-width: none;
+      }
+      .diagnostics-page .subtabs-wrap::-webkit-scrollbar{ display: none; }
+      .diagnostics-page .subtab{ scroll-snap-align: start; min-height: var(--tap, 2.75rem); }
+
+      .diagnostics-page .chip,
+      .diagnostics-page .seg-btn,
+      .diagnostics-page .point-btn,
+      .diagnostics-page .triple-btn{ min-height: var(--tap, 2.75rem); }
+
+      .diagnostics-page .segmented{ flex-wrap: wrap; }
+      .diagnostics-page .seg-btn,
+      .diagnostics-page .triple-btn{
+        min-width: min-content;
+        word-break: normal;
+        overflow-wrap: normal;
+        hyphens: none;
+      }
+      .diagnostics-page .seg-btn{ flex: 1 1 8rem; }
+      .diagnostics-page .triple-control{ flex-wrap: wrap; }
+      .diagnostics-page .triple-btn{ flex: 1 1 7rem; }
+      .diagnostics-page .chip{ max-width: 100%; overflow-wrap: break-word; }
+      .diagnostics-page .subpanel,
+      .diagnostics-page .sub-section,
+      .diagnostics-page .test-list{ min-width: 0; }
+      .diagnostics-page .scale-tick{ min-height: 2.625rem; font-size: 0.875rem; }
+      .diagnostics-page .scale-bar{ gap: 0.125rem; }
+      .diagnostics-page .input,
+      .diagnostics-page .textarea,
+      .diagnostics-page select,
+      .diagnostics-page input,
+      .diagnostics-page textarea{ font-size: 1rem; }
+
+      .diagnostics-page .content{
+        padding-top: 0.875rem;
+        padding-left: max(0.875rem, var(--safe-left, 0px));
+        padding-right: max(0.875rem, var(--safe-right, 0px));
+        padding-bottom: calc(var(--bottom-nav-h, 4.375rem) + var(--safe-bottom, 0px) + var(--save-bar-h, 13.5rem) + 1rem);
+      }
+      .diagnostics-page{ overflow-x: clip; max-width: 100%; }
+      .diagnostics-page .content{ overflow-x: clip; }
+    }
+
+    @media (hover: none){
+      .diagnostics-page .ds-tab:hover{ background: var(--paper-soft); border-color: var(--line); }
+      .diagnostics-page .ds-tab.is-active:hover{ background: var(--paper); border-color: var(--sage-500); }
+      .diagnostics-page .stage-head-clickable:hover{ background: transparent; }
+      .diagnostics-page .subtab:hover:not(.active){ background: transparent; color: var(--ink-muted); }
+      .diagnostics-page .chip:hover:not(.selected){ background: var(--paper-soft); border-color: var(--line-soft); }
+      .diagnostics-page .seg-btn:hover:not(.active){ background: transparent; color: var(--ink-muted); }
+      .diagnostics-page .scale-tick:hover:not(.active):not(.below){ background: var(--paper); color: var(--ink-muted); }
+      .diagnostics-page .hero-switch:hover{ background: var(--sage-50); border-color: var(--sage-100); color: var(--sage-700); }
+      .diagnostics-page .hero-name.is-changeable:hover{ text-decoration: none; color: var(--ink-strong); }
+      .diagnostics-page .input:hover,
+      .diagnostics-page .textarea:hover{ border-color: var(--line-strong); }
     }
 </style>

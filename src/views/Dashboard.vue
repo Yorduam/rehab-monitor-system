@@ -1048,4 +1048,23 @@ table.dtbl tbody td { padding: 0.9375rem 1.25rem; font-size: 0.9375rem; vertical
   .info-main  { flex-direction: column; align-items: flex-start; gap: 1.25rem; }
   .info-stats { grid-template-columns: 1fr 1fr; }
 }
+
+@media (max-width: 768px) {
+  .page-head { gap: 0.875rem; margin-bottom: 1.25rem; }
+  .page-head-text { flex: 1 1 100%; }
+  .page-sub { font-size: 0.875rem; }
+  .db-btn { flex: 1 1 auto; justify-content: center; }
+  .card-head { padding: 1rem 1rem 0.75rem; flex-wrap: wrap; }
+  .ch-actions { width: 100%; flex-wrap: wrap; }
+  .info-body { padding: 1.125rem 1rem 1rem; }
+  .info-ring { flex: 0 0 6rem; width: 6rem; height: 6rem; }
+  .diag-toolbar { padding: 0.875rem 1rem; }
+  .diag-search { flex: 1 1 100%; }
+  .kpi-track { flex: 0 0 3.5rem; width: 3.5rem; }
+  .pg-btn { min-width: var(--tap, 2.75rem); }
+}
+@media (hover: none) {
+  .pg-btn:hover:not([disabled]) { background: none; color: inherit; }
+  .pg-btn.active:hover { background: var(--db-sage-900); color: #F4F8EC; }
+}
 </style>

@@ -4,12 +4,35 @@
     <p class="subtitle">Войдите в систему ERP-Реабилитация</p>
     <form @submit.prevent="handleLogin">
       <div class="form-group">
-        <label>Email</label>
-        <input type="email" v-model="email" placeholder="example@mail.ru" required />
+        <label for="login-email">Email</label>
+        <input
+          id="login-email"
+          type="email"
+          v-model="email"
+          placeholder="example@mail.ru"
+          required
+          inputmode="email"
+          autocomplete="username"
+          autocapitalize="none"
+          autocorrect="off"
+          spellcheck="false"
+          enterkeyhint="next"
+        />
       </div>
       <div class="form-group">
-        <label>Пароль</label>
-        <input type="password" v-model="password" placeholder="••••••••" required />
+        <label for="login-password">Пароль</label>
+        <input
+          id="login-password"
+          type="password"
+          v-model="password"
+          placeholder="••••••••"
+          required
+          autocomplete="current-password"
+          autocapitalize="none"
+          autocorrect="off"
+          spellcheck="false"
+          enterkeyhint="go"
+        />
       </div>
       <button type="submit" class="btn-primary" :disabled="loading">
         {{ loading ? 'Вход...' : 'Войти' }}
@@ -101,5 +124,10 @@ h2 {
   color: var(--red);
   font-size: 0.85rem;
   text-align: center;
+}
+@media (max-width: 768px) {
+  .login-form { padding: 1.5rem 1.25rem; }
+  .form-group input { font-size: 1rem; min-height: var(--tap, 2.75rem); }
+  .btn-primary { min-height: var(--tap, 2.75rem); font-size: 1rem; }
 }
 </style>

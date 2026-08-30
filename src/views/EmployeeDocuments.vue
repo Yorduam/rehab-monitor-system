@@ -384,4 +384,24 @@ onMounted(() => {
 .ed-doc { padding: 0.5rem 0.75rem; background: #F7F4ED; border-radius: 0.5rem; margin-bottom: 0.5rem; }
 .ed-doc .ed-row:last-child { border-bottom: none; padding-bottom: 0; }
 .ed-muted { color: #6E7368; font-style: italic; font-size: 0.875rem; }
+
+@media (max-width: 768px) {
+  .ed-title { font-size: 1.375rem; }
+  .ed-sub { font-size: 0.875rem; }
+  .ed-head { margin-bottom: 1rem; }
+  .ed-card-head { padding: 0.875rem 1rem; flex-wrap: wrap; }
+  .ed-btn { flex: 1 1 100%; justify-content: center; min-height: var(--tap, 2.75rem); }
+  .ed-search { padding-left: 1rem; padding-right: 1rem; }
+  .ed-list { max-height: 17rem; -webkit-overflow-scrolling: touch; overscroll-behavior-y: contain; }
+  .ed-item { min-height: var(--tap, 2.75rem); padding-left: 1rem; padding-right: 1rem; }
+  .ed-preview { padding: 1rem 1rem 1.25rem; }
+  .ed-placeholder { padding: 2.25rem 1rem; }
+  .ed-row { flex-direction: column; gap: 0.125rem; }
+  .ed-row b { text-align: left; }
+}
+@media (hover: none) {
+  .ed-item:hover { background: transparent; }
+  .ed-item.active:hover { background: #EEF4E2; }
+  .ed-btn:hover:not(:disabled) { background: #2F4A2F; }
+}
 </style>

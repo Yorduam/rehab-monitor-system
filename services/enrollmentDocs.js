@@ -14,10 +14,15 @@ export const VERDICT_LABELS = {
 };
 
 export const ENROLL_DOCS = [
-  { key: 'contract', scanCode: 'signed-contract', title: 'Договор оказания услуг' },
-  { key: 'enroll',   scanCode: 'signed-enroll',   title: 'Заявление о зачислении на курс' },
-  { key: 'plan',     scanCode: 'signed-plan',     title: 'Индивидуальный план' }
+  { key: 'pdn',      scanCode: 'signed-pdn',      title: 'Согласие на обработку ПДн',      required: true },
+  { key: 'photo',    scanCode: 'signed-photo',    title: 'Согласие на фото/видео',         required: false },
+  { key: 'contract', scanCode: 'signed-contract', title: 'Договор оказания услуг',         required: true },
+  { key: 'enroll',   scanCode: 'signed-enroll',   title: 'Заявление на зачисление',        required: true }
 ];
+
+const REQUIRED_CODES = new Set(ENROLL_DOCS.filter((d) => d.required).map((d) => d.scanCode));
+
+export const REQUIRED_ENROLL_CODES = REQUIRED_CODES;
 
 const DISABILITY_TO_CODE = {
   'Ребенок-инвалид': 'child',
@@ -119,7 +124,7 @@ export async function getEnrollmentState(recipientId) {
   const scans = typeIds.length
     ? await RecipientScanDoc.findAll({
         where: { recipId: recipient.id, docType: { [Op.in]: typeIds } },
-        attributes: ['id', 'docType', 'isCurrent', 'originalName', 'uploadedAt']
+        attributes: ['id', 'docType', 'isCurrent', 'originalName', 'uploadedAt', 'issuedAt', 'validUntil', 'perpetual']
       })
     : [];
 
@@ -138,12 +143,16 @@ export async function getEnrollmentState(recipientId) {
     return {
       key: d.key,
       title: d.title,
+      required: !!d.required,
       scanCode: d.scanCode,
       scanTypeId: byCode.get(d.scanCode)?.id || null,
       uploaded: !!scan,
       scanId: scan?.id || null,
       originalName: scan?.originalName || null,
-      uploadedAt: scan?.uploadedAt || null
+      uploadedAt: scan?.uploadedAt || null,
+      issuedAt: scan?.issuedAt || null,
+      validUntil: scan?.validUntil || null,
+      perpetual: !!scan?.perpetual
     };
   });
 
@@ -160,7 +169,8 @@ export async function getEnrollmentState(recipientId) {
     issuedAt: conclusion?.issuedAt || null,
     docs,
     signedCount: docs.filter((d) => d.uploaded).length,
-    allSigned: docs.every((d) => d.uploaded),
+    totalDocs: docs.length,
+    allSigned: docs.every((d) => d.uploaded || !d.required),
     enrolled: !!recipient.groupId
   };
 }
@@ -187,6 +197,34 @@ export async function generateEnrollmentDocument(recipientId, docKey) {
   const form = buildFormFromRecipient(bundle.recipient, bundle.rep, bundle.doc);
   return generateDocument(docKey, form);
 }
+
+/**
+ * @returns {Promise<Map<number, Set<string>>>} id → набор scanCode
+ */
+export async function signedEnrollCodesFor(recipientIds) {
+  const ids = [...new Set((recipientIds || []).filter((x) => x != null))];
+  const signed = new Map(ids.map((id) => [id, new Set()]));
+  if (!ids.length) return signed;
+
+  const { byCode, byId } = await scanCodeMap();
+  const typeIds = ENROLL_DOCS.map((d) => byCode.get(d.scanCode)?.id).filter((x) => x != null);
+  if (!typeIds.length) return signed;
+
+  const scans = await RecipientScanDoc.findAll({
+    where: { recipId: { [Op.in]: ids }, docType: { [Op.in]: typeIds } },
+    attributes: ['recipId', 'docType', 'isCurrent']
+  });
+
+  for (const s of scans) {
+    if (s.isCurrent === false) continue;
+    const code = byId.get(s.docType);
+    if (code && signed.has(s.recipId)) signed.get(s.recipId).add(code);
+  }
+  return signed;
+}
+
+export const hasAllRequiredEnrollDocs = (codes) =>
+  [...REQUIRED_CODES].every((code) => codes?.has(code));
 
 export async function findPendingEnrollment(limit = 50) {
   const conclusions = await DiagnosticConclusion.findAll({
@@ -234,7 +272,7 @@ export async function findPendingEnrollment(limit = 50) {
   const rows = [];
   for (const r of recipients) {
     const signed = signedByRecipient.get(r.id) || new Set();
-    if (signed.size >= ENROLL_DOCS.length) continue;
+    if ([...REQUIRED_CODES].every((code) => signed.has(code))) continue;
 
     const c = firstByRecipient.get(r.id);
     rows.push({

@@ -61,9 +61,12 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, watch, onBeforeUnmount } from 'vue';
 import api from '../api';
 import { notifySaved } from '../utils/toast';
+import { useUiStore } from '../stores/ui';
+
+const ui = useUiStore();
 
 const props = defineProps({
   locked: { type: Boolean, default: false },
@@ -110,6 +113,14 @@ const close = () => {
   if (sending.value) return;
   asking.value = false;
 };
+
+watch(asking, (open) => {
+  if (open) ui.lockScroll();
+  else ui.unlockScroll();
+});
+onBeforeUnmount(() => {
+  if (asking.value) ui.unlockScroll();
+});
 
 const submit = async () => {
   if (!reasonCode.value || sending.value) return;
@@ -235,4 +246,33 @@ const submit = async () => {
 .lb-ok { border: 0.0625rem solid var(--sage-500, #5F7E45); background: var(--sage-500, #5F7E45); color: #fff; }
 .lb-ok:disabled, .lb-cancel:disabled { opacity: 0.55; cursor: default; }
 .lb-ok:not(:disabled):hover { background: var(--sage-700, #2F4A2F); border-color: var(--sage-700, #2F4A2F); }
+
+@media (max-width: 768px) {
+  .lb-modal { align-items: end; padding: 0 0 var(--kb, 0px); overflow: hidden; }
+  .lb-box {
+    width: 100%;
+    max-height: calc(100dvh - var(--kb, 0px) - 2.5rem);
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    border-radius: var(--radius-lg, 14px) var(--radius-lg, 14px) 0 0;
+    padding: 1.25rem max(1.25rem, var(--safe-left, 0px)) calc(1.25rem + var(--safe-bottom, 0px)) max(1.25rem, var(--safe-right, 0px));
+    animation: lbSheetIn 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .lb-input { font-size: 1rem; min-height: var(--tap, 2.75rem); }
+  .lb-area { min-height: 5.5rem; }
+  .lb-actions { flex-direction: column-reverse; }
+  .lb-cancel, .lb-ok { width: 100%; min-height: var(--tap, 2.75rem); font-size: 0.9375rem; }
+}
+@keyframes lbSheetIn {
+  from { transform: translateY(100%); }
+  to { transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lb-box { animation: none; }
+}
+@media (hover: none) {
+  .lb-btn:hover { background: var(--sage-500, #5F7E45); border-color: var(--sage-500, #5F7E45); }
+  .lb-ok:not(:disabled):hover { background: var(--sage-500, #5F7E45); border-color: var(--sage-500, #5F7E45); }
+}
 </style>

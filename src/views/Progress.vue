@@ -306,4 +306,14 @@ onUnmounted(() => {
 .card-body {
   padding: 1.5rem;
 }
+
+@media (max-width: 768px) {
+  .p-title { font-size: 1.375rem; }
+  .toolbar { flex-direction: column; align-items: stretch; gap: 0.75rem; }
+  .search, .styled-select { width: 100%; }
+  .items-grid { grid-template-columns: 1fr; }
+  .card-header { padding: 0.875rem 1rem; }
+  .item-card { min-width: 0; }
+  .tags { flex-wrap: wrap; }
+}
 </style>

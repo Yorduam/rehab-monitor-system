@@ -77,11 +77,11 @@ import { toasts, dismissToast } from '../utils/toast';
 
 @media (max-width: 48rem) {
   .toast-host {
-    left: 1rem;
-    right: 1rem;
-    bottom: 5.5rem;
+    left: max(1rem, var(--safe-left, 0px));
+    right: max(1rem, var(--safe-right, 0px));
+    bottom: calc(var(--bottom-nav-h, 4.375rem) + var(--safe-bottom, 0px) + 0.75rem);
     align-items: stretch;
   }
-  .toast { max-width: none; text-align: center; justify-content: center; }
+  .toast { max-width: none; text-align: center; justify-content: center; min-height: var(--tap, 2.75rem); }
 }
 </style>

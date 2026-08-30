@@ -433,4 +433,20 @@ onUnmounted(() => {
 .btn-ghost-sm:hover { background: var(--btn-ghost-bg-hover); color: var(--btn-ghost-fg-hover); }
 .btn-ghost-sm.danger { color: var(--btn-danger-fg); }
 .btn-ghost-sm.danger:hover { background: var(--btn-danger-bg-hover); color: var(--btn-danger-fg); }
+
+@media (max-width: 768px) {
+  .doc-head { flex-direction: column; align-items: stretch; margin-bottom: 1.25rem; }
+  .doc-title { font-size: 1.375rem; }
+  .doc-toolbar { flex-direction: column; align-items: stretch; gap: 0.75rem; }
+  .doc-search { width: 100%; }
+  .doc-search input { width: 100%; }
+  .add-btn { width: 100%; justify-content: center; }
+
+  .doc-table { min-width: 48rem; }
+  .doc-table th, .doc-table td { padding: 0.7rem 0.75rem; }
+
+  .form-row { grid-template-columns: 1fr; }
+  .modal-buttons { flex-direction: column-reverse; }
+  .modal-buttons > * { width: 100%; }
+}
 </style>
