@@ -19,13 +19,13 @@ const Recipient = sequelize.define('Recipient', {
       return v == null ? v : v.toString('utf8');
     }
   },
-  representativeId: { type: DataTypes.INTEGER, allowNull: false },
+  representativeId: { type: DataTypes.INTEGER, allowNull: true },
   status: { type: DataTypes.ENUM('draft', 'active', 'archived'), defaultValue: 'active' },
   disableGroup: {
     type: DataTypes.ENUM('Ребенок-инвалид', 'I группа', 'II группа', 'III группа', 'Нет'),
     defaultValue: 'Нет'
   },
-  diagnosis: { type: DataTypes.STRING(255), allowNull: false },
+  diagnosis: { type: DataTypes.TEXT, allowNull: false },
   nozology: { type: DataTypes.INTEGER, allowNull: false },
   groupId: { type: DataTypes.INTEGER, allowNull: true },
   CRGMain: { type: DataTypes.INTEGER, allowNull: false },

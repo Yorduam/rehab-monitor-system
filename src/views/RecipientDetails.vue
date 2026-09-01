@@ -76,7 +76,7 @@
           <div class="hero-actions">
             <a v-if="repPhoneHref" class="btn btn-secondary" :href="repPhoneHref">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.86 19.86 0 0 1 3.09 4.18 2 2 0 0 1 5.07 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L9.09 10a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
-              Позвонить представителю
+              {{ repCallLabel }}
             </a>
             <button class="btn btn-secondary" type="button" @click="goBack">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
@@ -148,7 +148,7 @@
           </span>
           <span v-else-if="t.id === 'lessons' && lessonsCount" class="tab-count">{{ lessonsCount }}</span>
           <span v-else-if="t.id === 'diagnostics' && diagCount" class="tab-count">{{ diagCount }}</span>
-          <span v-else-if="t.id === 'documents' && scans.length" class="tab-count">{{ scans.length }}</span>
+          <span v-else-if="t.id === 'documents' && docsMissing" class="tab-count tab-count-warn" :title="`Не загружено документов: ${docsMissing}`">{{ docsMissing }}</span>
         </button>
       </div>
 
@@ -163,9 +163,29 @@
                     <dt class="kv-key">Дата рождения</dt>
                     <dd class="kv-val"><span class="kv-text">{{ formatDate(recipient.birthDate) }}<template v-if="age != null"> · {{ age }} {{ yearsWord(age) }}</template></span></dd>
                   </div>
+                  <div class="kv" :class="{ 'is-secret': isLocked('passport') }">
+                    <dt class="kv-key">Документ</dt>
+                    <dd class="kv-val">
+                      <template v-if="isLocked('passport')">
+                        <span class="kv-mask">•••• ••••••</span>
+                        <span class="kv-tools">
+                          <button type="button" class="kv-tool" title="Показать данные"
+                                  aria-label="Показать документ, удостоверяющий личность — с указанием причины"
+                                  @click="openReveal('passport')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                          </button>
+                        </span>
+                      </template>
+                      <span v-else class="kv-text">{{ [doc?.docType, doc?.docSeries, doc?.docNumber].filter(Boolean).join(' ') || '—' }}</span>
+                    </dd>
+                  </div>
                   <div class="kv">
                     <dt class="kv-key">Группа инвалидности</dt>
                     <dd class="kv-val"><span class="kv-text">{{ recipient.disableGroup || '—' }}</span></dd>
+                  </div>
+                  <div class="kv">
+                    <dt class="kv-key">Округ проживания</dt>
+                    <dd class="kv-val"><span class="kv-text"><span v-if="district?.code" class="code">{{ district.code }}</span>{{ district?.name || '—' }}</span></dd>
                   </div>
                   <div class="kv kv-full">
                     <dt class="kv-key">Целевая реабилитационная группа (ЦРГ)</dt>
@@ -174,10 +194,6 @@
                   <div class="kv kv-full">
                     <dt class="kv-key">Место обучения</dt>
                     <dd class="kv-val"><span class="kv-text">{{ doc?.educationPlace || '—' }}</span></dd>
-                  </div>
-                  <div class="kv">
-                    <dt class="kv-key">Округ проживания</dt>
-                    <dd class="kv-val"><span class="kv-text"><span v-if="district?.code" class="code">{{ district.code }}</span>{{ district?.name || '—' }}</span></dd>
                   </div>
                   <div class="kv">
                     <dt class="kv-key">Группа</dt>
@@ -201,7 +217,7 @@
                           </button>
                         </span>
                       </template>
-                      <span v-else class="kv-text">{{ recipient.diagnosis || '—' }}</span>
+                      <span v-else class="kv-text" :title="formatDiagnoses(recipient.diagnosis)">{{ formatDiagnoses(recipient.diagnosis) || '—' }}</span>
                     </dd>
                   </div>
                 </dl>
@@ -216,14 +232,21 @@
             <section class="card">
               <div class="card-head"><h2 class="card-title-sans">Законный представитель</h2></div>
               <div class="card-body">
-                <div v-if="!recipient.representative" class="empty">Представитель не указан</div>
+                <div v-if="selfRepresented" class="rd-self-rep">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                  <div>
+                    <div class="rd-self-rep-title">Представляет себя сам</div>
+                    <div class="rd-self-rep-sub">Реабилитант совершеннолетний — согласия подписывает лично</div>
+                  </div>
+                </div>
+                <div v-else-if="!recipient.representative" class="empty">Представитель не указан</div>
                 <div v-else class="person">
                   <div class="person-ava" aria-hidden="true">{{ initials(recipient.representative) }}</div>
                   <div class="person-info">
                     <div class="person-name">{{ fullName(recipient.representative) }}</div>
                     <div class="person-role">{{ repRoleLine }}</div>
                   </div>
-                  <a v-if="repPhoneHref" class="icon-btn icon-btn-sm" :href="repPhoneHref" aria-label="Позвонить представителю">
+                  <a v-if="repPhoneHref" class="icon-btn icon-btn-sm" :href="repPhoneHref" :aria-label="repCallLabel">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 16.92v3a2 2 0 0 1-2.18 2A19.86 19.86 0 0 1 3.09 4.18 2 2 0 0 1 5.07 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L9.09 10a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
                   </a>
                 </div>
@@ -287,9 +310,10 @@
           <section class="card">
             <div class="card-head">
               <h2 class="card-title">Личные данные</h2>
-              <button v-if="canEditCard" type="button" class="icon-btn icon-btn-sm"
-                      aria-label="Редактировать карточку" title="Редактировать карточку" @click="openCardEdit">
+              <button v-if="canEditCard" type="button" class="icon-btn icon-btn-sm icon-btn-text"
+                      title="Изменить данные карточки" @click="openCardEdit">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+                Редактировать
               </button>
             </div>
             <div class="card-body">
@@ -298,66 +322,6 @@
                 <div class="kv"><dt class="kv-key">Дата рождения</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(recipient.birthDate) }}<template v-if="age != null"> · {{ age }} {{ yearsWord(age) }}</template></span></dd></div>
                 <div class="kv"><dt class="kv-key">Группа инвалидности</dt><dd class="kv-val"><span class="kv-text">{{ recipient.disableGroup || '—' }}</span></dd></div>
                 <div class="kv kv-full"><dt class="kv-key">Место обучения</dt><dd class="kv-val"><span class="kv-text">{{ doc?.educationPlace || '—' }}</span></dd></div>
-
-                <div class="kv" :class="{ 'is-secret': isLocked('contacts') }">
-                  <dt class="kv-key">Телефон</dt>
-                  <dd class="kv-val">
-                    <template v-if="isLocked('contacts')">
-                      <span class="kv-mask">••• ••• •• ••</span>
-                      <span class="kv-tools">
-                        <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать телефон — с указанием причины" @click="openReveal('contacts')">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
-                        </button>
-                      </span>
-                    </template>
-                    <span v-else class="kv-text">{{ recipient.telephone || '—' }}</span>
-                  </dd>
-                </div>
-                <div class="kv" :class="{ 'is-secret': isLocked('contacts') }">
-                  <dt class="kv-key">E-mail</dt>
-                  <dd class="kv-val">
-                    <template v-if="isLocked('contacts')">
-                      <span class="kv-mask">•••••••••••</span>
-                      <span class="kv-tools">
-                        <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать e-mail — с указанием причины" @click="openReveal('contacts')">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
-                        </button>
-                      </span>
-                    </template>
-                    <span v-else class="kv-text">{{ recipient.email || recipient.user?.email || '—' }}</span>
-                  </dd>
-                </div>
-                <div class="kv kv-full" :class="{ 'is-secret': isLocked('contacts') }">
-                  <dt class="kv-key">Адрес регистрации</dt>
-                  <dd class="kv-val">
-                    <template v-if="isLocked('contacts')">
-                      <span class="kv-mask">••••••••••••••••••</span>
-                      <span class="kv-tools">
-                        <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать адрес регистрации — с указанием причины" @click="openReveal('contacts')">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
-                        </button>
-                      </span>
-                    </template>
-                    <span v-else class="kv-text">{{ doc?.regAddress || '—' }}</span>
-                  </dd>
-                </div>
-                <div class="kv kv-full" :class="{ 'is-secret': isLocked('contacts') }">
-                  <dt class="kv-key">Адрес проживания</dt>
-                  <dd class="kv-val">
-                    <template v-if="isLocked('contacts')">
-                      <span class="kv-mask">••••••••••••••••••</span>
-                      <span class="kv-tools">
-                        <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать адрес проживания — с указанием причины" @click="openReveal('contacts')">
-                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
-                        </button>
-                      </span>
-                    </template>
-                    <span v-else class="kv-text">{{ doc?.factSameReg ? 'Совпадает с адресом регистрации' : (doc?.factAddress || '—') }}</span>
-                  </dd>
-                </div>
-
-                <div class="kv"><dt class="kv-key">Округ проживания</dt><dd class="kv-val"><span class="kv-text"><span v-if="district?.code" class="code">{{ district.code }}</span>{{ district?.name || '—' }}</span></dd></div>
-                <div class="kv"><dt class="kv-key">Район</dt><dd class="kv-val"><span class="kv-text">{{ doc?.area || '—' }}</span></dd></div>
               </dl>
 
               <p class="subtitle" style="margin-top:1.25rem;">Документ, удостоверяющий личность</p>
@@ -422,6 +386,69 @@
                   </dd>
                 </div>
               </dl>
+
+              <p class="subtitle" style="margin-top:1.25rem;">Контакты и адреса</p>
+              <dl class="kv-grid">
+                <div class="kv" :class="{ 'is-secret': isLocked('contacts') }">
+                  <dt class="kv-key">Телефон</dt>
+                  <dd class="kv-val">
+                    <template v-if="isLocked('contacts')">
+                      <span class="kv-mask">••• ••• •• ••</span>
+                      <span class="kv-tools">
+                        <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать телефон — с указанием причины" @click="openReveal('contacts')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </span>
+                    </template>
+                    <span v-else class="kv-text">{{ recipient.telephone || '—' }}</span>
+                  </dd>
+                </div>
+                <div class="kv" :class="{ 'is-secret': isLocked('contacts') }">
+                  <dt class="kv-key">E-mail</dt>
+                  <dd class="kv-val">
+                    <template v-if="isLocked('contacts')">
+                      <span class="kv-mask">•••••••••••</span>
+                      <span class="kv-tools">
+                        <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать e-mail — с указанием причины" @click="openReveal('contacts')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </span>
+                    </template>
+                    <span v-else class="kv-text">{{ recipient.email || recipient.user?.email || '—' }}</span>
+                  </dd>
+                </div>
+                <div class="kv kv-full" :class="{ 'is-secret': isLocked('contacts') }">
+                  <dt class="kv-key">Адрес регистрации</dt>
+                  <dd class="kv-val">
+                    <template v-if="isLocked('contacts')">
+                      <span class="kv-mask">••••••••••••••••••</span>
+                      <span class="kv-tools">
+                        <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать адрес регистрации — с указанием причины" @click="openReveal('contacts')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </span>
+                    </template>
+                    <span v-else class="kv-text">{{ doc?.regAddress || '—' }}</span>
+                  </dd>
+                </div>
+                <div class="kv kv-full" :class="{ 'is-secret': isLocked('contacts') }">
+                  <dt class="kv-key">Адрес проживания</dt>
+                  <dd class="kv-val">
+                    <template v-if="isLocked('contacts')">
+                      <span class="kv-mask">••••••••••••••••••</span>
+                      <span class="kv-tools">
+                        <button type="button" class="kv-tool" title="Показать данные" aria-label="Показать адрес проживания — с указанием причины" @click="openReveal('contacts')">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                        </button>
+                      </span>
+                    </template>
+                    <span v-else class="kv-text">{{ doc?.factSameReg ? 'Совпадает с адресом регистрации' : (doc?.factAddress || '—') }}</span>
+                  </dd>
+                </div>
+
+                <div class="kv"><dt class="kv-key">Округ проживания</dt><dd class="kv-val"><span class="kv-text"><span v-if="district?.code" class="code">{{ district.code }}</span>{{ district?.name || '—' }}</span></dd></div>
+                <div class="kv"><dt class="kv-key">Район</dt><dd class="kv-val"><span class="kv-text">{{ doc?.area || '—' }}</span></dd></div>
+              </dl>
             </div>
           </section>
 
@@ -455,7 +482,10 @@
                   <dt class="kv-key">Диагноз</dt>
                   <dd class="kv-val">
                     <span v-if="isLocked('medical')" class="kv-mask">••••••••••••••</span>
-                    <span v-else class="kv-text">{{ recipient.diagnosis || '—' }}</span>
+                    <ol v-else-if="diagnosisList.length > 1" class="kv-diag">
+                      <li v-for="(d, i) in diagnosisList" :key="'dg-' + i">{{ d }}</li>
+                    </ol>
+                    <span v-else class="kv-text">{{ diagnosisList[0] || '—' }}</span>
                     <span class="kv-tools">
                       <button v-if="isLocked('medical')" type="button" class="kv-tool" title="Показать данные" aria-label="Показать диагноз — с указанием причины" @click="openReveal('medical')">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -607,6 +637,11 @@
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
                               История
                             </button>
+                            <button v-if="r.blank" type="button" class="doc-act" :aria-label="'Скачать бланк: ' + r.name"
+                                    :disabled="enrollBusy === r.blank" @click="downloadEnrollDoc({ key: r.blank, title: r.name })">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                              {{ enrollBusy === r.blank ? 'Готовим…' : 'Скачать бланк' }}
+                            </button>
                           </template>
                           <template v-else>
                             <button v-if="r.blank" type="button" class="btn btn-secondary btn-sm"
@@ -660,6 +695,11 @@
                             <button type="button" class="doc-act" :aria-label="'История: ' + r.name" @click="openScanHistory(r.scan)">
                               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
                               История
+                            </button>
+                            <button v-if="r.blank" type="button" class="doc-act" :aria-label="'Скачать бланк: ' + r.name"
+                                    :disabled="enrollBusy === r.blank" @click="downloadEnrollDoc({ key: r.blank, title: r.name })">
+                              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                              {{ enrollBusy === r.blank ? 'Готовим…' : 'Скачать бланк' }}
                             </button>
                           </template>
                           <template v-else>
@@ -827,7 +867,17 @@
           <section class="card">
             <div class="card-head"><h2 class="card-title">Законный представитель</h2></div>
             <div class="card-body">
-              <div v-if="!recipient.representative" class="empty">Представитель не указан</div>
+              <div v-if="selfRepresented" class="rd-self-rep">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <div>
+                  <div class="rd-self-rep-title">Законного представителя нет</div>
+                  <div class="rd-self-rep-sub">
+                    Реабилитант совершеннолетний и представляет себя сам: согласия и договор
+                    он подписывает лично, паспорт представителя в пакет документов не входит.
+                  </div>
+                </div>
+              </div>
+              <div v-else-if="!recipient.representative" class="empty">Представитель не указан</div>
               <template v-else>
                 <dl class="kv-grid">
                   <div class="kv kv-full"><dt class="kv-key">ФИО</dt><dd class="kv-val"><span class="kv-text">{{ fullName(recipient.representative) || '—' }}</span></dd></div>
@@ -945,7 +995,8 @@
             <div class="card-head"><h2 class="card-title">Статус семьи</h2></div>
             <div class="card-body">
               <p style="margin:0 0 .75rem;font-size:.875rem;color:var(--ink-muted);">Категории, дающие право на льготы и особый порядок работы. Статус хранится у представителя и одинаков во всех карточках его подопечных.</p>
-              <div v-if="!recipient.representative" class="empty">Представитель не указан, статус семьи определить не по чему</div>
+              <div v-if="selfRepresented" class="empty">Статус семьи не заполняется: он описывает семью представителя, а его нет</div>
+              <div v-else-if="!recipient.representative" class="empty">Представитель не указан, статус семьи определить не по чему</div>
               <div v-else-if="!familyStatuses.length" class="empty">Статус семьи не отмечен</div>
               <ul v-else class="fs-list">
                 <li v-for="s in familyStatuses" :key="s.id" class="fs-item">
@@ -1340,51 +1391,282 @@
         </div>
       </div>
 
-      <div v-if="cardEditOpen" class="modal" @click.self="closeCardEdit">
-        <div class="modal-box" role="dialog" aria-modal="true" aria-labelledby="m-edit-t">
-          <div class="modal-head">
+      <div v-if="cardEditOpen" class="du-overlay" @click.self="closeCardEdit">
+        <div class="du-modal du-modal-lg" role="dialog" aria-modal="true" aria-labelledby="ce-title">
+          <header class="du-head">
             <div>
-              <h2 class="modal-title" id="m-edit-t">Редактирование карточки</h2>
-              <p class="modal-sub">Прежние данные сохранятся в истории вместе с автором и датой</p>
+              <h3 class="du-title" id="ce-title">Редактирование карточки</h3>
+              <p class="du-sub">Прежние данные целиком сохранятся в истории — вместе с автором, причиной и датой</p>
             </div>
-            <button type="button" class="icon-btn icon-btn-sm" :disabled="cardSaving" aria-label="Закрыть" @click="closeCardEdit">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            <button type="button" class="du-close" :disabled="cardSaving" aria-label="Закрыть" @click="closeCardEdit">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
-          </div>
-          <div class="modal-body">
-            <label class="field">
-              <span class="field-key">ФИО</span>
-              <input v-model="cardForm.fio" class="input" type="text" placeholder="Фамилия Имя Отчество" />
-              <span v-if="cardTouched && !cardFioValid" class="field-err">Укажите как минимум фамилию и имя</span>
-            </label>
-            <label class="field">
-              <span class="field-key">Дата рождения</span>
-              <input v-model="cardForm.birthDate" class="input" type="date" />
-            </label>
-            <label class="field">
-              <span class="field-key">Место обучения</span>
-              <input v-model="cardForm.educationPlace" class="input" type="text" placeholder="Например: ГБОУ «Школа № 1499», 7 «Б» класс" />
-            </label>
-            <label class="field">
-              <span class="field-key">Округ проживания</span>
-              <select v-model="cardForm.district" class="input">
-                <option value="">Не указан</option>
-                <option v-for="o in OKRUGA" :key="o" :value="o">{{ o }}</option>
-              </select>
-            </label>
-            <label class="field">
-              <span class="field-key">Причина изменения <span class="req">— обязательно</span></span>
-              <textarea v-model="cardReason" class="input" rows="2" placeholder="Например: уточнили класс обучения по справке из школы"></textarea>
-              <span v-if="cardTouched && !cardReasonValid" class="field-err">Опишите причину — не менее 3 символов</span>
-            </label>
-            <p v-if="cardError" class="field-err">{{ cardError }}</p>
-          </div>
-          <div class="modal-foot">
-            <button type="button" class="btn btn-secondary" :disabled="cardSaving" @click="closeCardEdit">Отмена</button>
-            <button type="button" class="btn btn-primary" :disabled="!canSaveCard" @click="saveCardEdit">
-              {{ cardSaving ? 'Сохраняем…' : 'Сохранить' }}
+          </header>
+
+          <nav class="ce-tabs" role="tablist" aria-label="Разделы карточки">
+            <button
+              v-for="s in CARD_SECTIONS" :key="s.key" type="button" role="tab"
+              class="ce-tab" :class="{ 'is-active': cardSection === s.key }"
+              :aria-selected="cardSection === s.key" @click="cardSection = s.key"
+            >
+              {{ s.title }}
+              <span v-if="cardSectionCount(s.key)" class="ce-tab-dot">{{ cardSectionCount(s.key) }}</span>
             </button>
+          </nav>
+
+          <div class="du-body">
+            <div v-show="cardSection === 'person'" class="du-grid">
+              <label class="du-field"><span class="du-key">Фамилия</span>
+                <input v-model="cardForm.lastName" class="du-input" :class="{ 'is-invalid': cardTouched && !cardForm.lastName.trim() }" />
+              </label>
+              <label class="du-field"><span class="du-key">Имя</span>
+                <input v-model="cardForm.firstName" class="du-input" :class="{ 'is-invalid': cardTouched && !cardForm.firstName.trim() }" />
+              </label>
+              <label class="du-field"><span class="du-key">Отчество</span>
+                <input v-model="cardForm.middleName" class="du-input" placeholder="если есть" />
+              </label>
+              <label class="du-field"><span class="du-key">Дата рождения</span>
+                <input v-model="cardForm.birthDate" type="date" class="du-input" />
+              </label>
+
+              <div v-if="isLocked('contacts')" class="pd-note du-field-full">
+                <span class="pd-note-ic" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </span>
+                <span class="pd-note-text">Телефон, e-mail и адреса закрыты. Править их вслепую нельзя — прежнее значение не видно, и его легко затереть.</span>
+                <button type="button" class="pd-note-btn" @click="openReveal('contacts')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                  Показать
+                </button>
+              </div>
+
+              <label class="du-field"><span class="du-key">Телефон</span>
+                <input v-model="cardForm.telephone" class="du-input" :disabled="isLocked('contacts')" :placeholder="isLocked('contacts') ? '••• ••• •• ••' : '+7 (000) 000-00-00'" />
+              </label>
+              <label class="du-field"><span class="du-key">E-mail</span>
+                <input v-model="cardForm.email" class="du-input" :disabled="isLocked('contacts')" :placeholder="isLocked('contacts') ? '•••••••' : ''" />
+              </label>
+              <label class="du-field du-field-full"><span class="du-key">Адрес регистрации</span>
+                <input v-model="cardForm.regAddress" class="du-input" :disabled="isLocked('contacts')" :placeholder="isLocked('contacts') ? '••••••••••' : ''" />
+              </label>
+              <label class="du-field du-field-full"><span class="du-key">Адрес проживания</span>
+                <input v-model="cardForm.factAddress" class="du-input" :disabled="isLocked('contacts') || cardForm.factSameReg" />
+              </label>
+              <label class="du-check du-field-full">
+                <input type="checkbox" v-model="cardForm.factSameReg" :disabled="isLocked('contacts')" />
+                <span>Совпадает с адресом регистрации</span>
+              </label>
+
+              <label class="du-field"><span class="du-key">Округ проживания</span>
+                <select v-model="cardForm.district" class="du-input">
+                  <option value="">Не указан</option>
+                  <option v-for="o in OKRUGA" :key="o" :value="o">{{ o }}</option>
+                </select>
+              </label>
+              <label class="du-field"><span class="du-key">Район</span>
+                <input v-model="cardForm.area" class="du-input" placeholder="Например: Тёплый Стан" />
+              </label>
+              <label class="du-field du-field-full"><span class="du-key">Место обучения</span>
+                <input v-model="cardForm.educationPlace" class="du-input" placeholder="Например: ГБОУ «Школа № 1499», 7 «Б» класс" />
+              </label>
+
+              <p v-if="!hasDoc" class="du-changes du-changes-muted du-field-full">
+                Адреса, округ и место обучения хранятся в анкете, а её у этой карточки
+                ещё нет. Она заведётся, когда будут заполнены и эти поля, и все поля
+                на вкладке «Документ и МСЭ».
+              </p>
+            </div>
+
+            <div v-show="cardSection === 'doc'" class="du-grid">
+              <p v-if="!hasDoc" class="du-changes du-changes-muted du-field-full">
+                Анкета этой карточки ещё не заведена. Чтобы её создать, заполните здесь все
+                поля документа и МСЭ — иначе сохранятся только личные данные.
+              </p>
+              <div v-if="isLocked('passport')" class="pd-note du-field-full">
+                <span class="pd-note-ic" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </span>
+                <span class="pd-note-text">Паспортные данные и СНИЛС закрыты по 152-ФЗ. Доступ открывается на {{ revealMinutes }} минут, причина попадает в журнал.</span>
+                <button type="button" class="pd-note-btn" @click="openReveal('passport')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                  Показать
+                </button>
+              </div>
+
+              <label class="du-field"><span class="du-key">Тип документа</span>
+                <select v-model="cardForm.docType" class="du-input">
+                  <option value="Свидетельство">Свидетельство</option>
+                  <option value="Паспорт">Паспорт</option>
+                </select>
+              </label>
+              <label class="du-field"><span class="du-key">СНИЛС</span>
+                <input v-model="cardForm.snils" class="du-input" :disabled="isLocked('passport')" placeholder="000-000-000 00" />
+              </label>
+              <label class="du-field"><span class="du-key">Серия</span>
+                <input v-model="cardForm.docSeries" class="du-input" :disabled="isLocked('passport')" />
+              </label>
+              <label class="du-field"><span class="du-key">Номер</span>
+                <input v-model="cardForm.docNumber" class="du-input" :disabled="isLocked('passport')" />
+              </label>
+              <label class="du-field du-field-full"><span class="du-key">Кем выдан</span>
+                <input v-model="cardForm.docIssuer" class="du-input" :disabled="isLocked('passport')" />
+              </label>
+              <label class="du-field"><span class="du-key">Дата выдачи</span>
+                <input v-model="cardForm.docIssuerDate" type="date" class="du-input" :disabled="isLocked('passport')" />
+              </label>
+
+              <div v-if="isLocked('medical')" class="pd-note du-field-full">
+                <span class="pd-note-ic" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </span>
+                <span class="pd-note-text">Сведения о справке МСЭ и диагнозе закрыты. Откройте доступ, чтобы их править.</span>
+                <button type="button" class="pd-note-btn" @click="openReveal('medical')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                  Показать
+                </button>
+              </div>
+
+              <label class="du-field"><span class="du-key">МСЭ выдана</span>
+                <input v-model="cardForm.mseIssueDate" type="date" class="du-input" :disabled="isLocked('medical')" />
+              </label>
+              <label class="du-field" v-if="!cardForm.mseIndefinite"><span class="du-key">МСЭ действительна до</span>
+                <input v-model="cardForm.mseValidDate" type="date" class="du-input" :disabled="isLocked('medical')" />
+              </label>
+              <label class="du-check du-field-full">
+                <input type="checkbox" v-model="cardForm.mseIndefinite" :disabled="isLocked('medical')" />
+                <span>Справка МСЭ бессрочная</span>
+              </label>
+              <label class="du-field du-field-full"><span class="du-key">Особые отметки</span>
+                <textarea v-model="cardForm.specialNote" class="du-input du-textarea" rows="2" :disabled="isLocked('medical')"></textarea>
+              </label>
+            </div>
+
+            <div v-show="cardSection === 'rep'" class="du-grid">
+              <p v-if="!hasRep" class="du-changes du-changes-muted du-field-full">
+                У этой карточки нет законного представителя — реабилитант совершеннолетний
+                и представляет себя сам. Завести представителя здесь нельзя.
+              </p>
+              <template v-else>
+                <p v-if="repSharedCount" class="du-changes du-field-full">
+                  Этот представитель указан ещё у {{ repSharedCount }} {{ repSharedCount === 1 ? 'карточки' : 'карточек' }} —
+                  правка отразится и там.
+                </p>
+                <label class="du-field"><span class="du-key">Фамилия</span>
+                  <input v-model="cardForm.rep.lastName" class="du-input" />
+                </label>
+                <label class="du-field"><span class="du-key">Имя</span>
+                  <input v-model="cardForm.rep.firstName" class="du-input" />
+                </label>
+                <label class="du-field"><span class="du-key">Отчество</span>
+                  <input v-model="cardForm.rep.middleName" class="du-input" placeholder="если есть" />
+                </label>
+                <label class="du-field"><span class="du-key">Степень родства</span>
+                  <input v-model="cardForm.rep.relation" class="du-input" placeholder="Например: мать" />
+                </label>
+                <label class="du-field"><span class="du-key">Телефон</span>
+                  <input v-model="cardForm.rep.telephone" class="du-input" :disabled="isLocked('contacts')" :placeholder="isLocked('contacts') ? '••• ••• •• ••' : '+7 (000) 000-00-00'" />
+                </label>
+                <label class="du-field"><span class="du-key">E-mail</span>
+                  <input v-model="cardForm.rep.email" class="du-input" :disabled="isLocked('contacts')" :placeholder="isLocked('contacts') ? '•••••••' : ''" />
+                </label>
+                <label class="du-field"><span class="du-key">Серия паспорта</span>
+                  <input v-model="cardForm.rep.passportSeries" class="du-input" :disabled="isLocked('passport')" maxlength="4" placeholder="0000" />
+                </label>
+                <label class="du-field"><span class="du-key">Номер паспорта</span>
+                  <input v-model="cardForm.rep.passportNumber" class="du-input" :disabled="isLocked('passport')" maxlength="6" placeholder="000000" />
+                </label>
+                <label class="du-field du-field-full"><span class="du-key">Кем выдан</span>
+                  <input v-model="cardForm.rep.passportIssuer" class="du-input" :disabled="isLocked('passport')" />
+                </label>
+                <label class="du-field"><span class="du-key">Дата выдачи</span>
+                  <input v-model="cardForm.rep.passportIssuerDate" type="date" class="du-input" :disabled="isLocked('passport')" />
+                </label>
+                <label class="du-field"><span class="du-key">Код подразделения</span>
+                  <input v-model="cardForm.rep.passportDeptCode" class="du-input" :disabled="isLocked('passport')" maxlength="7" placeholder="000-000" />
+                </label>
+                <label class="du-field du-field-full"><span class="du-key">Адрес регистрации по паспорту</span>
+                  <input v-model="cardForm.rep.passportReg" class="du-input" :disabled="isLocked('contacts')" />
+                </label>
+              </template>
+            </div>
+
+            <div v-show="cardSection === 'med'" class="du-grid">
+              <label class="du-field"><span class="du-key">Статус карточки</span>
+                <select v-model="cardForm.status" class="du-input">
+                  <option value="draft">Черновик</option>
+                  <option value="active">Активен</option>
+                  <option value="archived">В архиве</option>
+                </select>
+              </label>
+              <label class="du-field"><span class="du-key">Группа инвалидности</span>
+                <select v-model="cardForm.disableGroup" class="du-input">
+                  <option v-for="g in DISABLE_GROUPS" :key="g" :value="g">{{ g }}</option>
+                </select>
+              </label>
+              <label class="du-field"><span class="du-key">Учебная группа</span>
+                <select v-model="cardForm.groupId" class="du-input">
+                  <option :value="''">Без группы</option>
+                  <option v-for="g in allGroups" :key="g.id" :value="String(g.id)">{{ g.groupName || g.name }}</option>
+                </select>
+              </label>
+              <label class="du-field"><span class="du-key">ЦРГ</span>
+                <select v-model="cardForm.CRGMain" class="du-input">
+                  <option v-for="c in crgList" :key="c.id" :value="String(c.id)">{{ c.code ? c.code + ' — ' : '' }}{{ c.name }}</option>
+                </select>
+              </label>
+
+              <div v-if="isLocked('medical')" class="pd-note du-field-full">
+                <span class="pd-note-ic" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                </span>
+                <span class="pd-note-text">Нозология и диагнозы закрыты. Откройте доступ, чтобы их править.</span>
+                <button type="button" class="pd-note-btn" @click="openReveal('medical')">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                  Показать
+                </button>
+              </div>
+
+              <label class="du-field du-field-full"><span class="du-key">Нозология</span>
+                <select v-model="cardForm.nozology" class="du-input" :disabled="isLocked('medical')">
+                  <option v-for="n in nozologyList" :key="n.id" :value="String(n.id)">{{ n.class ? n.class + ' — ' : '' }}{{ n.name }}</option>
+                </select>
+              </label>
+              <label class="du-field du-field-full">
+                <span class="du-key">Диагнозы <span class="du-hint">— по одному в строке</span></span>
+                <textarea v-model="cardForm.diagnosis" class="du-input du-textarea" rows="4" :disabled="isLocked('medical')"
+                          placeholder="ДЦП, спастическая диплегия&#10;Задержка речевого развития"></textarea>
+              </label>
+            </div>
+
+            <div class="du-reason">
+              <label class="du-field du-field-full">
+                <span class="du-key">Причина изменения <span class="du-req">— обязательно</span></span>
+                <textarea
+                  v-model="cardReason" class="du-input du-textarea" rows="2"
+                  :class="{ 'is-invalid': cardTouched && !cardReasonValid }"
+                  placeholder="Например: уточнили класс обучения по справке из школы"
+                  @blur="cardTouched = true"
+                ></textarea>
+              </label>
+              <p v-if="cardTouched && !cardReasonValid" class="du-error">
+                Укажите причину изменения (не менее 3 символов)
+              </p>
+            </div>
+
+            <p v-if="cardChangedLabels.length" class="du-changes">
+              Будет изменено: {{ cardChangedLabels.join(', ') }}
+            </p>
+            <p v-else class="du-changes du-changes-muted">Изменений пока нет</p>
+
+            <p v-if="cardError" class="du-error">{{ cardError }}</p>
           </div>
+
+          <footer class="du-foot">
+            <button type="button" class="du-btn du-btn-ghost" :disabled="cardSaving" @click="closeCardEdit">Отмена</button>
+            <button type="button" class="du-btn du-btn-primary" :disabled="!canSaveCard" @click="saveCardEdit">
+              {{ cardSaving ? 'Сохранение…' : 'Сохранить' }}
+            </button>
+          </footer>
         </div>
       </div>
 
@@ -1539,11 +1821,37 @@
         </div>
       </div>
 
-      <div v-if="lightbox" class="rd-lightbox" @click="lightbox = null">
-        <img :src="lightbox" alt="" @click.stop />
-        <button type="button" class="rd-lightbox-close" @click="lightbox = null" aria-label="Закрыть">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
+      <div v-if="scanView" class="modal" @click.self="closeScanView">
+        <div class="modal-box sv-box" role="dialog" aria-modal="true" aria-labelledby="m-scan-t">
+          <div class="modal-head">
+            <div>
+              <h2 class="modal-title" id="m-scan-t">{{ scanView.title }}</h2>
+              <p class="modal-sub">
+                {{ scanView.name }}<template v-if="scanView.size"> · {{ formatSize(scanView.size) }}</template><template v-if="scanView.uploadedAt"> · загружено {{ formatDate(scanView.uploadedAt) }}</template>
+              </p>
+            </div>
+            <button type="button" class="icon-btn icon-btn-sm" aria-label="Закрыть" @click="closeScanView">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+
+          <div class="modal-body sv-body">
+            <img v-if="scanView.kind === 'image'" :src="scanView.url" class="sv-img" :alt="scanView.title" />
+            <iframe v-else-if="scanView.kind === 'pdf'" :src="scanView.url" class="sv-frame" :title="scanView.title"></iframe>
+            <div v-else class="sv-none">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              <p>Такой формат в окне не показывается. Скачайте файл, чтобы открыть его на компьютере.</p>
+            </div>
+          </div>
+
+          <div class="modal-foot">
+            <button type="button" class="btn btn-secondary" @click="closeScanView">Закрыть</button>
+            <button type="button" class="btn btn-primary" :disabled="scanDownloading" @click="downloadScan(scanView)">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              {{ scanDownloading ? 'Готовим…' : 'Скачать' }}
+            </button>
+          </div>
+        </div>
       </div>
 
       <AssignDiagnosticModal
@@ -1564,6 +1872,7 @@ import { useAuthStore } from '../stores/auth';
 import { useUiStore } from '../stores/ui';
 import api from '../api';
 import { fullName, initials, recipientAge, statusLabel } from '../utils/recipient';
+import { splitDiagnoses, formatDiagnoses } from '../utils/diagnosisList';
 import { notify, notifySaved } from '../utils/toast';
 import { SCALE, getBlock, averageScore } from '../utils/diagnosticBlocks';
 import AssignDiagnosticModal from '../components/AssignDiagnosticModal.vue';
@@ -1577,6 +1886,7 @@ const loading = ref(true);
 const recipient = ref(null);
 const groupMembers = ref([]);
 const groupMembersLoading = ref(false);
+const diagnosisList = computed(() => splitDiagnoses(recipient.value?.diagnosis));
 const activeTab = ref('overview');
 
 const events = ref([]);
@@ -1585,9 +1895,9 @@ const agendaLoaded = ref(false);
 
 const heroPhotoOpen = ref(false);
 
-const attStatus = ref(null);      
+const attStatus = ref(null);
 const attSaving = ref(false);
-const attSavedStatus = ref(null); 
+const attSavedStatus = ref(null);
 
 const allGroups = ref([]);
 const groupsLoading = ref(false);
@@ -1601,7 +1911,8 @@ const scansLoaded = ref(false);
 const hiddenCategories = ref([]);
 const scansLocked = ref(false);
 const isLocked = (category) => hiddenCategories.value.includes(category);
-const lightbox = ref(null);
+const scanView = ref(null);
+const scanDownloading = ref(false);
 
 const scans = computed(() => scanRows.value.filter((s) => s.isCurrent !== false));
 const versionsOf = (s) =>
@@ -1693,17 +2004,16 @@ const tabs = [
 const readiness = ref(null);
 const readinessLoading = ref(false);
 
-
 const lifecycle = computed(() => readiness.value?.lifecycle || null);
 const lifecycleStages = computed(() => lifecycle.value?.stages || []);
 
 const STAGE_TAB = {
-  intake: 'profile',        
-  statement: 'documents',   
+  intake: 'profile',
+  statement: 'documents',
   diagnostic: 'diagnostics',
   enrollment: 'enrollment',
   lessons: 'lessons',
-  cycle: 'diagnostics'      
+  cycle: 'diagnostics'
 };
 const stageTabLabel = (key) => tabs.find((t) => t.id === STAGE_TAB[key])?.label || 'карточку';
 const goStage = (key) => {
@@ -1815,10 +2125,21 @@ const recipientCode = computed(() =>
 );
 const statusDotClass = computed(() => 'st-' + (recipient.value?.status || 'draft'));
 const crgShort = computed(() => recipient.value?.crgMain?.code || '');
+const selfRepresented = computed(() =>
+  !recipient.value?.representative && (age.value ?? 0) >= 18
+);
+
+const needsHousing = computed(() => age.value == null || age.value < 14);
+
 const repPhoneHref = computed(() => {
-  const p = recipient.value?.representative?.telephone;
+  const p = selfRepresented.value
+    ? recipient.value?.telephone
+    : recipient.value?.representative?.telephone;
   return p ? 'tel:' + String(p).replace(/[^\d+]/g, '') : '';
 });
+const repCallLabel = computed(() =>
+  selfRepresented.value ? 'Позвонить реабилитанту' : 'Позвонить представителю'
+);
 const repRoleLine = computed(() => {
   const r = recipient.value?.representative;
   if (!r) return '';
@@ -1968,7 +2289,7 @@ function monthShort(d) {
 
 function memberMeta(m) {
   const a = recipientAge(m);
-  return [a != null ? `${a} ${yearsWord(a)}` : '', m.diagnosis || ''].filter(Boolean).join(' · ');
+  return [a != null ? `${a} ${yearsWord(a)}` : '', formatDiagnoses(m.diagnosis)].filter(Boolean).join(' · ');
 }
 
 const goBack = () => {
@@ -2138,6 +2459,7 @@ const loadRecipient = async () => {
 const onUnlocked = async (category) => {
   await loadRecipient();
   if (category === 'scans') await loadScans(true);
+  cardRehydrate();
 };
 
 const loadScans = async (force = false) => {
@@ -2161,20 +2483,65 @@ const loadScans = async (force = false) => {
 const scanFileUrl = (s) => `/api/v1/recipients/${recipientId}/scans/${s.id}/file`;
 const isImage = (s) =>
   /^image\//i.test(s?.mimeType || '') || /\.(png|jpe?g|gif|webp|bmp)$/i.test(s?.originalName || '');
-const scanLabel = (s) => s?.docTypeRef?.name || s?.originalName || 'Документ';const formatSize = (bytes) => {
+const scanLabel = (s) => s?.docTypeRef?.name || s?.originalName || 'Документ';
+const formatSize = (bytes) => {
   const b = Number(bytes) || 0;
   if (b < 1024) return b + ' Б';
   if (b < 1024 * 1024) return (b / 1024).toFixed(0) + ' КБ';
   return (b / (1024 * 1024)).toFixed(1) + ' МБ';
 };
-const openLightbox = (s) => { lightbox.value = scanFileUrl(s); };
+const isPdf = (s) =>
+  /pdf/i.test(s?.mimeType || '') || /\.pdf$/i.test(s?.originalName || '');
 
 const scanByCode = (code) => scans.value.find((s) => s.docTypeRef?.code === code) || null;
 
-const showScan = (s) => {
-  if (isImage(s)) openLightbox(s);
-  else window.open(scanFileUrl(s), '_blank', 'noopener');
+const openScanView = (s) => {
+  if (!s) return;
+  scanView.value = {
+    id: s.id,
+    url: scanFileUrl(s),
+    kind: isImage(s) ? 'image' : isPdf(s) ? 'pdf' : 'other',
+    title: scanLabel(s),
+    name: s.originalName || '',
+    size: s.sizeBytes || 0,
+    uploadedAt: s.uploadedAt || null
+  };
 };
+const closeScanView = () => { scanView.value = null; };
+
+const downloadScan = async (v) => {
+  if (!v?.id || scanDownloading.value) return;
+  scanDownloading.value = true;
+  try {
+    const res = await api.get(`/recipients/${recipientId}/scans/${v.id}/file`, { responseType: 'blob' });
+    const disp = res.headers?.['content-disposition'] || '';
+    const m = disp.match(/filename\*=UTF-8''([^;]+)/i);
+    const name = m ? decodeURIComponent(m[1]) : (v.name || v.title || 'Документ');
+    const url = URL.createObjectURL(res.data);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    notify(`«${name}» скачан`);
+  } catch (err) {
+    console.error('downloadScan', err);
+    let msg = 'Не удалось скачать файл';
+    const body = err?.response?.data;
+    if (body instanceof Blob) {
+      try { msg = JSON.parse(await body.text())?.message || msg; } catch {}
+    } else if (body?.message) {
+      msg = body.message;
+    }
+    notify(msg);
+  } finally {
+    scanDownloading.value = false;
+  }
+};
+
+const showScan = (s) => openScanView(s);
 
 const openScanDoc = (s) => {
   if (!s) return;
@@ -2423,9 +2790,14 @@ const docGroups = computed(() => {
   const req = enrollRequired.value;
   const used = new Set();
 
+  const skip = new Set();
+  if (selfRepresented.value) skip.add('rep-pass');
+  if (!needsHousing.value) skip.add('housing');
+
   const build = (code) => {
     const t = byCode.get(code);
     if (!t) return null;
+    if (skip.has(code)) { used.add(code); return null; }
     used.add(code);
     const scan = scanByCode(code);
     const required = req.has(code) ? req.get(code) : !!t.isRequired;
@@ -2455,14 +2827,22 @@ const docGroupsSplit = computed(() => Math.ceil(docGroups.value.length / 2));
 const docGroupsLeft = computed(() => docGroups.value.slice(0, docGroupsSplit.value));
 const docGroupsRight = computed(() => docGroups.value.slice(docGroupsSplit.value));
 
+const scansKnown = computed(
+  () => scansLoaded.value && !scansLocked.value && !isLocked('scans')
+);
+
+const docsMissing = computed(() =>
+  scansKnown.value
+    ? docGroups.value.reduce((n, g) => n + g.rows.filter((r) => !r.scan).length, 0)
+    : (readiness.value?.docs?.missingAll ?? 0)
+);
+
 const groupPill = (g) => {
-  const total = g.rows.length;
-  const have = g.rows.filter((r) => r.scan).length;
-  const missing = g.rows.filter((r) => !r.scan && r.required).length;
+  const missing = g.rows.filter((r) => !r.scan).length;
   const bad = g.rows.filter((r) => r.scan && r.state.cls !== 'pill-ok').length;
-  if (!missing && !bad) return { cls: 'pill-ok', text: `${have} из ${total}` };
+  if (!missing && !bad) return { cls: 'pill-ok', text: 'Все загружены' };
   const parts = [];
-  if (missing) parts.push(`${missing} не загружен`);
+  if (missing) parts.push(`не загружено: ${missing}`);
   if (bad) parts.push(`${bad} истекает`);
   return { cls: 'pill-wait', text: parts.join(' · ') };
 };
@@ -2711,7 +3091,6 @@ const loadAssignments = async () => {
     assignmentsLoading.value = false;
   }
 };
-
 
 const loadAgenda = async () => {
   if (!recipientId || agendaLoaded.value || agendaLoading.value) return;
@@ -3078,40 +3457,179 @@ const OKRUGA = [
   'Московская область', 'Другой регион'
 ];
 
+const DISABLE_GROUPS = ['Ребенок-инвалид', 'I группа', 'II группа', 'III группа', 'Нет'];
+
+const CARD_SECTIONS = [
+  { key: 'person', title: 'Анкета и адреса' },
+  { key: 'doc', title: 'Документ и МСЭ' },
+  { key: 'rep', title: 'Представитель' },
+  { key: 'med', title: 'Группа и диагноз' }
+];
+
+const SECTION_FIELDS = {
+  person: ['lastName', 'firstName', 'middleName', 'birthDate', 'telephone', 'email',
+    'regAddress', 'factAddress', 'factSameReg', 'district', 'area', 'educationPlace'],
+  doc: ['docType', 'snils', 'docSeries', 'docNumber', 'docIssuer', 'docIssuerDate',
+    'mseIssueDate', 'mseValidDate', 'mseIndefinite', 'specialNote'],
+  med: ['status', 'disableGroup', 'groupId', 'CRGMain', 'nozology', 'diagnosis']
+};
+const SECTION_OF = {};
+for (const [key, list] of Object.entries(SECTION_FIELDS)) for (const f of list) SECTION_OF[f] = key;
+
+const CARD_LABELS = {
+  lastName: 'фамилия', firstName: 'имя', middleName: 'отчество', birthDate: 'дата рождения',
+  telephone: 'телефон', email: 'e-mail', regAddress: 'адрес регистрации',
+  factAddress: 'адрес проживания', factSameReg: 'совпадение адресов',
+  district: 'округ проживания', area: 'район', educationPlace: 'место обучения',
+  docType: 'тип документа', snils: 'СНИЛС', docSeries: 'серия документа',
+  docNumber: 'номер документа', docIssuer: 'кем выдан документ',
+  docIssuerDate: 'дата выдачи документа', mseIssueDate: 'дата выдачи МСЭ',
+  mseValidDate: 'срок действия МСЭ', mseIndefinite: 'бессрочность МСЭ',
+  specialNote: 'особые отметки', status: 'статус карточки',
+  disableGroup: 'группа инвалидности', groupId: 'учебная группа', CRGMain: 'ЦРГ',
+  nozology: 'нозология', diagnosis: 'диагнозы',
+  relation: 'степень родства', passportSeries: 'серия паспорта',
+  passportNumber: 'номер паспорта', passportIssuer: 'кем выдан паспорт',
+  passportIssuerDate: 'дата выдачи паспорта', passportDeptCode: 'код подразделения',
+  passportReg: 'адрес регистрации по паспорту'
+};
+
+const REP_FORM_FIELDS = ['lastName', 'firstName', 'middleName', 'relation', 'telephone', 'email',
+  'passportSeries', 'passportNumber', 'passportIssuer', 'passportIssuerDate',
+  'passportDeptCode', 'passportReg'];
+
 const cardEditOpen = ref(false);
-const cardForm = ref({ fio: '', birthDate: '', educationPlace: '', district: '' });
+const cardSection = ref('person');
+const cardForm = ref(null);
+const cardBase = ref(null);
 const cardReason = ref('');
 const cardTouched = ref(false);
 const cardSaving = ref(false);
 const cardError = ref('');
+const crgList = ref([]);
+const nozologyList = ref([]);
 
-const cardFioParts = computed(() => {
-  const parts = String(cardForm.value.fio || '').trim().split(/\s+/).filter(Boolean);
+const hasDoc = computed(() => !!doc.value);
+const hasRep = computed(() => !!recipient.value?.representative);
+const repSharedCount = computed(() => Number(recipient.value?.repSharedWith) || 0);
+
+const txt = (v) => (v == null ? '' : String(v));
+const idStr = (v) => (v == null || v === '' ? '' : String(v));
+
+const cardSnapshot = () => {
+  const r = recipient.value || {};
+  const d = doc.value || {};
+  const p = r.representative || {};
   return {
-    lastName: parts[0] || '',
-    firstName: parts[1] || '',
-    middleName: parts.slice(2).join(' ')
+    lastName: txt(r.lastName), firstName: txt(r.firstName), middleName: txt(r.middleName),
+    birthDate: toInputDate(r.birthDate),
+    telephone: txt(r.telephone), email: txt(r.email),
+    status: r.status || 'active',
+    disableGroup: r.disableGroup || 'Нет',
+    diagnosis: txt(r.diagnosis),
+    nozology: idStr(r.nozology), groupId: idStr(r.groupId), CRGMain: idStr(r.CRGMain),
+    docType: d.docType || 'Свидетельство',
+    docSeries: txt(d.docSeries), docNumber: txt(d.docNumber), docIssuer: txt(d.docIssuer),
+    docIssuerDate: toInputDate(d.docIssuerDate), snils: txt(d.snils),
+    mseIssueDate: toInputDate(d.mseIssueDate),
+    mseValidDate: d.mseIndefinite ? '' : toInputDate(d.mseValidDate),
+    mseIndefinite: !!d.mseIndefinite,
+    regAddress: txt(d.regAddress), factAddress: txt(d.factAddress),
+    factSameReg: !!d.factSameReg, district: txt(d.district), area: txt(d.area),
+    educationPlace: txt(d.educationPlace), specialNote: txt(d.specialNote),
+    rep: Object.fromEntries(REP_FORM_FIELDS.map((f) => [
+      f, f === 'passportIssuerDate' ? toInputDate(p[f]) : txt(p[f])
+    ]))
   };
+};
+
+const cardDiff = computed(() => {
+  const base = cardBase.value;
+  const form = cardForm.value;
+  if (!base || !form) return [];
+  const out = [];
+  for (const k of Object.keys(base)) {
+    if (k !== 'rep' && form[k] !== base[k]) out.push(k);
+  }
+  for (const k of REP_FORM_FIELDS) {
+    if (form.rep[k] !== base.rep[k]) out.push('rep.' + k);
+  }
+  return out;
 });
+
+const cardLabelOf = (f) =>
+  f.startsWith('rep.')
+    ? 'у представителя: ' + (CARD_LABELS[f.slice(4)] || f.slice(4))
+    : (CARD_LABELS[f] || f);
+const cardChangedLabels = computed(() => cardDiff.value.map(cardLabelOf));
+const cardSectionCount = (key) =>
+  cardDiff.value.filter((f) => (f.startsWith('rep.') ? 'rep' : SECTION_OF[f]) === key).length;
+
 const cardReasonValid = computed(() => cardReason.value.trim().length >= 3);
-const cardFioValid = computed(() => !!cardFioParts.value.lastName && !!cardFioParts.value.firstName);
-const canSaveCard = computed(() => cardReasonValid.value && cardFioValid.value && !cardSaving.value);
+const cardFioValid = computed(() =>
+  !!cardForm.value && !!cardForm.value.lastName.trim() && !!cardForm.value.firstName.trim()
+);
+const canSaveCard = computed(() =>
+  cardReasonValid.value && cardFioValid.value && cardDiff.value.length > 0 && !cardSaving.value
+);
+
+watch(
+  () => [cardForm.value?.factSameReg, cardForm.value?.regAddress],
+  () => {
+    const f = cardForm.value;
+    if (f && f.factSameReg && f.factAddress !== f.regAddress) f.factAddress = f.regAddress;
+  }
+);
+watch(
+  () => cardForm.value?.mseIndefinite,
+  (on) => { if (on && cardForm.value) cardForm.value.mseValidDate = ''; }
+);
+
+const loadCardRefs = async () => {
+  loadGroups();
+  if (!crgList.value.length) {
+    try {
+      const { data } = await api.get('/lists/crg');
+      crgList.value = Array.isArray(data) ? data : [];
+    } catch (err) { console.error('loadCardRefs crg', err); }
+  }
+  if (!nozologyList.value.length) {
+    try {
+      const { data } = await api.get('/lists/nozology');
+      nozologyList.value = Array.isArray(data) ? data : [];
+    } catch (err) { console.error('loadCardRefs nozology', err); }
+  }
+};
 
 const openCardEdit = () => {
-  const r = recipient.value;
-  if (!r) return;
-  cardForm.value = {
-    fio: [r.lastName, r.firstName, r.middleName].filter(Boolean).join(' '),
-    birthDate: toInputDate(r.birthDate),
-    educationPlace: doc.value?.educationPlace || '',
-    district: doc.value?.district || ''
-  };
+  if (!recipient.value) return;
+  cardBase.value = cardSnapshot();
+  cardForm.value = JSON.parse(JSON.stringify(cardBase.value));
+  cardSection.value = 'person';
   cardReason.value = '';
   cardTouched.value = false;
   cardError.value = '';
   cardEditOpen.value = true;
+  loadCardRefs();
 };
+
 const closeCardEdit = () => { if (!cardSaving.value) cardEditOpen.value = false; };
+
+const cardRehydrate = () => {
+  if (!cardEditOpen.value || !cardForm.value || !cardBase.value) return;
+  const fresh = cardSnapshot();
+  const base = cardBase.value;
+  const form = cardForm.value;
+  for (const k of Object.keys(fresh)) {
+    if (k === 'rep') continue;
+    if (form[k] === base[k]) form[k] = fresh[k];
+    base[k] = fresh[k];
+  }
+  for (const k of REP_FORM_FIELDS) {
+    if (form.rep[k] === base.rep[k]) form.rep[k] = fresh.rep[k];
+    base.rep[k] = fresh.rep[k];
+  }
+};
 
 const saveCardEdit = async () => {
   cardTouched.value = true;
@@ -3119,23 +3637,36 @@ const saveCardEdit = async () => {
   cardSaving.value = true;
   cardError.value = '';
   try {
-    const { data } = await api.patch(`/recipients/${recipientId}/card`, {
-      ...cardFioParts.value,
-      birthDate: cardForm.value.birthDate,
-      educationPlace: cardForm.value.educationPlace,
-      district: cardForm.value.district,
-      reason: cardReason.value.trim()
-    });
+    const body = { reason: cardReason.value.trim() };
+    const rep = {};
+    for (const f of cardDiff.value) {
+      if (f.startsWith('rep.')) rep[f.slice(4)] = cardForm.value.rep[f.slice(4)];
+      else body[f] = cardForm.value[f];
+    }
+    if (Object.keys(rep).length) body.representative = rep;
+
+    const { data } = await api.patch(`/recipients/${recipientId}/card`, body);
+    cardEditOpen.value = false;
     if (data?.recipient) {
       recipient.value = data.recipient;
       hiddenCategories.value = data.recipient.hiddenCategories || [];
+      selectedGroupId.value = data.recipient.groupId ?? null;
     }
-    cardEditOpen.value = false;
-    notifySaved('Карточка обновлена');
+    const shared = Number(data?.repSharedWith) || 0;
+    notifySaved(
+      shared
+        ? `Карточка обновлена. Данные представителя изменились и ещё в ${shared} ${shared === 1 ? 'карточке' : 'карточках'}.`
+        : 'Карточка обновлена'
+    );
     loadReadiness();
     loadDocHistory(true);
   } catch (err) {
-    cardError.value = err?.response?.data?.message || 'Не удалось сохранить изменения';
+    const res = err?.response?.data;
+    cardError.value = res?.message || 'Не удалось сохранить изменения';
+    if (Array.isArray(res?.lockedCategories) && res.lockedCategories.length) {
+      hiddenCategories.value = [...new Set([...hiddenCategories.value, ...res.lockedCategories])];
+    }
+    if (Array.isArray(res?.missingFields) && res.missingFields.length) cardSection.value = 'doc';
   } finally {
     cardSaving.value = false;
   }
@@ -3162,7 +3693,7 @@ watch(activeTab, (tab) => {
 const overlayOpen = computed(() => !!(
   docUpdateOpen.value || cancelTarget.value || cardEditOpen.value ||
   revealOpen.value || uploadOpen.value || historyScan.value ||
-  lightbox.value || heroPhotoOpen.value
+  scanView.value || heroPhotoOpen.value
 ));
 watch(overlayOpen, (open) => {
   if (open) ui.lockScroll();
@@ -3176,6 +3707,7 @@ onMounted(async () => {
   loadReadiness();
   loadAssignments();
   loadScans();
+  loadDocTypes();
   loadEnrollment();
   const wanted = pageStore.params?.tab;
   if (wanted && tabs.some((t) => t.id === wanted)) activeTab.value = wanted;
@@ -3358,6 +3890,11 @@ onUnmounted(() => {
 .icon-btn svg { width: 1.0625rem; height: 1.0625rem; }
 .icon-btn-sm { width: 2.25rem; height: 2.25rem; flex: 0 0 2.25rem; }
 .icon-btn-sm svg { width: 0.9375rem; height: 0.9375rem; }
+.icon-btn-text {
+  width: auto; flex: 0 0 auto; gap: 0.4375rem; padding: 0 0.75rem;
+  font-family: inherit; font-size: 0.8125rem; font-weight: 600;
+  color: var(--ink); white-space: nowrap;
+}
 
 .hero-tags { display: flex; flex-wrap: wrap; gap: 0.375rem; margin-top: 0.5rem; }
 .tag { font-size: 0.78125rem; padding: 0.1875rem 0.625rem; border-radius: 62.5rem; font-weight: 500; }
@@ -3428,6 +3965,10 @@ onUnmounted(() => {
   border: 0.0625rem solid var(--line); border-radius: 62.5rem; padding: 0.0625rem 0.4375rem;
 }
 .tab[aria-selected="true"] .tab-count { background: var(--sage-100); color: var(--sage-700); border-color: var(--sage-100); }
+.tab-count-warn,
+.tab[aria-selected="true"] .tab-count-warn {
+  color: var(--amber-700); background: var(--amber-50); border-color: var(--amber-100);
+}
 .tab-alert {
   display: inline-flex; align-items: center; gap: 0.1875rem;
   font-size: 0.75rem; font-weight: 700;
@@ -3468,6 +4009,13 @@ onUnmounted(() => {
 .kv-val { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.375rem; min-width: 0; }
 .kv-text { font-size: 0.9375rem; color: var(--ink-strong); line-height: 1.45; word-break: break-word; margin: 0; }
 .kv-text .code { font-weight: 600; color: var(--sage-700); margin-right: 0.25rem; }
+.kv-diag {
+  flex: 1 1 12rem; min-width: 0; margin: 0; padding-left: 1.25rem;
+  font-size: 0.9375rem; color: var(--ink-strong); line-height: 1.45;
+}
+.kv-diag li { word-break: break-word; }
+.kv-diag li + li { margin-top: 0.125rem; }
+.kv-diag li::marker { color: var(--ink-muted); font-size: 0.8125rem; }
 
 .person { display: flex; align-items: center; gap: 0.75rem; padding: 0.625rem 0; border-bottom: 0.0625rem solid var(--line-soft); }
 .person:last-child { border-bottom: none; }
@@ -3932,6 +4480,29 @@ onUnmounted(() => {
   animation: du-rise 0.2s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 @keyframes du-rise { from { opacity: 0; transform: translateY(1rem); } to { opacity: 1; transform: none; } }
+.du-modal-lg { width: min(56rem, 100%); }
+.ce-tabs {
+  display: flex; gap: 0.25rem; padding: 0.5rem 1.375rem 0;
+  border-bottom: 0.0625rem solid var(--line-soft); background: var(--paper-soft);
+  overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+}
+.ce-tabs::-webkit-scrollbar { display: none; }
+.ce-tab {
+  display: inline-flex; align-items: center; gap: 0.375rem; flex: 0 0 auto;
+  padding: 0.5625rem 0.75rem; min-height: 2.375rem;
+  border: none; border-bottom: 0.125rem solid transparent; background: none;
+  font-family: inherit; font-size: 0.875rem; font-weight: 600;
+  color: var(--ink-muted); cursor: pointer; white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s;
+}
+.ce-tab:hover { color: var(--ink-strong); }
+.ce-tab.is-active { color: var(--sage-700); border-bottom-color: var(--sage-700); }
+.ce-tab-dot {
+  display: inline-grid; place-items: center; min-width: 1.125rem; height: 1.125rem;
+  padding: 0 0.3125rem; border-radius: 999px;
+  background: var(--sage-700); color: var(--paper);
+  font-size: 0.6875rem; font-weight: 700; line-height: 1;
+}
 .du-head {
   display: flex; align-items: flex-start; justify-content: space-between; gap: 0.875rem;
   padding: 1.125rem 1.375rem 0.9375rem;
@@ -3960,6 +4531,7 @@ onUnmounted(() => {
   color: var(--ink-muted);
 }
 .du-req { text-transform: none; letter-spacing: 0; font-weight: 600; color: var(--rose-700); }
+.du-hint { text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--ink-subtle); }
 .du-input {
   width: 100%; padding: 0.5625rem 0.6875rem; min-height: 2.5rem;
   font-family: inherit; font-size: 0.9375rem; color: var(--ink-strong);
@@ -4018,7 +4590,7 @@ onUnmounted(() => {
 .du-btn-danger:hover:not(:disabled) { background: #96422F; border-color: #96422F; }
 
 .modal {
-  position: fixed; inset: 0; z-index: 200; display: grid; place-items: center;
+  position: fixed; inset: 0; z-index: 1300; display: grid; place-items: center;
   padding: 1rem; background: rgba(15, 20, 15, 0.5);
 }
 .modal-box {
@@ -4037,6 +4609,26 @@ onUnmounted(() => {
   display: flex; justify-content: flex-end; gap: 0.5rem;
   padding: 1rem 1.25rem 1.25rem; border-top: 0.0625rem solid var(--line-soft); flex-wrap: wrap;
 }
+.sv-box { width: min(56rem, 100%); display: flex; flex-direction: column; max-height: 92vh; }
+.sv-body { flex: 1; min-height: 0; display: flex; padding: 0 1.25rem 1rem; }
+.sv-img {
+  display: block; margin: 0 auto; max-width: 100%; max-height: 70vh;
+  object-fit: contain; border-radius: var(--radius-md); background: var(--paper-soft);
+}
+.sv-frame {
+  width: 100%; height: 70vh; border: 0.0625rem solid var(--line);
+  border-radius: var(--radius-md); background: var(--paper-soft);
+}
+.sv-none {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.75rem; padding: 3rem 1rem; text-align: center;
+  color: var(--ink-muted); background: var(--paper-soft);
+  border: 0.0625rem dashed var(--line); border-radius: var(--radius-md);
+}
+.sv-none svg { width: 2.5rem; height: 2.5rem; opacity: 0.55; }
+.sv-none p { margin: 0; font-size: 0.875rem; max-width: 24rem; line-height: 1.5; }
+.modal-foot .btn svg { width: 1rem; height: 1rem; margin-right: 0.375rem; vertical-align: -0.1875rem; }
+
 .field { display: block; margin-bottom: 0.875rem; }
 .field-key {
   display: block; font-size: 0.8125rem; font-weight: 600;
@@ -4104,6 +4696,21 @@ textarea.input { min-height: 5rem; resize: vertical; }
   background: var(--rose-100); color: var(--rose-700);
 }
 .person-ava.sage { background: var(--sage-100); color: var(--sage-700); }
+
+.rd-self-rep {
+  display: flex; gap: 0.75rem; align-items: flex-start;
+  padding: 0.8125rem 0.875rem;
+  background: var(--sage-50); border: 0.0625rem solid var(--sage-100);
+  border-radius: var(--radius-md);
+}
+.rd-self-rep > svg {
+  flex: 0 0 1.25rem; width: 1.25rem; height: 1.25rem;
+  color: var(--sage-700); margin-top: 0.0625rem;
+}
+.rd-self-rep-title { font-size: 0.9375rem; font-weight: 600; color: var(--sage-700); }
+.rd-self-rep-sub {
+  margin-top: 0.1875rem; font-size: 0.8125rem; line-height: 1.45; color: var(--ink-muted);
+}
 
 .event {
   display: flex; gap: 0.75rem; padding: 0.625rem 0;
@@ -4347,7 +4954,8 @@ textarea.input { min-height: 5rem; resize: vertical; }
   transition: background 0.12s, color 0.12s; text-decoration: none;
 }
 .doc-act svg { width: 0.875rem; height: 0.875rem; flex: 0 0 0.875rem; }
-.doc-act:hover { background: var(--sage-50); color: var(--action); }
+.doc-act:hover:not(:disabled) { background: var(--sage-50); color: var(--action); }
+.doc-act:disabled { color: var(--ink-muted); cursor: default; }
 .btn-sm { min-height: 2.25rem; padding: 0.375rem 0.75rem; font-size: 0.8125rem; }
 
 .hist { list-style: none; margin: 0; padding: 0; }
@@ -4455,6 +5063,12 @@ textarea.input { min-height: 5rem; resize: vertical; }
   }
   .modal-foot > .btn { width: 100%; }
 
+  .sv-box { max-height: none; }
+  .sv-body { display: block; }
+  .sv-img { width: 100%; max-height: none; }
+  .sv-frame { height: 100%; min-height: 60vh; }
+  .sv-none { padding: 2.5rem 0.75rem; }
+
   .du-overlay { padding: 0; align-items: stretch; overflow: hidden; }
   .du-modal {
     width: 100%;
@@ -4464,6 +5078,7 @@ textarea.input { min-height: 5rem; resize: vertical; }
     padding-left: var(--safe-left, 0px); padding-right: var(--safe-right, 0px);
   }
   .du-head { padding-top: calc(1.125rem + var(--safe-top, 0px)); padding-left: 1rem; padding-right: 1rem; }
+  .ce-tabs { padding-left: 1rem; padding-right: 1rem; }
   .du-body { padding-left: 1rem; padding-right: 1rem; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
   .du-foot { padding: 0.875rem 1rem calc(0.875rem + var(--safe-bottom, 0px)); }
 

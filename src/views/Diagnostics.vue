@@ -2,7 +2,6 @@
   <div class="diagnostics-page" :class="{ 'diag-readonly': readonlyView }">
     <a class="skip-link" href="#stages-flow">Перейти к этапам диагностики</a>
 
-
     <div class="content" :class="{ 'is-gated': !recipientChosen }">
 
       <div class="diag-gate" v-show="!recipientChosen">
@@ -1644,6 +1643,7 @@ import { fullName } from '../utils/recipient'
 import { usePageStore } from '../stores/page'
 import { useAuthStore } from '../stores/auth'
 import { getBlock as getDiagBlock, SCALE as DIAG_SCALE } from '../utils/diagnosticBlocks'
+import { formatDiagnoses } from '../utils/diagnosisList'
 
 const pageStore = usePageStore()
 const authStore = useAuthStore()
@@ -1806,7 +1806,7 @@ function handleMobileStageChange(event) {
 async function lockTeacherProfile() {
   try {
     const directionId = authStore.user?.directionId
-    if (!directionId) return 
+    if (!directionId) return
     const { data } = await api.get('/lists/directions')
     const dir = Array.isArray(data) ? data.find((d) => d.id === directionId) : null
     const key = dir?.profileKey || ''
@@ -1957,7 +1957,7 @@ onMounted(() => {
       const id = raw.id ?? raw.recipientId ?? (idx + 1);
       const birthDate = raw.birthDate || raw.birthDateLabel || raw.dateOfBirth || raw.birthday || '';
       const age = raw.age ?? raw.years ?? ageFromBirthDate(birthDate) ?? '';
-      const diagnosis = normalizeSpaces(raw.diagnosis || raw.nosology || raw.program || 'Нозология не указана');
+      const diagnosis = normalizeSpaces(formatDiagnoses(raw.diagnosis) || raw.nosology || raw.program || 'Нозология не указана');
       const groupName = normalizeSpaces(raw.groupName || raw.group?.groupName || raw.group?.name || raw.cgr || raw.category || 'Группа не указана');
       const code = raw.code || raw.number || ('R-' + String(id).padStart(6, '0'));
       const representative = raw.representative ? nameFromParts(raw.representative) : (raw.legalRepresentative || '');
@@ -2429,7 +2429,7 @@ onMounted(() => {
           </span>`;
         btn.addEventListener('click', () => {
           updateRecipientUI(r);
-          recipientChosen.value = true; 
+          recipientChosen.value = true;
           window.setDiagnosticCompleted?.(false);
           closeRecipientModal();
         });
@@ -3592,7 +3592,7 @@ onMounted(() => {
         qa('#mobile-stage option').forEach(o => { o.hidden = false; });
 
         const block = profileKey ? PROFILE_BLOCKS[profileKey] : null;
-        if (!block) return; 
+        if (!block) return;
 
         ALL_STAGES.forEach(stage => {
           if (stage === block.stage) return;
@@ -4139,7 +4139,7 @@ onMounted(() => {
         ctx.font = '26px ' + serif;
 
         const diagnosisLabel = 'с имеющий нозологию:';
-        const diagnosisValue = normalizeSpaces(r.diagnosis || '');
+        const diagnosisValue = normalizeSpaces(formatDiagnoses(r.diagnosis));
         const diagnosisY = 276;
         const diagnosisLineY = diagnosisY + 34;
         ctx.fillText(diagnosisLabel, 126, diagnosisY);

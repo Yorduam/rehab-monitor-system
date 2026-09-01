@@ -5,7 +5,7 @@ const RecipientScanDoc = sequelize.define('RecipientScanDoc', {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
   entityType: { type: DataTypes.ENUM('rehabilitant', 'representative'), allowNull: false },
   recipId: { type: DataTypes.INTEGER, allowNull: false },
-  represId: { type: DataTypes.INTEGER, allowNull: false },
+  represId: { type: DataTypes.INTEGER, allowNull: true },
   docType: { type: DataTypes.INTEGER, allowNull: false },
   storageKey: { type: DataTypes.STRING(500), allowNull: false },
   originalName: { type: DataTypes.STRING(255), allowNull: false },

@@ -80,7 +80,7 @@
           <div v-if="loadingDetail" class="ed-empty">Загрузка карточки…</div>
           <template v-else>
             <div class="ed-rep-name">{{ fullName(detail) }}</div>
-            <div class="ed-rep-sub">{{ detail.diagnosis || 'Диагноз не указан' }}</div>
+            <div class="ed-rep-sub">{{ formatDiagnoses(detail.diagnosis) || 'Диагноз не указан' }}</div>
 
             <div class="ed-section-label">Общие сведения</div>
             <div class="ed-rows">
@@ -120,6 +120,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { fullName } from '../utils/recipient';
+import { formatDiagnoses } from '../utils/diagnosisList';
 import api from '../api';
 
 const recipients = ref([]);
@@ -240,7 +241,7 @@ const buildHtml = () => {
     .doc-block{margin-bottom:1rem}
   </style></head><body>
     <h1>Отчёт по реабилитанту</h1>
-    <p class="sub">${esc(fullName(d))} · ${esc(d.diagnosis || 'диагноз не указан')}</p>
+    <p class="sub">${esc(fullName(d))} · ${esc(formatDiagnoses(d.diagnosis) || 'диагноз не указан')}</p>
 
     <h2>Общие сведения</h2>
     <table class="kv">

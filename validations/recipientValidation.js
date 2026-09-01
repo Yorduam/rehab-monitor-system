@@ -9,12 +9,12 @@ export const createRecipientSchema = Joi.object({
   email: Joi.string().email().max(50).required(),
   telephone: Joi.string().max(20).required(),
   photo: Joi.string().required(),
-  representativeId: Joi.number().integer().required(),
+  representativeId: Joi.number().integer().allow(null).optional(),
   status: Joi.string().valid('draft', 'active', 'archived').default('active'),
   disableGroup: Joi.string()
     .valid('Ребенок-инвалид', 'I группа', 'II группа', 'III группа', 'Нет')
     .default('Нет'),
-  diagnosis: Joi.string().max(255).required(),
+  diagnosis: Joi.string().max(2000).required(),
   nozology: Joi.number().integer().required(),
   groupId: Joi.number().integer().required(),
   CRGMain: Joi.number().integer().required(),

@@ -18,14 +18,15 @@
           <span
             v-if="draftState" class="rw-save-state"
             :class="{ 'is-saving': draftState === 'saving' }"
+            :title="draftState === 'saving' ? 'Сохранение…' : 'Черновик сохранён'"
             role="status" aria-live="polite"
           >
             <span class="rw-save-dot"></span>
-            {{ draftState === 'saving' ? 'Сохранение…' : 'Черновик сохранён' }}
+            <span class="rw-save-text">{{ draftState === 'saving' ? 'Сохранение…' : 'Черновик сохранён' }}</span>
           </span>
-          <button class="rw-clear-btn" type="button" @click="clearDraft" title="Очистить все поля черновика">
+          <button class="rw-clear-btn" type="button" @click="clearDraft" title="Очистить все поля черновика" aria-label="Очистить черновик">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-            Очистить черновик
+            <span class="rw-clear-label">Очистить черновик</span>
           </button>
           <button class="rw-close-btn" @click="$emit('close')" aria-label="Закрыть">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
@@ -113,24 +114,62 @@
               </div>
               <div>
                 <h2 class="rw-ch-title">Законный представитель</h2>
-                <p class="rw-ch-sub">Данные родителя, опекуна или попечителя реабилитанта</p>
+                <p class="rw-ch-sub">{{ noRep ? 'Шаг пропущен — реабилитант совершеннолетний' : 'Данные родителя, опекуна или попечителя реабилитанта' }}</p>
+              </div>
+              <div class="rw-ch-actions">
+                <button v-if="!noRep" type="button" class="rw-scan-btn" @click="openScan('rep')" title="Заполнить паспортные поля по фото документа">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+                  <span class="rw-scan-btn-long">Заполнить по скану</span>
+                  <span class="rw-scan-btn-short">По скану</span>
+                </button>
+                <button type="button" class="rw-scan-btn rw-skip-btn" :class="{ 'is-on': noRep }" @click="toggleNoRep"
+                  :title="noRep ? 'Вернуться к заполнению данных законного представителя' : 'У совершеннолетнего реабилитанта законного представителя нет — шаг можно пропустить'">
+                  <svg v-if="noRep" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21v-3.5L16.5 4a2.1 2.1 0 0 1 3 3L6 20.5z"/><path d="M14.5 6l3 3"/></svg>
+                  <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 4 15 12 5 20"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
+                  <span class="rw-scan-btn-long">{{ noRep ? 'Заполнить представителя' : 'Пропустить' }}</span>
+                  <span class="rw-scan-btn-short">{{ noRep ? 'Заполнить' : 'Пропустить' }}</span>
+                </button>
               </div>
             </div>
-            <div class="rw-card-body">
+
+            <div v-if="noRep" class="rw-card-body">
+              <div class="rw-skip-note">
+                <div class="rw-skip-ico" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M6 21v-2a4 4 0 0 1 4-4h4a4 4 0 0 1 4 4v2"/></svg>
+                </div>
+                <div class="rw-skip-text">
+                  <div class="rw-skip-title">Законного представителя нет</div>
+                  <p class="rw-skip-sub">
+                    Реабилитант совершеннолетний и представляет себя сам: согласия и заявление он подписывает лично,
+                    паспорт представителя на шаге 3 не нужен. Контактный телефон указывается на шаге 2.
+                  </p>
+                  <p v-if="minorWarning" class="rw-skip-warn">
+                    По дате рождения {{ dmy(f.rBirth) }} реабилитанту {{ recipientAgeYears }} — это меньше 18 лет.
+                    Несовершеннолетнему законный представитель нужен: вернитесь к заполнению или проверьте дату рождения на шаге 2.
+                  </p>
+                  <button type="button" class="rw-btn rw-btn-secondary rw-btn-sm rw-skip-back" @click="toggleNoRep">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21v-3.5L16.5 4a2.1 2.1 0 0 1 3 3L6 20.5z"/><path d="M14.5 6l3 3"/></svg>
+                    Всё-таки заполнить представителя
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div v-else class="rw-card-body">
 
               <div class="rw-divider"><span class="rw-dv-label">ФИО</span><span class="rw-dv-line"></span></div>
               <div class="rw-fg">
                 <div class="rw-f rw-c4">
                   <label class="rw-label" for="lr-last">Фамилия <span class="rw-req">*</span></label>
-                  <input id="lr-last" class="rw-input" type="text" :value="f.lrLast" @input="onMask('lrLast', $event, maskName)" autocomplete="family-name" placeholder="Иванов" maxlength="50" />
+                  <input id="lr-last" class="rw-input" type="text" :value="f.lrLast" @input="onMask('lrLast', $event, maskName)" @keydown="onNameKey($event, 'rep', 0)" @paste="onFioPaste($event, 'rep')" enterkeyhint="next" autocomplete="family-name" placeholder="Иванов" maxlength="50" />
                 </div>
                 <div class="rw-f rw-c4">
                   <label class="rw-label" for="lr-first">Имя <span class="rw-req">*</span></label>
-                  <input id="lr-first" class="rw-input" type="text" :value="f.lrFirst" @input="onMask('lrFirst', $event, maskName)" autocomplete="given-name" placeholder="Иван" maxlength="50" />
+                  <input id="lr-first" class="rw-input" type="text" :value="f.lrFirst" @input="onMask('lrFirst', $event, maskName)" @keydown="onNameKey($event, 'rep', 1)" enterkeyhint="next" autocomplete="given-name" placeholder="Иван" maxlength="50" />
                 </div>
                 <div class="rw-f rw-c4">
                   <label class="rw-label" for="lr-mid">Отчество <span class="rw-opt">при наличии</span></label>
-                  <input id="lr-mid" class="rw-input" type="text" :value="f.lrMid" @input="onMask('lrMid', $event, maskName)" autocomplete="additional-name" placeholder="Иванович" maxlength="50" />
+                  <input id="lr-mid" class="rw-input" type="text" :value="f.lrMid" @input="onMask('lrMid', $event, maskName)" @keydown="onNameKey($event, 'rep', 2)" enterkeyhint="next" autocomplete="additional-name" placeholder="Иванович" maxlength="50" />
                 </div>
                 <div class="rw-f rw-c6">
                   <label class="rw-label" for="lr-rel">Кем приходится реабилитанту <span class="rw-req">*</span></label>
@@ -142,27 +181,27 @@
                 </div>
                 <div class="rw-f rw-c6">
                   <label class="rw-label" for="lr-phone">Телефон <span class="rw-req">*</span></label>
-                  <input id="lr-phone" class="rw-input" type="tel" inputmode="tel" :value="f.lrPhone" @input="onMask('lrPhone', $event, maskPhone)" maxlength="18" placeholder="+7 (___) ___-__-__" />
+                  <input id="lr-phone" class="rw-input" type="tel" inputmode="tel" :value="f.lrPhone" @input="onMask('lrPhone', $event, maskPhone, { len: 18, to: 'lp-ser' })" enterkeyhint="next" maxlength="18" placeholder="+7 (___) ___-__-__" />
                 </div>
               </div>
 
               <div class="rw-divider"><span class="rw-dv-label">Паспорт</span><span class="rw-dv-line"></span></div>
               <div class="rw-fg">
                 <div class="rw-f rw-c3">
-                  <label class="rw-label" for="lp-ser">Серия <span class="rw-req">*</span></label>
-                  <input id="lp-ser" class="rw-input" type="text" inputmode="numeric" maxlength="4" placeholder="0000" :value="f.lrPassSeries" @input="onMask('lrPassSeries', $event, v => onlyDigits(v, 4))" />
+                  <label class="rw-label" for="lp-ser">Серия <span class="rw-req">*</span><span v-if="ocrFilled.includes('lrPassSeries')" class="rw-ocr-tag">распознано</span></label>
+                  <input id="lp-ser" class="rw-input" type="text" inputmode="numeric" maxlength="4" placeholder="0000" :value="f.lrPassSeries" @input="onMask('lrPassSeries', $event, v => onlyDigits(v, 4), { len: 4, to: 'lp-num' })" enterkeyhint="next" />
                 </div>
                 <div class="rw-f rw-c3">
-                  <label class="rw-label" for="lp-num">Номер <span class="rw-req">*</span></label>
-                  <input id="lp-num" class="rw-input" type="text" inputmode="numeric" maxlength="6" placeholder="000000" :value="f.lrPassNum" @input="onMask('lrPassNum', $event, v => onlyDigits(v, 6))" />
+                  <label class="rw-label" for="lp-num">Номер <span class="rw-req">*</span><span v-if="ocrFilled.includes('lrPassNum')" class="rw-ocr-tag">распознано</span></label>
+                  <input id="lp-num" class="rw-input" type="text" inputmode="numeric" maxlength="6" placeholder="000000" :value="f.lrPassNum" @input="onMask('lrPassNum', $event, v => onlyDigits(v, 6), { len: 6, to: 'lp-dt' })" enterkeyhint="next" />
                 </div>
                 <div class="rw-f rw-c3">
-                  <label class="rw-label" for="lp-dt">Дата выдачи <span class="rw-req">*</span></label>
-                  <input id="lp-dt" class="rw-input" type="date" v-model="f.lrPassDate" :max="today" />
+                  <label class="rw-label" for="lp-dt">Дата выдачи <span class="rw-req">*</span><span v-if="ocrFilled.includes('lrPassDate')" class="rw-ocr-tag">распознано</span></label>
+                  <input id="lp-dt" class="rw-input" type="date" v-model="f.lrPassDate" :max="today" @input="clearOcrTag('lrPassDate')" />
                 </div>
                 <div class="rw-f rw-c3">
-                  <label class="rw-label" for="lp-code">Код подразделения <span class="rw-req">*</span></label>
-                  <input id="lp-code" class="rw-input" type="text" inputmode="numeric" maxlength="7" placeholder="000-000" :value="f.lrPassCode" @input="onMask('lrPassCode', $event, maskDeptCode)" />
+                  <label class="rw-label" for="lp-code">Код подразделения <span class="rw-req">*</span><span v-if="ocrFilled.includes('lrPassCode')" class="rw-ocr-tag">распознано</span></label>
+                  <input id="lp-code" class="rw-input" type="text" inputmode="numeric" maxlength="7" placeholder="000-000" :value="f.lrPassCode" @input="onMask('lrPassCode', $event, maskDeptCode, { len: 7, to: 'lp-iss' })" enterkeyhint="next" />
                 </div>
                 <div class="rw-f rw-c12">
                   <label class="rw-label" for="lp-iss">Кем выдан <span class="rw-req">*</span></label>
@@ -227,6 +266,11 @@
                 <h2 class="rw-ch-title">Данные реабилитанта</h2>
                 <p class="rw-ch-sub">Личная информация и сведения о группе инвалидности</p>
               </div>
+              <button type="button" class="rw-scan-btn" @click="openScan('child')" title="Заполнить поля документа и СНИЛС по фото">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/><line x1="7" y1="12" x2="17" y2="12"/></svg>
+                <span class="rw-scan-btn-long">Заполнить по скану</span>
+                <span class="rw-scan-btn-short">По скану</span>
+              </button>
             </div>
             <div class="rw-card-body">
 
@@ -234,19 +278,23 @@
               <div class="rw-fg">
                 <div class="rw-f rw-c4">
                   <label class="rw-label" for="r-last">Фамилия <span class="rw-req">*</span></label>
-                  <input id="r-last" class="rw-input" type="text" :value="f.rLast" @input="onMask('rLast', $event, maskName)" placeholder="Иванов" maxlength="50" />
+                  <input id="r-last" class="rw-input" type="text" :value="f.rLast" @input="onMask('rLast', $event, maskName)" @keydown="onNameKey($event, 'child', 0)" @paste="onFioPaste($event, 'child')" enterkeyhint="next" placeholder="Иванов" maxlength="50" />
                 </div>
                 <div class="rw-f rw-c4">
                   <label class="rw-label" for="r-first">Имя <span class="rw-req">*</span></label>
-                  <input id="r-first" class="rw-input" type="text" :value="f.rFirst" @input="onMask('rFirst', $event, maskName)" placeholder="Иван" maxlength="50" />
+                  <input id="r-first" class="rw-input" type="text" :value="f.rFirst" @input="onMask('rFirst', $event, maskName)" @keydown="onNameKey($event, 'child', 1)" enterkeyhint="next" placeholder="Иван" maxlength="50" />
                 </div>
                 <div class="rw-f rw-c4">
                   <label class="rw-label" for="r-mid">Отчество <span class="rw-opt">при наличии</span></label>
-                  <input id="r-mid" class="rw-input" type="text" :value="f.rMid" @input="onMask('rMid', $event, maskName)" placeholder="Иванович" maxlength="50" />
+                  <input id="r-mid" class="rw-input" type="text" :value="f.rMid" @input="onMask('rMid', $event, maskName)" @keydown="onNameKey($event, 'child', 2)" enterkeyhint="next" placeholder="Иванович" maxlength="50" />
                 </div>
                 <div class="rw-f rw-c4">
-                  <label class="rw-label" for="r-birth">Дата рождения <span class="rw-req">*</span></label>
-                  <input id="r-birth" class="rw-input" type="date" v-model="f.rBirth" :max="today" />
+                  <label class="rw-label" for="r-birth">Дата рождения <span class="rw-req">*</span><span v-if="ocrFilled.includes('rBirth')" class="rw-ocr-tag">распознано</span></label>
+                  <input id="r-birth" class="rw-input" type="date" v-model="f.rBirth" :max="today" @input="clearOcrTag('rBirth')" />
+                </div>
+                <div v-if="noRep" class="rw-f rw-c4">
+                  <label class="rw-label" for="r-phone">Телефон <span class="rw-req">*</span></label>
+                  <input id="r-phone" class="rw-input" type="tel" inputmode="tel" :value="f.rPhone" @input="onMask('rPhone', $event, maskPhone, { len: 18, to: 'rd-ser' })" enterkeyhint="next" maxlength="18" placeholder="+7 (___) ___-__-__" />
                 </div>
               </div>
 
@@ -264,6 +312,54 @@
                 </div>
               </div>
 
+              <div class="rw-divider"><span class="rw-dv-label">Документ, удостоверяющий личность</span><span class="rw-dv-line"></span></div>
+              <div class="rw-fg">
+                <div class="rw-f rw-c12">
+                  <fieldset style="border:none;padding:0;margin:0">
+                    <legend class="rw-label" style="margin-bottom:0.5rem">Тип документа <span class="rw-req">*</span></legend>
+                    <div class="rw-seg">
+                      <button class="rw-seg-btn" :class="{ active: f.rDocType === 'birth' }" type="button" @click="f.rDocType = 'birth'">Свидетельство о рождении</button>
+                      <button class="rw-seg-btn" :class="{ active: f.rDocType === 'passport' }" type="button" @click="f.rDocType = 'passport'">Паспорт гражданина РФ</button>
+                    </div>
+                  </fieldset>
+                </div>
+                <div class="rw-f rw-c3">
+                  <label class="rw-label" for="rd-ser">Серия <span class="rw-req">*</span><span v-if="ocrFilled.includes('rDocSeries')" class="rw-ocr-tag">распознано</span></label>
+                  <input id="rd-ser" class="rw-input" type="text" :placeholder="f.rDocType === 'birth' ? 'IV-АБ' : '0000'" :value="f.rDocSeries" @input="onDocSeries($event)" :inputmode="f.rDocType === 'birth' ? 'text' : 'numeric'" :maxlength="f.rDocType === 'birth' ? 12 : 4" />
+                </div>
+                <div class="rw-f rw-c3">
+                  <label class="rw-label" for="rd-num">Номер <span class="rw-req">*</span><span v-if="ocrFilled.includes('rDocNum')" class="rw-ocr-tag">распознано</span></label>
+                  <input id="rd-num" class="rw-input" type="text" inputmode="numeric" maxlength="6" placeholder="000000" :value="f.rDocNum" @input="onMask('rDocNum', $event, v => onlyDigits(v, 6), { len: 6, to: 'rd-dt' })" enterkeyhint="next" />
+                </div>
+                <div class="rw-f rw-c3">
+                  <label class="rw-label" for="rd-dt">Дата выдачи <span class="rw-req">*</span><span v-if="ocrFilled.includes('rDocDate')" class="rw-ocr-tag">распознано</span></label>
+                  <input id="rd-dt" class="rw-input" type="date" v-model="f.rDocDate" :max="today" @input="clearOcrTag('rDocDate')" />
+                </div>
+                <div class="rw-f rw-c3">
+                  <label class="rw-label" for="rd-rel">Кем приходится представителю</label>
+                  <select id="rd-rel" class="rw-select" v-model="f.rDocRelation">
+                    <option value="">Выберите…</option>
+                    <option>Сын</option><option>Дочь</option><option>Подопечный</option>
+                  </select>
+                </div>
+                <div class="rw-f rw-c12">
+                  <label class="rw-label" for="rd-iss">Кем выдан <span class="rw-req">*</span></label>
+                  <input id="rd-iss" class="rw-input" type="text" placeholder="Наименование органа ЗАГС / органа, выдавшего паспорт" :value="f.rDocIssuer" @input="onMask('rDocIssuer', $event, v => maskText(v, 255))" maxlength="255" />
+                </div>
+              </div>
+
+              <div v-if="dupDoc" class="rw-dup rw-dup-block">
+                <span class="rw-dup-ico" aria-hidden="true">×</span>
+                <div class="rw-dup-text">
+                  <b class="rw-dup-title">Такой документ уже зарегистрирован</b>
+                  <span class="rw-dup-sub">
+                    {{ dupDoc.docType }} {{ dupDoc.docSeries }} {{ dupDoc.docNumber }} принадлежит реабилитанту
+                    {{ dupFio(dupDoc) }}{{ dupDoc.birthDate ? ', ' + dupDate(dupDoc.birthDate) : '' }}.
+                    Сохранить карточку с этим документом нельзя — проверьте серию и номер.
+                  </span>
+                </div>
+              </div>
+
               <div class="rw-divider"><span class="rw-dv-label">Медицинские сведения и реабилитационная группа</span><span class="rw-dv-line"></span></div>
               <div class="rw-fg">
                 <div class="rw-f rw-c12">
@@ -277,16 +373,30 @@
                   </fieldset>
                 </div>
                 <div class="rw-f rw-c6">
-                  <label class="rw-label" for="r-snils">СНИЛС <span class="rw-req">*</span></label>
-                  <input id="r-snils" class="rw-input" type="text" inputmode="numeric" maxlength="14" placeholder="000-000-000 00" :value="f.rSnils" @input="onMask('rSnils', $event, maskSnils)" />
+                  <label class="rw-label" for="r-snils">СНИЛС <span class="rw-req">*</span><span v-if="ocrFilled.includes('rSnils')" class="rw-ocr-tag">распознано</span></label>
+                  <input id="r-snils" class="rw-input" type="text" inputmode="numeric" maxlength="14" placeholder="000-000-000 00" :value="f.rSnils" @input="onMask('rSnils', $event, maskSnils, { len: 14, to: 'r-mse-date' })" enterkeyhint="next" />
                 </div>
                 <div class="rw-f rw-c3">
                   <label class="rw-label" for="r-mse-date">Дата выдачи МСЭ</label>
                   <input id="r-mse-date" class="rw-input" type="date" v-model="f.rMseDate" :max="today" />
                 </div>
                 <div class="rw-f rw-c3">
-                  <label class="rw-label" for="r-mse-until">Дата действия МСЭ</label>
-                  <input id="r-mse-until" class="rw-input" type="date" v-model="f.rMseUntil" :min="f.rMseDate || undefined" />
+                  <div class="rw-label-row">
+                    <label class="rw-label" for="r-mse-until">Дата действия МСЭ</label>
+                    <button
+                      type="button"
+                      class="rw-chip-toggle"
+                      :class="{ active: f.rMseIndefinite }"
+                      :aria-pressed="f.rMseIndefinite"
+                      @click="toggleMseIndefinite"
+                      title="Справка МСЭ выдана бессрочно — дата действия не нужна"
+                    >
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18.178 8c1.11 0 2.322.53 2.822 2s-.39 2.928-1.5 4c-1.11 1.072-2.5 2-4 2s-3.5-1.5-3.5-4 2-4 3.5-4z"/><path d="M5.822 8c-1.11 0-2.322.53-2.822 2s.39 2.928 1.5 4c1.11 1.072 2.5 2 4 2s3.5-1.5 3.5-4-2-4-3.5-4z"/></svg>
+                      Бессрочно
+                    </button>
+                  </div>
+                  <input v-if="!f.rMseIndefinite" id="r-mse-until" class="rw-input" type="date" v-model="f.rMseUntil" :min="f.rMseDate || undefined" />
+                  <div v-else class="rw-input rw-input-static">Бессрочно</div>
                 </div>
 
                 <div class="rw-f rw-c12">
@@ -392,56 +502,41 @@
                   </div>
                 </div>
                 <div class="rw-f rw-c12">
-                  <label class="rw-label" for="r-diagnosis">Диагноз</label>
-                  <textarea id="r-diagnosis" rows="2" v-model="f.rDiagnosis" maxlength="255" placeholder="Основной диагноз и сопутствующие (при наличии)"></textarea>
-                </div>
-              </div>
-
-              <div class="rw-divider"><span class="rw-dv-label">Документ, удостоверяющий личность</span><span class="rw-dv-line"></span></div>
-              <div class="rw-fg">
-                <div class="rw-f rw-c12">
-                  <fieldset style="border:none;padding:0;margin:0">
-                    <legend class="rw-label" style="margin-bottom:0.5rem">Тип документа <span class="rw-req">*</span></legend>
-                    <div class="rw-seg">
-                      <button class="rw-seg-btn" :class="{ active: f.rDocType === 'birth' }" type="button" @click="f.rDocType = 'birth'">Свидетельство о рождении</button>
-                      <button class="rw-seg-btn" :class="{ active: f.rDocType === 'passport' }" type="button" @click="f.rDocType = 'passport'">Паспорт гражданина РФ</button>
+                  <label class="rw-label" for="r-diagnosis-0">
+                    Диагноз
+                    <span v-if="f.rDiagnosisList.length > 1" class="rw-opt">{{ f.rDiagnosisList.length }} записи</span>
+                  </label>
+                  <div class="rw-diag-list">
+                    <div v-for="(d, i) in f.rDiagnosisList" :key="'diag-' + i" class="rw-diag-row">
+                      <span class="rw-diag-num" aria-hidden="true">{{ i + 1 }}</span>
+                      <input
+                        :id="'r-diagnosis-' + i"
+                        class="rw-input"
+                        type="text"
+                        :value="d"
+                        @input="onDiagnosisInput(i, $event)"
+                        @keydown.enter.prevent="addDiagnosis(i)"
+                        :placeholder="i === 0 ? 'Основной диагноз' : 'Сопутствующий диагноз'"
+                        :aria-label="i === 0 ? 'Основной диагноз' : 'Сопутствующий диагноз ' + i"
+                        maxlength="255"
+                        enterkeyhint="next"
+                      />
+                      <button
+                        v-if="f.rDiagnosisList.length > 1"
+                        type="button" class="rw-diag-del"
+                        @click="removeDiagnosis(i)"
+                        :title="'Убрать диагноз ' + (i + 1)"
+                        :aria-label="'Убрать диагноз ' + (i + 1)"
+                      >
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                      </button>
                     </div>
-                  </fieldset>
-                </div>
-                <div class="rw-f rw-c3">
-                  <label class="rw-label" for="rd-ser">Серия <span class="rw-req">*</span></label>
-                  <input id="rd-ser" class="rw-input" type="text" :placeholder="f.rDocType === 'birth' ? 'IV-АБ' : '0000'" :value="f.rDocSeries" @input="onDocSeries($event)" :inputmode="f.rDocType === 'birth' ? 'text' : 'numeric'" :maxlength="f.rDocType === 'birth' ? 12 : 4" />
-                </div>
-                <div class="rw-f rw-c3">
-                  <label class="rw-label" for="rd-num">Номер <span class="rw-req">*</span></label>
-                  <input id="rd-num" class="rw-input" type="text" inputmode="numeric" maxlength="6" placeholder="000000" :value="f.rDocNum" @input="onMask('rDocNum', $event, v => onlyDigits(v, 6))" />
-                </div>
-                <div class="rw-f rw-c3">
-                  <label class="rw-label" for="rd-dt">Дата выдачи <span class="rw-req">*</span></label>
-                  <input id="rd-dt" class="rw-input" type="date" v-model="f.rDocDate" :max="today" />
-                </div>
-                <div class="rw-f rw-c3">
-                  <label class="rw-label" for="rd-rel">Кем приходится представителю</label>
-                  <select id="rd-rel" class="rw-select" v-model="f.rDocRelation">
-                    <option value="">Выберите…</option>
-                    <option>Сын</option><option>Дочь</option><option>Подопечный</option>
-                  </select>
-                </div>
-                <div class="rw-f rw-c12">
-                  <label class="rw-label" for="rd-iss">Кем выдан <span class="rw-req">*</span></label>
-                  <input id="rd-iss" class="rw-input" type="text" placeholder="Наименование органа ЗАГС / органа, выдавшего паспорт" :value="f.rDocIssuer" @input="onMask('rDocIssuer', $event, v => maskText(v, 255))" maxlength="255" />
-                </div>
-              </div>
-
-              <div v-if="dupDoc" class="rw-dup rw-dup-block">
-                <span class="rw-dup-ico" aria-hidden="true">×</span>
-                <div class="rw-dup-text">
-                  <b class="rw-dup-title">Такой документ уже зарегистрирован</b>
-                  <span class="rw-dup-sub">
-                    {{ dupDoc.docType }} {{ dupDoc.docSeries }} {{ dupDoc.docNumber }} принадлежит реабилитанту
-                    {{ dupFio(dupDoc) }}{{ dupDoc.birthDate ? ', ' + dupDate(dupDoc.birthDate) : '' }}.
-                    Сохранить карточку с этим документом нельзя — проверьте серию и номер.
-                  </span>
+                  </div>
+                  <button type="button" class="rw-diag-add" @click="addDiagnosis()" :disabled="!canAddDiagnosis">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                    Добавить ещё диагноз
+                  </button>
+                  <p class="rw-field-help">Основной диагноз в первой строке, сопутствующие — ниже. Enter добавляет следующую строку.</p>
                 </div>
               </div>
 
@@ -542,13 +637,16 @@
                     <div class="rw-ut-body">
                       <div class="rw-ut-title">{{ t.title }}</div>
                       <div class="rw-ut-meta">{{ uploads[t.k] ? uploads[t.k].name : t.meta }}</div>
-                      <button
-                        v-if="uploads[t.k]" type="button" class="rw-ut-view"
-                        @click.prevent.stop="openPreview(uploads[t.k], t.title)"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
-                        Посмотреть
-                      </button>
+                      <div v-if="uploads[t.k]" class="rw-ut-btns">
+                        <button type="button" class="rw-ut-view" @click.prevent.stop="openPreview(uploads[t.k], t.title)">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                          Посмотреть
+                        </button>
+                        <button type="button" class="rw-ut-del" @click.prevent.stop="removeUpload('main', t.k, t.title)">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                          Удалить
+                        </button>
+                      </div>
                     </div>
                     <span class="rw-ut-action">
                       <svg v-if="!uploads[t.k]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -625,13 +723,16 @@
                     <div class="rw-ut-body">
                       <div class="rw-ut-title">{{ t.title }}</div>
                       <div class="rw-ut-meta">{{ signedUploads[t.k] ? signedUploads[t.k].name : t.meta }}</div>
-                      <button
-                        v-if="signedUploads[t.k]" type="button" class="rw-ut-view"
-                        @click.prevent.stop="openPreview(signedUploads[t.k], t.title)"
-                      >
-                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
-                        Посмотреть
-                      </button>
+                      <div v-if="signedUploads[t.k]" class="rw-ut-btns">
+                        <button type="button" class="rw-ut-view" @click.prevent.stop="openPreview(signedUploads[t.k], t.title)">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                          Посмотреть
+                        </button>
+                        <button type="button" class="rw-ut-del" @click.prevent.stop="removeUpload('signed', t.k, t.title)">
+                          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+                          Удалить
+                        </button>
+                      </div>
                     </div>
                     <span class="rw-ut-action">
                       <svg v-if="!signedUploads[t.k]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -648,7 +749,8 @@
                   <div class="rw-sr-sub">Все сканы соответствуют оригиналам, согласия и заявление подписаны законным представителем</div>
                   <div v-if="!packageComplete" class="rw-sr-lock">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    Заполните все обязательные поля и прикрепите все обязательные документы на всех этапах — только тогда можно подтвердить комплектность.
+                    Пока не хватает {{ missingDocs.length }} {{ pluralDocs(missingDocs.length) }} — подтвердить комплектность нельзя.
+                    Карточку при этом создать можно: недостающее догружается позже во вкладке «Документы».
                   </div>
                 </div>
                 <span class="rw-switch">
@@ -667,7 +769,7 @@
     <div class="rw-savebar">
       <div class="rw-sb-inner">
         <div class="rw-sb-info">
-          <strong>{{ displayName || 'Новый реабилитант' }}</strong>
+          <strong :title="displayName || 'Новый реабилитант'">{{ displayName || 'Новый реабилитант' }}</strong>
           <span class="rw-sb-sep">·</span>
           <span class="rw-sb-count">заполнено {{ overallProgress.done }}&nbsp;из&nbsp;{{ overallProgress.total }} полей</span>
         </div>
@@ -738,9 +840,13 @@
             Далее
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
           </button>
-          <button v-else class="rw-btn rw-btn-primary" type="button" :disabled="saving || !f.consentConfirmed" :title="!f.consentConfirmed ? 'Подтвердите комплектность пакета документов, чтобы сохранить карточку' : ''" @click="save">
+          <button v-else class="rw-btn rw-btn-primary" type="button" :disabled="saving || !personalComplete" :title="saveHint" @click="save">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             <span v-if="saving">Сохранение…</span>
+            <template v-else-if="missingDocs.length">
+              <span class="rw-sb-save-long">Создать карточку — {{ missingDocs.length }} {{ pluralDocs(missingDocs.length) }} позже</span>
+              <span class="rw-sb-save-short">Создать</span>
+            </template>
             <template v-else>
               <span class="rw-sb-save-long">Сохранить и создать карточку</span>
               <span class="rw-sb-save-short">Сохранить</span>
@@ -750,6 +856,81 @@
       </div>
     </div>
 
+   </div>
+
+   <div v-if="scan" class="rw-pv rw-sc" @click.self="closeScan">
+     <div class="rw-sc-box" role="dialog" aria-modal="true" aria-label="Заполнение полей по скану документа">
+       <div class="rw-sc-head">
+         <div class="rw-sc-titles">
+           <div class="rw-sc-title">Заполнение по скану</div>
+           <div class="rw-sc-sub">{{ scanSub }}</div>
+         </div>
+         <button class="rw-pv-btn rw-pv-close" type="button" aria-label="Закрыть" @click="closeScan">
+           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+         </button>
+       </div>
+
+       <div class="rw-sc-body">
+         <div v-if="scan.target === 'child'" class="rw-seg rw-sc-seg">
+           <button type="button" class="rw-seg-btn" :class="{ active: scan.kind === 'passport' }" @click="setScanKind('passport')">Паспорт РФ</button>
+           <button type="button" class="rw-seg-btn" :class="{ active: scan.kind === 'snils' }" @click="setScanKind('snils')">СНИЛС</button>
+         </div>
+
+         <div v-if="scan.kind === 'passport' && scan.target === 'child'" class="rw-sc-warn">
+           Свидетельство о рождении так не заполнить: машиночитаемых строк на нём нет. Его серию и номер вводите вручную.
+         </div>
+
+         <div class="rw-sc-guide">
+           <div class="rw-sc-guide-title">Как снять, чтобы прочиталось</div>
+           <ol class="rw-sc-steps">
+             <li v-for="tip in scanTips" :key="tip.t">
+               <b>{{ tip.t }}.</b> {{ tip.d }}
+             </li>
+           </ol>
+         </div>
+
+         <label class="rw-sc-drop" :class="{ 'is-busy': scan.busy }">
+           <input type="file" accept="image/jpeg,image/png,image/webp,image/bmp" :disabled="scan.busy" @change="onScanFile" />
+           <span class="rw-sc-drop-icon">
+             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+           </span>
+           <span class="rw-sc-drop-text">
+             <span class="rw-sc-drop-title">{{ scan.fileName || 'Выбрать фото или скан' }}</span>
+             <span class="rw-sc-drop-sub">JPG, PNG, WEBP или BMP. PDF пока не читается.</span>
+           </span>
+         </label>
+
+         <div v-if="scan.busy" class="rw-sc-state" aria-live="polite">
+           <span class="rw-loading-spin" aria-hidden="true"></span>
+           {{ scan.stage }}
+         </div>
+         <div v-else-if="scan.error" class="rw-sc-state rw-sc-state-bad" aria-live="polite">{{ scan.error }}</div>
+         <div v-else-if="scan.found.length" class="rw-sc-result" aria-live="polite">
+           <div class="rw-sc-result-title">Прочитано — сверьте с документом</div>
+           <ul class="rw-ocr-list">
+             <li v-for="item in scan.found" :key="item.field">
+               <span class="rw-ocr-label">{{ item.label }}</span>
+               <span class="rw-ocr-value">{{ fmtOcrValue(item.field, item.value) }}</span>
+             </li>
+           </ul>
+           <div v-if="scan.asPassport" class="rw-sc-result-note">Тип документа переключим на «Паспорт гражданина РФ».</div>
+         </div>
+
+         <ul class="rw-sc-rules">
+           <li>Заполняем только пустые поля — то, что вы ввели руками, не трогаем.</li>
+           <li>Если контрольная цифра не сошлась, поле останется пустым: лучше пусто, чем неверная цифра.</li>
+           <li>Файл обрабатывается на этом компьютере, никуда не отправляется и к карточке не прикрепляется — сканы загружаются на этапе «Документы».</li>
+         </ul>
+       </div>
+
+       <div class="rw-sc-foot">
+         <button type="button" class="rw-btn rw-btn-ghost" @click="closeScan">Отмена</button>
+         <button type="button" class="rw-btn rw-btn-primary" :disabled="scan.busy || !scan.found.length" @click="applyScan">
+           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"/></svg>
+           Подставить<template v-if="scan.found.length"> ({{ scan.found.length }})</template>
+         </button>
+       </div>
+     </div>
    </div>
 
    <div v-if="preview" class="rw-pv" @click.self="closePreview">
@@ -787,9 +968,10 @@ import {
   readDraftServerId, rememberDraftServerId, forgetDraftServerId
 } from '../utils/recipientDraft';
 import { useScrollLock } from '../utils/scrollLock';
+import { joinDiagnoses, toDiagnosisFields } from '../utils/diagnosisList';
+import { recognizePassport, recognizeSnils, isSupportedScan, disposeOcr } from '../utils/docOcr';
 
 useScrollLock();
-
 
 const props = defineProps({
   groupsList: { type: Array, default: () => [] },
@@ -931,6 +1113,8 @@ const removeNosology = (k) => {
 
 const makeEmptyForm = () => ({
 
+  lrNone: false,
+
   lrLast: '', lrFirst: '', lrMid: '',
   lrRelation: '', lrPhone: '',
   lrPassSeries: '', lrPassNum: '', lrPassDate: '', lrPassCode: '', lrPassIssuer: '',
@@ -939,15 +1123,17 @@ const makeEmptyForm = () => ({
 
   rLast: '', rFirst: '', rMid: '',
   rBirth: '',
+  rPhone: '',
 
   rInvalidity: '',
   rSnils: '',
   rMseDate: '',
   rMseUntil: '',
+  rMseIndefinite: false,
   rCrg: '',
   rCrgSub: '',
   rNosology: [],
-  rDiagnosis: '',
+  rDiagnosisList: [''],
 
   rDocType: 'birth',
   rDocSeries: '', rDocNum: '', rDocDate: '', rDocRelation: '', rDocIssuer: '',
@@ -966,7 +1152,46 @@ const makeEmptyForm = () => ({
   groupId: null,
 });
 
+const hydrateForm = (saved) => {
+  const src = saved || {};
+  const form = { ...makeEmptyForm(), ...src };
+  form.rDiagnosisList = toDiagnosisFields(
+    src.rDiagnosisList != null ? src.rDiagnosisList : src.rDiagnosis
+  );
+  delete form.rDiagnosis;
+  form.lrNone = src.lrNone === true;
+  return form;
+};
+
 const f = ref(makeEmptyForm());
+
+const toggleMseIndefinite = () => {
+  f.value.rMseIndefinite = !f.value.rMseIndefinite;
+  if (f.value.rMseIndefinite) f.value.rMseUntil = '';
+};
+
+const canAddDiagnosis = computed(() => {
+  const list = f.value.rDiagnosisList;
+  return list.length < 10 && list.every((d) => (d || '').trim());
+});
+
+const onDiagnosisInput = (i, e) => {
+  f.value.rDiagnosisList[i] = e.target.value;
+};
+
+const addDiagnosis = (after) => {
+  if (!canAddDiagnosis.value) return;
+  const at = Number.isInteger(after) ? after + 1 : f.value.rDiagnosisList.length;
+  f.value.rDiagnosisList.splice(at, 0, '');
+  nextTick(() => focusField('r-diagnosis-' + at));
+};
+
+const removeDiagnosis = (i) => {
+  const list = f.value.rDiagnosisList;
+  if (list.length <= 1) return;
+  list.splice(i, 1);
+  nextTick(() => focusField('r-diagnosis-' + Math.min(i, list.length - 1)));
+};
 
 const familyStatusOptions = ref([]);
 
@@ -1078,6 +1303,49 @@ const pluralYears = (n) => {
   return 'лет';
 };
 const capitalize = (s) => s ? s.charAt(0).toUpperCase() + s.slice(1) : '';
+
+const noRep = computed(() => f.value.lrNone === true);
+
+const dmy = (iso) => {
+  if (!iso) return '';
+  const [y, m, d] = String(iso).split('-');
+  return y && m && d ? `${d}.${m}.${y}` : String(iso);
+};
+
+const recipientAgeYears = computed(() =>
+  crgAge.value == null ? '' : `${crgAge.value} ${pluralYears(crgAge.value)}`
+);
+
+const minorWarning = computed(() => noRep.value && crgAge.value != null && crgAge.value < 18);
+
+const REP_FIELDS = [
+  'lrLast', 'lrFirst', 'lrMid', 'lrRelation', 'lrPhone',
+  'lrPassSeries', 'lrPassNum', 'lrPassDate', 'lrPassCode', 'lrPassIssuer', 'lrAddress',
+];
+
+const toggleNoRep = () => {
+  if (noRep.value) { f.value.lrNone = false; return; }
+
+  if (crgAge.value != null && crgAge.value < 18) {
+    const ok = confirm(
+      `По дате рождения ${dmy(f.value.rBirth)} реабилитанту ${recipientAgeYears.value} — это меньше 18.\n\n`
+      + 'Законного представителя нет только у совершеннолетних. Всё равно пропустить шаг?'
+    );
+    if (!ok) return;
+  }
+
+  const filled = REP_FIELDS.some((k) => String(f.value[k] ?? '').trim() !== '');
+  if (filled && !confirm(
+    'Данные законного представителя уже заполнены.\n\n'
+    + 'Они останутся в черновике и вернутся, если снова нажать «Заполнить представителя», '
+    + 'но в карточку не попадут. Пропустить шаг?'
+  )) return;
+
+  f.value.lrNone = true;
+
+  if (uploads.value['rep-pass']) removeUpload('main', 'rep-pass', '', { ask: false });
+};
+
 const crgGroupDisabled = computed(() => crgAge.value === null);
 const crgAgeHint = computed(() => {
   if (crgAge.value === null) return '';
@@ -1125,7 +1393,7 @@ const uploadCount = computed(() => Object.keys(uploads.value).length);
 const signedUploads = ref({});
 const signedCount = computed(() => Object.keys(signedUploads.value).length);
 
-const tiles = [
+const ALL_TILES = [
   { k: 'birth',    req: true,  title: 'Свидетельство о рождении или паспорт', meta: 'Документ, удостоверяющий личность реабилитанта',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>' },
   { k: 'rep-pass', req: true,  title: 'Паспорт законного представителя', meta: 'Разворот с фото и страница с пропиской',
@@ -1143,6 +1411,14 @@ const tiles = [
   { k: 'snils',    req: true,  title: 'СНИЛС', meta: 'Страховой номер индивидуального лицевого счёта',
     icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>' },
 ];
+
+const needsHousing = computed(() => crgAge.value == null || crgAge.value < 14);
+
+const tiles = computed(() => ALL_TILES.filter((t) => {
+  if (t.k === 'rep-pass' && noRep.value) return false;
+  if (t.k === 'housing'  && !needsHousing.value) return false;
+  return true;
+}));
 
 const signedTiles = [
   { k: 'signed-pdn',   title: 'Подписанное согласие на ПДн',           meta: 'Скан или фото подписанного документа 1',
@@ -1169,7 +1445,7 @@ const requiredFields = computed(() => {
   const [step1, step2] = draftPersonFields(v);
 
   const step3 = [
-    ...tiles.filter(t => t.req).map(t => (
+    ...tiles.value.filter(t => t.req).map(t => (
       { g: 'Сканы готовых документов', l: t.title, ok: !!uploads.value[t.k], a: '#tile-' + t.k }
     )),
     { g: 'Документы на подпись', l: 'Сформировать пакет из 3 документов', ok: docsGenerated.value, a: '#gen-docs-btn' },
@@ -1207,6 +1483,36 @@ const packageComplete = computed(() => {
 watch(packageComplete, (ok) => {
   if (!ok && f.value.consentConfirmed) f.value.consentConfirmed = false;
 }, { immediate: true });
+
+const personalComplete = computed(() => {
+  const [s1, s2] = requiredChecks.value;
+  return s1.every(Boolean) && s2.every(Boolean);
+});
+
+const missingDocs = computed(() => {
+  const list = requiredFields.value[2] || [];
+  return list.slice(0, -1).filter((x) => !x.ok);
+});
+
+const pluralDocs = (n) => {
+  const a = Math.abs(n) % 100, b = n % 10;
+  if (a > 10 && a < 20) return 'документов';
+  if (b > 1 && b < 5)   return 'документов';
+  if (b === 1)          return 'документа';
+  return 'документов';
+};
+
+const saveHint = computed(() => {
+  if (!personalComplete.value) {
+    return 'Заполните обязательные поля на шагах 1 и 2 — без них карточку создать нельзя';
+  }
+  const n = missingDocs.value.length;
+  if (n) {
+    return `Карточка будет создана без ${n} ${pluralDocs(n)} — их можно догрузить позже ` +
+      'в карточке реабилитанта, вкладка «Документы»';
+  }
+  return '';
+});
 
 const missingOpen = ref(false);
 
@@ -1312,6 +1618,11 @@ const dropDraftFiles = async () => {
   try { await withDraftFiles('readwrite', (s) => s.clear()); } catch (e) { console.error(e); }
 };
 
+const forgetDraftFile = async (kind, key) => {
+  try { await withDraftFiles('readwrite', (s) => s.delete(draftFileKey(kind, key))); }
+  catch (e) { console.error(e); }
+};
+
 let draftFileWarned = false;
 const rememberDraftFile = async (kind, key, file) => {
   try {
@@ -1358,7 +1669,7 @@ const loadDraft = () => {
     if (!raw) return;
     const saved = JSON.parse(raw);
     if (saved && typeof saved === 'object') {
-      f.value = { ...makeEmptyForm(), ...saved };
+      f.value = hydrateForm(saved);
       draftState.value = 'saved';
     }
   } catch (e) {  }
@@ -1472,6 +1783,13 @@ const uploadDraftScan = async (docKey, file) => {
   }
 };
 
+const deleteDraftScan = async (docKey) => {
+  const id = serverDraftId.value;
+  if (!id) return;
+  try { await api.delete(`/recipients/drafts/${id}/scans/${docKey}`); }
+  catch (err) { console.error('скан не удалён из черновика на сервере:', err); }
+};
+
 const syncLocalScans = async () => {
   const local = [...Object.entries(uploads.value), ...Object.entries(signedUploads.value)]
     .filter(([, file]) => file instanceof Blob);
@@ -1514,7 +1832,7 @@ const openServerDraft = async (id) => {
     await dropDraftFiles();
     uploads.value = {};
     signedUploads.value = {};
-    f.value = { ...makeEmptyForm(), ...(data.payload || {}) };
+    f.value = hydrateForm(data.payload);
     draftState.value = 'saved';
     const main = {};
     const signed = {};
@@ -1605,15 +1923,219 @@ function maskText(v, max) {
   return v.replace(/^\s+/, '').replace(/\s{2,}/g, ' ').slice(0, max);
 }
 
-function onMask(field, e, fn) {
-  const masked = fn(e.target.value);
+const CARET_TYPES = ['text', 'tel', 'search', 'url', 'password'];
+
+function focusField(id) {
+  const el = document.getElementById(id);
+  if (!el || el.disabled) return;
+  el.focus();
+  if (CARET_TYPES.includes(el.type) && typeof el.setSelectionRange === 'function') {
+    const n = (el.value || '').length;
+    try { el.setSelectionRange(n, n); } catch (err) {}
+  }
+}
+
+const FIO_CHAINS = {
+  rep:   { keys: ['lrLast', 'lrFirst', 'lrMid'], ids: ['lr-last', 'lr-first', 'lr-mid'], after: 'lr-rel'  },
+  child: { keys: ['rLast',  'rFirst',  'rMid'],  ids: ['r-last',  'r-first',  'r-mid'],  after: 'r-birth' },
+};
+
+const nextInChain = (chain, i) => {
+  const c = FIO_CHAINS[chain];
+  return i + 1 < c.ids.length ? c.ids[i + 1] : c.after;
+};
+
+function onNameKey(e, chain, i) {
+  if (e.isComposing) return;
+  if (e.key !== ' ' && e.key !== 'Spacebar' && e.key !== 'Enter') return;
+  if (!e.target.value.trim()) return;
+  e.preventDefault();
+  focusField(nextInChain(chain, i));
+}
+
+function onFioPaste(e, chain) {
+  const c = FIO_CHAINS[chain];
+  const raw = (e.clipboardData && e.clipboardData.getData('text')) || '';
+  const words = raw.trim().split(/\s+/).filter(Boolean);
+  if (words.length < 2) return;
+  e.preventDefault();
+  const take = words.slice(0, c.keys.length);
+  take.forEach((w, k) => {
+    f.value[c.keys[k]] = maskName(w).slice(0, 50);
+    clearOcrTag(c.keys[k]);
+  });
+  focusField(take.length < c.ids.length ? c.ids[take.length] : c.after);
+}
+
+function shouldAdvance(e, raw, masked, len) {
+  if (masked.length < len) return false;
+  if (typeof e.inputType === 'string' && e.inputType.startsWith('delete')) return false;
+  const pos = e.target.selectionStart;
+  return pos == null || pos >= raw.length;
+}
+
+function onMask(field, e, fn, next) {
+  const raw = e.target.value;
+  const masked = fn(raw);
+  const advance = !!next && shouldAdvance(e, raw, masked, next.len);
   f.value[field] = masked;
-  if (e.target.value !== masked) e.target.value = masked;
+  if (raw !== masked) e.target.value = masked;
+  clearOcrTag(field);
+  if (advance) focusField(next.to);
 }
 
 function onDocSeries(e) {
-  const fn = f.value.rDocType === 'birth' ? maskBirthSeries : (v) => onlyDigits(v, 4);
-  onMask('rDocSeries', e, fn);
+  const birth = f.value.rDocType === 'birth';
+  const fn = birth ? maskBirthSeries : (v) => onlyDigits(v, 4);
+  onMask('rDocSeries', e, fn, birth ? null : { len: 4, to: 'rd-num' });
+}
+
+const OCR_FIELDS = {
+  lrPassSeries: 'Серия паспорта',
+  lrPassNum: 'Номер паспорта',
+  lrPassDate: 'Дата выдачи',
+  lrPassCode: 'Код подразделения',
+  rDocSeries: 'Серия документа',
+  rDocNum: 'Номер документа',
+  rBirth: 'Дата рождения',
+  rDocDate: 'Дата выдачи',
+  rSnils: 'СНИЛС'
+};
+const OCR_DATE_FIELDS = ['lrPassDate', 'rBirth', 'rDocDate'];
+
+const ocrFilled = ref([]);
+const clearOcrTag = (field) => {
+  const idx = ocrFilled.value.indexOf(field);
+  if (idx >= 0) ocrFilled.value.splice(idx, 1);
+};
+
+const fmtOcrValue = (field, value) => (
+  OCR_DATE_FIELDS.includes(field) ? value.split('-').reverse().join('.') : value
+);
+
+function collectOcr(pairs) {
+  return Object.entries(pairs)
+    .filter(([field, value]) => value && !String(f.value[field] || '').trim() && OCR_FIELDS[field])
+    .map(([field, value]) => ({ field, value, label: OCR_FIELDS[field] }));
+}
+
+const PASSPORT_TIPS = [
+  { t: 'Разворот', d: 'Снимайте страницу с фотографией целиком. Внизу неё напечатаны две строки из заглавных букв, цифр и знаков «<» — читаются именно они, без них распознать нечего.' },
+  { t: 'Ракурс', d: 'Положите паспорт на стол и держите камеру прямо над ним, параллельно странице. От наклона строки «плывут».' },
+  { t: 'Свет', d: 'Ровный рассеянный свет. Вспышка и лампа прямо над документом дают блик — чаще всего мешает именно он.' },
+  { t: 'Кадр', d: 'Разворот занимает почти весь снимок. Пальцы, край стола и посторонние предметы в кадр не попадают.' },
+  { t: 'Резкость', d: 'Посмотрите на снимок перед загрузкой: нижние строки должны читаться глазами.' }
+];
+
+const SNILS_TIPS = [
+  { t: 'Кадр', d: 'Зелёное свидетельство целиком, номер из одиннадцати цифр — крупно и в фокусе.' },
+  { t: 'Блики', d: 'Карточка ламинированная и сильно бликует. Отверните её от лампы или окна, свет должен падать сбоку.' },
+  { t: 'Ракурс', d: 'Камера параллельно карточке, без наклона.' },
+  { t: 'Резкость', d: 'Если цифры не читаются глазами, не прочитает их и программа.' }
+];
+
+const emptyScan = (target) => ({
+  target, kind: 'passport', busy: false, stage: '',
+  error: '', found: [], asPassport: false, fileName: ''
+});
+
+const scan = ref(null);
+let scanRun = 0;
+
+const openScan = (target) => { scan.value = emptyScan(target); };
+const closeScan = () => { scanRun += 1; scan.value = null; };
+
+function setScanKind(kind) {
+  scanRun += 1;
+  scan.value = { ...emptyScan(scan.value.target), kind };
+}
+
+const scanSub = computed(() => {
+  if (!scan.value) return '';
+  if (scan.value.target === 'rep') return 'Паспорт законного представителя: серия, номер, дата выдачи, код подразделения';
+  return scan.value.kind === 'snils'
+    ? 'СНИЛС реабилитанта: номер'
+    : 'Паспорт реабилитанта: серия, номер, дата рождения, дата выдачи';
+});
+
+const scanTips = computed(() => (scan.value?.kind === 'snils' ? SNILS_TIPS : PASSPORT_TIPS));
+
+async function onScanFile(e) {
+  const file = e.target.files[0];
+  e.target.value = '';
+  if (!file || !scan.value) return;
+
+  const { target, kind } = scan.value;
+
+  if (!isSupportedScan(file)) {
+    scan.value = {
+      ...scan.value, fileName: file.name, busy: false, found: [], asPassport: false,
+      error: 'Этот формат распознать нельзя. Нужен JPG, PNG, WEBP или BMP.'
+    };
+    return;
+  }
+
+  const run = (scanRun += 1);
+  scan.value = {
+    ...scan.value, fileName: file.name, busy: true,
+    stage: 'Готовлю изображение…', error: '', found: [], asPassport: false
+  };
+  const stage = (s) => { if (scanRun === run && scan.value) scan.value.stage = s; };
+
+  try {
+    let pairs = {};
+    let asPassport = false;
+
+    if (kind === 'snils') {
+      pairs = { rSnils: await recognizeSnils(file, stage) };
+    } else {
+      const mrz = await recognizePassport(file, stage);
+      pairs = target === 'rep'
+        ? {
+          lrPassSeries: mrz?.docSeries, lrPassNum: mrz?.docNumber,
+          lrPassDate: mrz?.docDate, lrPassCode: mrz?.deptCode
+        }
+        : {
+          rDocSeries: mrz?.docSeries, rDocNum: mrz?.docNumber,
+          rBirth: mrz?.birthDate, rDocDate: mrz?.docDate
+        };
+      asPassport = target === 'child' && !!mrz && f.value.rDocType !== 'passport'
+        && !f.value.rDocSeries.trim() && !f.value.rDocNum.trim();
+    }
+
+    if (scanRun !== run || !scan.value) return;
+
+    const found = collectOcr(pairs);
+    const readSomething = Object.values(pairs).some(Boolean);
+    scan.value = {
+      ...scan.value, busy: false, found, asPassport,
+      error: found.length ? '' : scanEmptyNote(kind, readSomething)
+    };
+  } catch {
+    if (scanRun !== run || !scan.value) return;
+    scan.value = {
+      ...scan.value, busy: false,
+      error: 'Не удалось прочитать документ. Переснимите по подсказке выше или заполните поля вручную.'
+    };
+  }
+}
+
+function scanEmptyNote(kind, readSomething) {
+  if (readSomething) return 'Всё прочитанное уже заполнено вручную — ничего не меняем.';
+  return kind === 'snils'
+    ? 'Номер не прочитался. Чаще всего мешает блик на ламинате — переснимите, отвернув карточку от света.'
+    : 'Машиночитаемые строки внизу паспорта не прочитались. Проверьте, что они целиком попали в кадр и не перекрыты бликом.';
+}
+
+function applyScan() {
+  if (!scan.value?.found.length) return;
+  if (scan.value.asPassport) f.value.rDocType = 'passport';
+  for (const item of scan.value.found) {
+    f.value[item.field] = item.value;
+    if (!ocrFilled.value.includes(item.field)) ocrFilled.value.push(item.field);
+  }
+  notifySaved(`Подставлено полей: ${scan.value.found.length}. Проверьте их по документу.`);
+  closeScan();
 }
 
 const onFile = (key, e) => {
@@ -1629,6 +2151,24 @@ const onSignedFile = (key, e) => {
   signedUploads.value = { ...signedUploads.value, [key]: file };
   rememberDraftFile('signed', key, file);
   uploadDraftScan(key, file);
+};
+
+const removeUpload = async (kind, key, title, { ask = true } = {}) => {
+  const store = kind === 'signed' ? signedUploads : uploads;
+  const file = store.value[key];
+  if (!file) return;
+  if (ask && !confirm(`Удалить приложенный файл «${file.name}»?\n\n${title}\n\nФайл будет убран и из черновика — приложить его снова можно в любой момент.`)) return;
+
+  const next = { ...store.value };
+  delete next[key];
+  store.value = next;
+
+  const input = document.getElementById('tile-' + key)?.querySelector('input[type="file"]');
+  if (input) input.value = '';
+
+  await forgetDraftFile(kind, key);
+  await deleteDraftScan(key);
+  notifySaved(`Файл «${file.name}» удалён`, { key: 'draft-scan' });
 };
 
 const preview = ref(null);
@@ -1787,10 +2327,23 @@ const save = async () => {
     alert('Заполните ФИО реабилитанта (шаг 2)');
     return;
   }
-  if (!f.value.consentConfirmed) {
-    alert('Нельзя сохранить карточку: сначала заполните все этапы, поля и обязательные сканы, затем включите «Подтверждаю комплектность пакета документов».');
-    step.value = steps.length;
+  if (!personalComplete.value) {
+    alert('Нельзя создать карточку: не заполнены обязательные поля на шагах 1 и 2.');
+    gotoFirstMissing();
     return;
+  }
+
+  if (missingDocs.value.length) {
+    const list = missingDocs.value.map((x) => `• ${x.l}`).join('\n');
+    const ok = confirm(
+      `Карточка будет создана без этих документов:\n\n${list}\n\n` +
+      'Догрузить их можно в любой момент: карточка реабилитанта → вкладка «Документы».\n' +
+      'До этого карточка будет помечена как неполная.\n\nСоздать карточку?'
+    );
+    if (!ok) {
+      step.value = steps.length;
+      return;
+    }
   }
 
   if (dupTimer) { clearTimeout(dupTimer); dupTimer = null; }
@@ -1829,10 +2382,10 @@ const save = async () => {
         middleName: f.value.rMid,
         lastName:   f.value.rLast,
         birthDate:  f.value.rBirth || null,
-        diagnosis:  f.value.rDiagnosis || '',
+        diagnosis:  joinDiagnoses(f.value.rDiagnosisList),
         status:     'active',
       },
-      representative: {
+      representative: noRep.value ? null : {
         firstName:          f.value.lrFirst,
         middleName:         f.value.lrMid,
         lastName:           f.value.lrLast,
@@ -1844,8 +2397,9 @@ const save = async () => {
         passportDeptCode:   f.value.lrPassCode,
         passportReg:        f.value.lrAddress,
       },
+      telephone:       noRep.value ? f.value.rPhone : f.value.lrPhone,
       groupId:         f.value.groupId,
-      familyStatuses:  f.value.lrFamilyStatus,
+      familyStatuses:  noRep.value ? [] : f.value.lrFamilyStatus,
       nozologyClasses: f.value.rNosology,
       crg:             { code: crgNum, child: crgChild },
       doc: {
@@ -1856,10 +2410,14 @@ const save = async () => {
         docIssuerDate:  f.value.rDocDate || null,
         snils:          f.value.rSnils,
         mseIssueDate:   f.value.rMseDate || null,
-        mseValidDate:   f.value.rMseUntil || null,
+        mseValidDate:   f.value.rMseIndefinite ? null : (f.value.rMseUntil || null),
+        mseIndefinite:  f.value.rMseIndefinite === true,
         regAddress:     f.value.rAddrReg,
         factAddress:    f.value.rAddrFact,
         factSameReg:    f.value.rAddrSame,
+        district:       f.value.rAddrSame
+                          ? f.value.rRegOkrug
+                          : (f.value.rFactOkrug || f.value.rRegOkrug),
         educationPlace: f.value.rEduName,
         specialNote:    f.value.rSpecial,
       },
@@ -1869,9 +2427,10 @@ const save = async () => {
       const scans = [];
       for (const [docKey, file] of Object.entries(uploads.value)) {
         if (!file) continue;
+        if (!tiles.value.some((t) => t.k === docKey)) continue;
         scans.push({
           docKey,
-          entityType: docKey === 'rep-pass' ? 'representative' : 'rehabilitant',
+          entityType: !noRep.value && docKey === 'rep-pass' ? 'representative' : 'rehabilitant',
           originalName: file.name,
           mimeType: file.type || 'application/octet-stream',
           base64: await fileToBase64(file),
@@ -1881,7 +2440,7 @@ const save = async () => {
         if (!file) continue;
         scans.push({
           docKey,
-          entityType: 'representative',
+          entityType: noRep.value ? 'rehabilitant' : 'representative',
           originalName: file.name,
           mimeType: file.type || 'application/octet-stream',
           base64: await fileToBase64(file),
@@ -1941,6 +2500,7 @@ onUnmounted(() => {
   if (famTimer) clearTimeout(famTimer);
   if (draftStateTimer) clearTimeout(draftStateTimer);
   closePreview();
+  disposeOcr();
   draftKept();
 });
 </script>
@@ -2074,6 +2634,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 0.375rem;
+  min-width: 0;
+  flex: 0 1 auto;
   font-size: 0.9375rem;
   color: var(--rw-ink-muted);
 }
@@ -2084,15 +2646,22 @@ onUnmounted(() => {
   color: var(--rw-ink-muted);
   cursor: pointer;
   font-size: inherit;
+  white-space: nowrap;
+  flex: 0 0 auto;
   transition: color 0.15s;
 }
 .rw-bc-link:hover { color: var(--rw-ink-strong); }
 .rw-bc-sep { width: 1rem; height: 1rem; flex: 0 0 1rem; opacity: .5; }
-.rw-bc-cur { color: var(--rw-ink-strong); font-weight: 500; }
+.rw-bc-cur {
+  color: var(--rw-ink-strong); font-weight: 500;
+  min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .rw-topbar-right {
   display: flex;
   align-items: center;
   gap: 0.75rem;
+  flex: 0 0 auto;
 }
 .rw-save-state {
   display: inline-flex;
@@ -2137,11 +2706,7 @@ onUnmounted(() => {
   color: var(--rw-rose-700, #6B2519);
   border-color: var(--rw-rose-100, #EDCABE);
 }
-.rw-clear-btn svg { width: 1rem; height: 1rem; }
-@media (max-width: 720px) {
-  .rw-clear-btn { padding: 0 0.5rem; }
-  .rw-clear-btn span, .rw-clear-btn { font-size: 0.75rem; }
-}
+.rw-clear-btn svg { width: 1rem; height: 1rem; flex: 0 0 1rem; }
 .rw-scroll { flex: 1 1 auto; overflow-y: auto; }
 .rw-content {
   max-width: none;
@@ -2382,6 +2947,42 @@ onUnmounted(() => {
   text-transform: uppercase; letter-spacing: 0.05em; margin-left: 0.1875rem;
 }
 .rw-field-help { font-size: 0.8125rem; color: var(--rw-ink-muted); line-height: 1.4; }
+
+.rw-label-row {
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.rw-f > .rw-label,
+.rw-f > .rw-label-row { min-height: 1.5rem; }
+.rw-label-row .rw-label {
+  min-width: 0; flex: 0 1 auto;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: block;
+}
+.rw-chip-toggle {
+  flex: 0 0 auto; margin-left: auto;
+  display: inline-flex; align-items: center; gap: 0.25rem;
+  height: 1.5rem; padding: 0 0.5rem;
+  border-radius: 999px;
+  background: var(--rw-paper); border: 1px solid var(--rw-line-strong);
+  color: var(--rw-ink-muted);
+  font-family: inherit; font-size: 0.75rem; font-weight: 600;
+  letter-spacing: -0.005em; white-space: nowrap; cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.rw-chip-toggle svg { width: 0.8125rem; height: 0.8125rem; flex: 0 0 0.8125rem; }
+.rw-chip-toggle:hover { border-color: var(--rw-ink-subtle); color: var(--rw-ink-strong); }
+.rw-chip-toggle:focus-visible { outline: none; box-shadow: var(--rw-focus-ring); }
+.rw-chip-toggle.active {
+  background: var(--rw-sage-50); border-color: var(--rw-sage-100);
+  color: var(--rw-sage-700);
+}
+.rw-input.rw-input-static {
+  display: flex; align-items: center;
+  color: var(--rw-sage-700); font-weight: 500;
+  background: var(--rw-sage-50); border-color: var(--rw-sage-100);
+  cursor: default;
+}
 .rw-input,
 .rw-select,
 .rw-f textarea {
@@ -2421,6 +3022,46 @@ onUnmounted(() => {
   color: #8A3A2E;
   border-color: var(--rw-amber-100);
   font-weight: 500;
+}
+
+.rw-diag-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.rw-diag-row { display: flex; align-items: center; gap: 0.5rem; }
+.rw-diag-num {
+  flex: 0 0 1.25rem; text-align: center;
+  font-size: 0.8125rem; font-weight: 600; font-variant-numeric: tabular-nums;
+  color: var(--rw-ink-subtle); user-select: none;
+}
+.rw-diag-row .rw-input { flex: 1 1 auto; min-width: 0; }
+.rw-diag-del {
+  flex: 0 0 2.75rem; width: 2.75rem; height: 2.75rem;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: none; border: 0; border-radius: var(--rw-radius-sm);
+  color: var(--rw-ink-subtle); cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.rw-diag-del svg { width: 1.0625rem; height: 1.0625rem; }
+.rw-diag-del:hover { background: var(--rw-rose-50); color: var(--rw-rose-500); }
+.rw-diag-del:focus-visible { outline: none; box-shadow: var(--rw-focus-ring); }
+.rw-diag-add {
+  align-self: flex-start; margin-left: 1.75rem;
+  display: inline-flex; align-items: center; gap: 0.375rem;
+  min-height: 2.25rem; padding: 0 0.75rem;
+  background: var(--rw-sage-50); border: 1px solid var(--rw-sage-100);
+  border-radius: 999px;
+  color: var(--rw-sage-700);
+  font-family: inherit; font-size: 0.875rem; font-weight: 600;
+  letter-spacing: -0.005em; cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.rw-diag-add svg { width: 0.9375rem; height: 0.9375rem; flex: 0 0 0.9375rem; }
+.rw-diag-add:hover:not(:disabled) { border-color: var(--rw-sage-500); }
+.rw-diag-add:focus-visible { outline: none; box-shadow: var(--rw-focus-ring); }
+.rw-diag-add:disabled {
+  opacity: 0.45; cursor: default;
+  background: var(--rw-paper); border-color: var(--rw-line);
+  color: var(--rw-ink-subtle);
 }
 .rw-f-notes textarea::placeholder { color: #B0533F; opacity: 0.7; font-weight: 400; }
 .rw-f-notes textarea:hover { border-color: var(--rw-amber-500); }
@@ -2696,6 +3337,188 @@ onUnmounted(() => {
   background: var(--rw-rose-500); border-radius: 50%;
   vertical-align: middle; margin: 0 1px;
 }
+.rw-ocr-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: grid; gap: 0.3125rem; }
+.rw-ocr-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; font-size: 0.875rem; }
+.rw-ocr-label { color: var(--rw-ink-muted); }
+.rw-ocr-value { font-weight: 600; color: var(--rw-ink-strong); font-variant-numeric: tabular-nums; }
+.rw-ocr-tag {
+  font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.01em;
+  color: var(--rw-blue-700); background: var(--rw-blue-50);
+  border: 0.0625rem solid var(--rw-blue-100); border-radius: 999px;
+  padding: 0.0625rem 0.4375rem;
+}
+
+.rw-scan-btn {
+  margin-left: auto; flex: 0 0 auto;
+  display: inline-flex; align-items: center; gap: 0.4375rem;
+  padding: 0.5rem 0.8125rem; min-height: 2.375rem;
+  font-family: inherit; font-size: 0.875rem; font-weight: 600;
+  color: var(--rw-blue-700); background: var(--rw-blue-50);
+  border: 0.0625rem solid var(--rw-blue-100);
+  border-radius: var(--rw-radius-sm);
+  cursor: pointer; white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.rw-scan-btn:hover { background: var(--rw-paper); border-color: var(--rw-blue-700); }
+.rw-scan-btn svg { width: 1rem; height: 1rem; flex: 0 0 1rem; }
+.rw-scan-btn-short { display: none; }
+
+.rw-ch-actions {
+  margin-left: auto; flex: 0 0 auto;
+  display: flex; align-items: center; gap: 0.5rem;
+}
+.rw-ch-actions .rw-scan-btn { margin-left: 0; }
+
+.rw-skip-btn {
+  color: var(--rw-ink-muted);
+  background: var(--rw-paper);
+  border-color: var(--rw-line);
+}
+.rw-skip-btn:hover { background: var(--rw-paper-soft); border-color: var(--rw-line-strong); color: var(--rw-ink-strong); }
+.rw-skip-btn.is-on {
+  color: var(--rw-sage-700);
+  background: var(--rw-sage-50);
+  border-color: var(--rw-sage-100);
+}
+.rw-skip-btn.is-on:hover { background: var(--rw-sage-100); border-color: var(--rw-sage-500); }
+.rw-skip-btn:focus-visible { outline: none; box-shadow: var(--rw-focus-ring); }
+
+.rw-skip-note {
+  display: flex; align-items: flex-start; gap: 0.875rem;
+  padding: 1.125rem;
+  background: var(--rw-sage-50);
+  border: 1px solid var(--rw-sage-100);
+  border-radius: var(--rw-radius-sm);
+}
+.rw-skip-ico {
+  width: 2.25rem; height: 2.25rem; flex: 0 0 2.25rem;
+  display: grid; place-items: center;
+  border-radius: 999px;
+  background: var(--rw-paper); color: var(--rw-sage-700);
+}
+.rw-skip-ico svg { width: 1.125rem; height: 1.125rem; }
+.rw-skip-text { min-width: 0; }
+.rw-skip-title {
+  font-family: var(--rw-serif);
+  font-size: 1rem; font-weight: 600;
+  color: var(--rw-ink-strong);
+}
+.rw-skip-sub {
+  margin: 0.3125rem 0 0;
+  font-size: 0.875rem; line-height: 1.5;
+  color: var(--rw-ink-muted);
+}
+.rw-skip-warn {
+  margin: 0.6875rem 0 0;
+  padding: 0.625rem 0.75rem;
+  font-size: 0.8125rem; line-height: 1.45;
+  color: var(--rw-rose-500);
+  background: var(--rw-rose-50);
+  border-radius: var(--rw-radius-sm);
+}
+.rw-skip-back { margin-top: 0.875rem; }
+.rw-skip-back svg { width: 0.875rem; height: 0.875rem; flex: 0 0 0.875rem; }
+
+.rw-sc-box {
+  width: 100%; max-width: 34rem; max-height: 100%;
+  display: flex; flex-direction: column;
+  background: var(--rw-paper);
+  border-radius: var(--rw-radius-lg);
+  box-shadow: 0 2rem 5rem rgba(15, 20, 15, .45);
+  overflow: hidden;
+}
+.rw-sc-head {
+  display: flex; align-items: flex-start; gap: 0.75rem;
+  padding: 0.9375rem 1.125rem;
+  border-bottom: 1px solid var(--rw-line-soft);
+  background: var(--rw-paper-soft);
+}
+.rw-sc-titles { flex: 1 1 auto; min-width: 0; }
+.rw-sc-title { font-size: 1rem; font-weight: 600; color: var(--rw-ink-strong); }
+.rw-sc-sub { font-size: 0.8125rem; color: var(--rw-ink-muted); margin-top: 0.1875rem; line-height: 1.4; }
+.rw-sc-body { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding: 1.125rem; display: grid; gap: 0.875rem; }
+.rw-sc-seg { margin: 0; }
+.rw-sc-warn {
+  font-size: 0.8125rem; line-height: 1.45; color: var(--rw-amber-700);
+  background: var(--rw-amber-50); border: 0.0625rem solid var(--rw-amber-100);
+  border-radius: var(--rw-radius-sm); padding: 0.625rem 0.75rem;
+}
+.rw-sc-guide {
+  background: var(--rw-paper-soft); border: 0.0625rem solid var(--rw-line-soft);
+  border-radius: var(--rw-radius-md); padding: 0.875rem 1rem;
+}
+.rw-sc-guide-title { font-size: 0.875rem; font-weight: 600; color: var(--rw-ink-strong); margin-bottom: 0.5rem; }
+.rw-sc-steps { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.4375rem; }
+.rw-sc-steps li { font-size: 0.8125rem; line-height: 1.5; color: var(--rw-ink-muted); }
+.rw-sc-steps b { color: var(--rw-ink-strong); font-weight: 600; }
+.rw-sc-drop {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.875rem 1rem; cursor: pointer;
+  border: 0.125rem dashed var(--rw-line-strong);
+  border-radius: var(--rw-radius-md);
+  transition: border-color 0.15s, background 0.15s;
+}
+.rw-sc-drop:hover { border-color: var(--rw-blue-700); background: var(--rw-blue-50); }
+.rw-sc-drop.is-busy { opacity: 0.6; cursor: progress; }
+.rw-sc-drop input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.rw-sc-drop-icon { color: var(--rw-blue-700); display: grid; place-items: center; flex: 0 0 1.5rem; }
+.rw-sc-drop-icon svg { width: 1.5rem; height: 1.5rem; }
+.rw-sc-drop-text { min-width: 0; }
+.rw-sc-drop-title {
+  display: block; font-size: 0.9375rem; font-weight: 600; color: var(--rw-ink-strong);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.rw-sc-drop-sub { display: block; font-size: 0.8125rem; color: var(--rw-ink-muted); margin-top: 0.125rem; }
+.rw-sc-state {
+  display: flex; align-items: center; gap: 0.5rem;
+  font-size: 0.875rem; font-weight: 500; line-height: 1.45;
+  color: var(--rw-blue-700); background: var(--rw-blue-50);
+  border: 0.0625rem solid var(--rw-blue-100);
+  border-radius: var(--rw-radius-sm); padding: 0.625rem 0.75rem;
+}
+.rw-sc-state-bad { color: var(--rw-amber-700); background: var(--rw-amber-50); border-color: var(--rw-amber-100); }
+.rw-sc-result {
+  background: var(--rw-sage-50); border: 0.0625rem solid var(--rw-sage-100);
+  border-radius: var(--rw-radius-md); padding: 0.75rem 0.875rem;
+}
+.rw-sc-result-title { font-size: 0.875rem; font-weight: 600; color: var(--rw-sage-700); }
+.rw-sc-result-note { font-size: 0.8125rem; color: var(--rw-ink-muted); margin-top: 0.5rem; line-height: 1.45; }
+.rw-sc-rules { margin: 0; padding-left: 1.125rem; display: grid; gap: 0.3125rem; }
+.rw-sc-rules li { font-size: 0.8125rem; line-height: 1.45; color: var(--rw-ink-subtle); }
+.rw-sc-foot {
+  display: flex; justify-content: flex-end; gap: 0.5rem;
+  padding: 0.875rem 1.125rem;
+  border-top: 1px solid var(--rw-line-soft);
+  background: var(--rw-paper-soft);
+}
+
+@media (max-width: 900px) {
+  .rw-sc-box { max-width: none; height: 100%; border-radius: 0; }
+}
+@media (max-width: 768px) {
+  .rw-scan-btn { padding: 0.5rem 0.625rem; }
+  .rw-scan-btn-long { display: none; }
+  .rw-scan-btn-short { display: inline; }
+  .rw-sc-head {
+    padding-top: calc(0.9375rem + var(--safe-top, 0px));
+    padding-left: max(1.125rem, var(--safe-left, 0px));
+    padding-right: max(1.125rem, var(--safe-right, 0px));
+  }
+  .rw-sc-body {
+    padding-left: max(1.125rem, var(--safe-left, 0px));
+    padding-right: max(1.125rem, var(--safe-right, 0px));
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+  }
+  .rw-sc-foot {
+    padding-bottom: calc(0.875rem + var(--safe-bottom, 0px));
+    padding-left: max(1.125rem, var(--safe-left, 0px));
+    padding-right: max(1.125rem, var(--safe-right, 0px));
+  }
+  .rw-sc-foot .rw-btn { flex: 1 1 0; justify-content: center; min-height: var(--tap, 2.75rem); }
+  .rw-scan-btn { min-height: var(--tap, 2.75rem); }
+}
+
 .rw-uploads-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.875rem; }
 .rw-utile {
   display: grid;
@@ -2803,15 +3626,20 @@ onUnmounted(() => {
   flex-wrap: wrap;
 }
 .rw-sb-info {
-  flex: 1; min-width: 0;
+  flex: 1 1 0; min-width: 8rem;
   font-size: 0.875rem; color: var(--rw-ink-muted);
-  display: flex; flex-wrap: wrap; align-items: baseline;
-  gap: 0.125rem 0.4375rem;
+  display: flex; flex-wrap: nowrap; align-items: baseline;
+  gap: 0.4375rem;
 }
-.rw-sb-info strong { color: var(--rw-ink-strong); font-weight: 600; white-space: nowrap; }
-.rw-sb-sep { color: var(--rw-ink-subtle); }
-.rw-sb-count { white-space: nowrap; }
+.rw-sb-info strong {
+  color: var(--rw-ink-strong); font-weight: 600;
+  min-width: 0; flex: 0 1 auto;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rw-sb-sep { color: var(--rw-ink-subtle); flex: 0 0 auto; }
+.rw-sb-count { white-space: nowrap; flex: 0 0 auto; }
 .rw-sb-progress {
+  flex: 0 0 auto;
   display: flex; align-items: center; gap: 0.625rem;
   font-size: 0.875rem; color: var(--rw-ink-muted);
 }
@@ -2824,11 +3652,25 @@ onUnmounted(() => {
 .rw-sbp-pct { font-variant-numeric: tabular-nums; min-width: 2.5rem; text-align: right; }
 .rw-sb-actions { display: inline-flex; gap: 0.5rem; }
 .rw-sb-save-short { display: none; }
+@media (max-width: 80rem) {
+  .rw-sb-info { flex: 1 1 100%; }
+}
 @media (max-width: 56rem) {
   .rw-topbar-inner,
   .rw-content,
-  .rw-sb-inner { padding-left: 1.25rem; padding-right: 1.25rem; }
+  .rw-sb-inner {
+    padding-left: max(1.25rem, var(--safe-left, 0px));
+    padding-right: max(1.25rem, var(--safe-right, 0px));
+  }
   .rw-stepper { margin-left: 0; margin-right: 0; }
+  .rw-save-text { display: none; }
+  .rw-clear-label { display: none; }
+  .rw-clear-btn,
+  .rw-close-btn {
+    width: 2.75rem; height: 2.75rem; padding: 0;
+    justify-content: center;
+  }
+  .rw-clear-btn svg { width: 1.125rem; height: 1.125rem; flex: 0 0 1.125rem; }
   .rw-c4 { grid-column: span 6; }
   .rw-c3 { grid-column: span 6; }
   .rw-gen-docs { grid-template-columns: 1fr; }
@@ -2844,7 +3686,11 @@ onUnmounted(() => {
   .rw-scroll { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
   .rw-stepper-list { display: none; }
   .rw-stepper-mobile { display: block; }
-  .rw-topbar-inner { height: auto; min-height: 3.5rem; padding-top: var(--safe-top, 0px); }
+  .rw-topbar-inner { height: auto; min-height: 3.5rem; padding-top: var(--safe-top, 0px); gap: 0.5rem; }
+  .rw-bc-link, .rw-bc-sep { display: none; }
+  .rw-bc-cur { font-size: 1rem; }
+  .rw-topbar-right { gap: 0.25rem; }
+  .rw-clear-btn { border-color: transparent; }
   .rw-sb-inner { padding-bottom: calc(0.75rem + var(--safe-bottom, 0px)); }
   .rw-topbar-inner,
   .rw-content,
@@ -2853,12 +3699,24 @@ onUnmounted(() => {
     padding-right: max(1rem, var(--safe-right, 0px));
   }
   .rw-card-head, .rw-card-body { padding-left: 1rem; padding-right: 1rem; }
+  .rw-card-head { flex-wrap: wrap; }
+  .rw-ch-actions { margin-left: 0; flex: 1 1 100%; gap: 0.5rem; }
+  .rw-ch-actions .rw-scan-btn {
+    flex: 1 1 0; min-width: 0;
+    justify-content: center; min-height: var(--tap, 2.75rem);
+  }
+  .rw-skip-note { padding: 0.875rem; gap: 0.75rem; }
+  .rw-skip-back { width: 100%; justify-content: center; min-height: var(--tap, 2.75rem); }
   .rw-c4, .rw-c6, .rw-c8, .rw-c3 { grid-column: span 12; }
+  .rw-chip-toggle { height: 2rem; padding: 0 0.75rem; font-size: 0.8125rem; }
+  .rw-diag-add {
+    align-self: stretch; margin-left: 0;
+    justify-content: center; min-height: 2.75rem;
+  }
   .rw-uploads-grid { grid-template-columns: 1fr; }
   .rw-sb-progress { display: none; }
   .rw-sb-inner { gap: 0.5rem 0.625rem; }
   .rw-sb-info { flex: 1 1 100%; font-size: 0.8125rem; }
-  .rw-sb-info strong { white-space: normal; overflow-wrap: anywhere; }
   .rw-sb-missing { flex: 1 1 100%; }
   .rw-sb-actions { flex: 1 1 100%; min-width: 0; justify-content: flex-end; }
   .rw-sb-actions .rw-btn { min-width: 0; white-space: normal; }
@@ -3060,21 +3918,27 @@ onUnmounted(() => {
 
 .rw-dup-meta { color: var(--rw-ink-subtle); }
 
-.rw-ut-view {
+.rw-ut-btns {
   position: relative; z-index: 2;
   margin-top: 0.4375rem;
+  display: flex; flex-wrap: wrap; gap: 0.375rem;
+}
+.rw-ut-view, .rw-ut-del {
   display: inline-flex; align-items: center; gap: 0.375rem;
   font-family: inherit; font-size: 0.8125rem; font-weight: 600;
-  color: var(--rw-sage-700);
   background: var(--rw-paper);
-  border: 1px solid var(--rw-sage-100);
   border-radius: 999px;
   padding: 0.25rem 0.6875rem;
   cursor: pointer;
-  transition: background 0.15s, border-color 0.15s;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  -webkit-tap-highlight-color: transparent;
 }
+.rw-ut-view { color: var(--rw-sage-700); border: 1px solid var(--rw-sage-100); }
 .rw-ut-view:hover { background: var(--rw-sage-100); border-color: var(--rw-sage-500); }
-.rw-ut-view svg { width: 0.875rem; height: 0.875rem; flex: 0 0 0.875rem; }
+.rw-ut-del { color: var(--rw-ink-muted); border: 1px solid var(--rw-line); }
+.rw-ut-del:hover { background: var(--rw-rose-50); border-color: var(--rw-rose-500); color: var(--rw-rose-500); }
+.rw-ut-view:focus-visible, .rw-ut-del:focus-visible { outline: none; box-shadow: var(--rw-focus-ring); }
+.rw-ut-view svg, .rw-ut-del svg { width: 0.875rem; height: 0.875rem; flex: 0 0 0.875rem; }
 
 .rw-pv {
   position: fixed; inset: 0; z-index: 100;

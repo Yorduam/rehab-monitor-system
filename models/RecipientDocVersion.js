@@ -3,7 +3,7 @@ import sequelize from '../config/database.js';
 
 const RecipientDocVersion = sequelize.define('RecipientDocVersion', {
   id: { type: DataTypes.INTEGER, autoIncrement: true, primaryKey: true },
-  docId: { type: DataTypes.INTEGER, allowNull: false },
+  docId: { type: DataTypes.INTEGER, allowNull: true },
   recipientId: { type: DataTypes.INTEGER, allowNull: false },
   snapshot: { type: DataTypes.JSON, allowNull: true },
   changedFields: { type: DataTypes.JSON, allowNull: true },

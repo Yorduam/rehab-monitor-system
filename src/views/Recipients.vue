@@ -14,7 +14,7 @@
               <template v-if="attentionList.length"> · требуют внимания — <strong>{{ attentionList.length }}</strong></template>
             </p>
           </div>
-          <div class="t-page-actions">
+          <div v-if="canCreateRecipient" class="t-page-actions">
             <button class="t-btn t-btn-primary" @click.stop="openAddModal">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
               Добавить реабилитанта
@@ -283,7 +283,8 @@
                       <template v-if="curatorName(r)">куратор {{ curatorName(r) }}</template>
                     </div>
                     <div class="t-rcard-tags">
-                      <span v-if="r.diagnosis" class="t-tag t-tag-blue">{{ r.diagnosis }}</span>
+                      <span v-for="d in diagnosisTags(r)" :key="'dg-' + d" class="t-tag t-tag-blue">{{ d }}</span>
+                      <span v-if="diagnosisRest(r)" class="t-tag t-tag-blue" :title="formatDiagnoses(r.diagnosis)">+{{ diagnosisRest(r) }}</span>
                       <span v-if="r.group?.groupName" class="t-tag t-tag-sage">{{ r.group.groupName }}</span>
                       <span v-if="r.status && r.status !== 'draft'" class="t-tag t-tag-neutral">{{ statusLabel(r.status) }}</span>
                       <span v-if="recipientFlags(r).length && activeDropdown !== r.id" class="t-rcard-flags">
@@ -495,7 +496,7 @@
                       </svg>
                     </span>
                   </div>
-                  <div class="t-name-sub">{{ r.diagnosis || '—' }}<template v-if="recipientAge(r) != null"> · {{ recipientAge(r) }} лет</template></div>
+                  <div class="t-name-sub" :title="formatDiagnoses(r.diagnosis)">{{ formatDiagnoses(r.diagnosis) || '—' }}<template v-if="recipientAge(r) != null"> · {{ recipientAge(r) }} лет</template></div>
                 </div>
               </div>
 
@@ -673,7 +674,7 @@
               <div class="form-group"><label>Дата рождения</label><input v-model="form.birthDate" type="date" /></div>
               <div class="form-group"><label>Email</label><input v-model="form.email" type="email" /></div>
               <div class="form-group"><label>Телефон</label><input v-model="form.telephone" /></div>
-              <div class="form-group"><label>Диагноз</label><input v-model="form.diagnosis" /></div>
+              <div class="form-group"><label>Диагноз</label><textarea v-model="form.diagnosis" rows="3" placeholder="По одному диагнозу в строке"></textarea></div>
               <div class="form-group">
                 <label>Группа</label>
                 <select v-model="form.groupId">
@@ -738,7 +739,7 @@
             <option value="ЗПР">ЗПР</option>
           </select>
         </div>
-        <button class="btn-primary" @click="openAddModal">Добавить</button>
+        <button v-if="canCreateRecipient" class="btn-primary" @click="openAddModal">Добавить</button>
       </div>
 
       <div v-if="loading" class="loading-state"><div class="spinner"></div><p>Загрузка...</p></div>
@@ -767,7 +768,7 @@
               <div class="name">{{ fullName(r) }}</div>
               <div class="sub">Куратор: {{ r.group?.curatorUser?.fullName || '—' }}</div>
               <div class="tags">
-                <span class="badge-blue">{{ r.diagnosis || 'Не указан' }}</span>
+                <span class="badge-blue">{{ formatDiagnoses(r.diagnosis) || 'Не указан' }}</span>
                 <span class="badge-gray">{{ r.group?.groupName || '—' }}</span>
               </div>
             </div>
@@ -796,7 +797,7 @@
             <div class="form-group"><label>Дата рождения</label><input v-model="form.birthDate" type="date" /></div>
             <div class="form-group"><label>Email</label><input v-model="form.email" type="email" /></div>
             <div class="form-group"><label>Телефон</label><input v-model="form.telephone" /></div>
-            <div class="form-group"><label>Диагноз</label><input v-model="form.diagnosis" /></div>
+              <div class="form-group"><label>Диагноз</label><textarea v-model="form.diagnosis" rows="3" placeholder="По одному диагнозу в строке"></textarea></div>
             <div class="form-group"><label>Группа</label><select v-model="form.groupId"><option :value="null">Не выбрана</option><option v-for="g in groupsList" :key="g.id" :value="g.id">{{ g.name }}</option></select></div>
             <div class="form-group form-group-photo">
               <label>Фото реабилитанта</label>
@@ -831,7 +832,7 @@
     </template>
 
     <AddRecipientWizard
-      v-if="showWizard"
+      v-if="showWizard && canCreateRecipient"
       :groups-list="groupsList"
       :draft-id="openDraftId"
       @close="closeWizard"
@@ -874,6 +875,7 @@ import { useAuthStore } from '../stores/auth';
 import { usePageStore } from '../stores/page';
 import api from '../api';
 import { fullName, recipientAge, initials, statusLabel } from '../utils/recipient';
+import { splitDiagnoses, formatDiagnoses } from '../utils/diagnosisList';
 import { notifySaved } from '../utils/toast';
 import Modal from '../components/Modal.vue';
 import RecipientsPager from '../components/RecipientsPager.vue';
@@ -884,6 +886,8 @@ const authStore = useAuthStore();
 const pageStore = usePageStore();
 
 const canManageRecipients = computed(() => authStore.isAdmin || authStore.isTeacher);
+
+const canCreateRecipient = computed(() => authStore.isAdmin || authStore.isEmployee);
 
 const canAssignDiagnostic = computed(() => authStore.isAdmin || authStore.isEmployee);
 
@@ -1034,13 +1038,17 @@ const tomorrowList  = computed(() => recipients.value.filter(r => r.attendsTomor
 
 const groupOptions = computed(() => groupsList.value.map(g => ({ id: g.id, name: g.name })));
 const diagnosisOptions = computed(() =>
-  [...new Set(recipients.value.map(r => (r.diagnosis || '').trim()).filter(Boolean))]
+  [...new Set(recipients.value.flatMap(r => splitDiagnoses(r.diagnosis)))]
     .sort((a, b) => a.localeCompare(b, 'ru'))
 );
 const curatorOptions = computed(() =>
   [...new Set(recipients.value.map(curatorNameOf).filter(Boolean))]
     .sort((a, b) => a.localeCompare(b, 'ru'))
 );
+
+const DIAG_TAGS_MAX = 2;
+const diagnosisTags = (r) => splitDiagnoses(r.diagnosis).slice(0, DIAG_TAGS_MAX);
+const diagnosisRest = (r) => Math.max(0, splitDiagnoses(r.diagnosis).length - DIAG_TAGS_MAX);
 const groupLabel = computed(() => {
   const g = groupsList.value.find(g => g.id === filterGroupId.value);
   return g ? g.name : 'Группа';
@@ -1049,7 +1057,7 @@ const groupLabel = computed(() => {
 const baseFiltered = computed(() => {
   let list = recipients.value;
   if (filterGroupId.value != null)   list = list.filter(r => r.groupId === filterGroupId.value);
-  if (filterDiagnosisVal.value)      list = list.filter(r => (r.diagnosis || '').trim() === filterDiagnosisVal.value);
+  if (filterDiagnosisVal.value)      list = list.filter(r => splitDiagnoses(r.diagnosis).includes(filterDiagnosisVal.value));
   if (filterCuratorName.value)       list = list.filter(r => curatorNameOf(r) === filterCuratorName.value);
   switch (activeFilter.value) {
     case 'today':     list = list.filter(r => r.attendsToday); break;
@@ -1402,6 +1410,7 @@ const resetForm = () => ({
   diagnosis: '', groupId: null, photo: '', status: 'active'
 });
 const openAddModal = () => {
+  if (!canCreateRecipient.value) return;
   showWizard.value = true;
 };
 const editRecipient = (r) => {

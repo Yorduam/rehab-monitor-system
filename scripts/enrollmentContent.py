@@ -1,10 +1,4 @@
 # -*- coding: utf-8 -*-
-"""Wording of the enrollment templates, lifted verbatim from the
-originals. Consumed by buildEnrollmentTemplates.py.
-
-Kinds: 'h' heading, 'p' body paragraph, 'c' caption, 'f' token field,
-'g' table group header, 'sub' sub-group header, 's' service row.
-"""
 
 CONTRACT_BODY = {
     'adult': [

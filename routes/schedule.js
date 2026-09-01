@@ -213,7 +213,11 @@ router.get('/events', authMiddleware, async (req, res) => {
     if (req.user.role === 'teacher') {
       where.specialistUserId = req.user.id;
     } else if (req.query.specialistUserId) {
-      where.specialistUserId = parseInt(req.query.specialistUserId, 10);
+      const sid = parseInt(req.query.specialistUserId, 10);
+      if (!Number.isInteger(sid)) {
+        return res.status(400).json({ message: 'Некорректный идентификатор специалиста' });
+      }
+      where.specialistUserId = sid;
     }
 
     if (from && to) where.date = { [Op.between]: [from, to] };
@@ -584,7 +588,13 @@ router.get('/sessions', authMiddleware, roleMiddleware('admin', 'employee', 'tea
     else if (from) where.date = { [Op.gte]: from };
     else if (to) where.date = { [Op.lte]: to };
     if (status) where.status = status;
-    if (recipientId) where.recipientId = parseInt(recipientId, 10);
+    if (recipientId) {
+      const rid = parseInt(recipientId, 10);
+      if (!Number.isInteger(rid)) {
+        return res.status(400).json({ message: 'Некорректный идентификатор реабилитанта' });
+      }
+      where.recipientId = rid;
+    }
 
     if (req.user.role === 'teacher' && !recipientId) {
       const mine = await DiagnosticAssignment.findAll({

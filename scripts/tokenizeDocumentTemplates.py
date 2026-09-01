@@ -1,16 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-One-time prep: insert ${token} markers into the 4 Word templates at the
-fill-in blanks, and copy the 2 Excel templates (which already carry ${tokens})
-into test/templates/documents/ with ASCII filenames.
-
-Runtime generation (Node/pizzip) then just does ${token} -> value string
-replacement inside the .xml entries of these prepared files.
-
-Each blank is filled by replacing only the underscore run(s) inside the
-ORIGINAL paragraph text, so the surrounding label and leading indentation
-(the right-aligned addressee block) are preserved verbatim.
-"""
 import os, re, shutil
 from docx import Document
 from docx.oxml.ns import qn
@@ -21,10 +9,7 @@ BASE = r"C:\Users\NIKITA\Desktop\ФАЙЛЫ РАБОТА"
 OUT  = r"C:\Users\NIKITA\Desktop\test\templates\documents"
 os.makedirs(OUT, exist_ok=True)
 
-
 def walk(doc):
-    """Reproduce the dump numbering: idx increments for each NON-EMPTY
-    paragraph and each table, in document order."""
     body = doc.element.body
     idx = 0
     paras, tables = {}, {}
@@ -39,9 +24,7 @@ def walk(doc):
             idx += 1
     return paras, tables
 
-
 def set_para(p, text):
-    """Rewrite the paragraph to a single run keeping the first run's font."""
     if not p.runs:
         p.add_run(text)
         return
@@ -49,14 +32,10 @@ def set_para(p, text):
     for r in list(p.runs[1:]):
         r._element.getparent().remove(r._element)
 
-
 def set_cell(cell, text):
     set_para(cell.paragraphs[0], text)
 
-
 def fill_blanks(text, tokens):
-    """Replace successive runs of underscores with the given tokens, in order,
-    keeping the label and leading indentation. Collapse line breaks to spaces."""
     it = iter(tokens)
 
     def repl(m):
@@ -69,7 +48,6 @@ def fill_blanks(text, tokens):
     out = out.replace('\n', ' ').replace('\r', ' ')
     out = re.sub(r' +([.,;])', r'\1', out)
     return out
-
 
 def process(src, dst, para_edits, table_edits):
     doc = Document(os.path.join(BASE, src))
@@ -88,7 +66,6 @@ def process(src, dst, para_edits, table_edits):
         set_cell(tables[idx].rows[r].cells[c], text)
     doc.save(os.path.join(OUT, dst))
     print("saved", dst)
-
 
 REL = ('fill', ['${rehRelation}', '${rehRegAddress}'])
 CHILD_DOC = ('fill', ['${rehDoc}', ''])

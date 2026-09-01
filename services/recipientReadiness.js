@@ -31,6 +31,17 @@ const fmtRu = (v) => {
   return `${String(d.getDate()).padStart(2, '0')}.${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}`;
 };
 
+const yearsOld = (birthDate) => {
+  if (!birthDate) return null;
+  const bd = new Date(birthDate);
+  if (Number.isNaN(bd.getTime())) return null;
+  const now = new Date();
+  let age = now.getFullYear() - bd.getFullYear();
+  const m = now.getMonth() - bd.getMonth();
+  if (m < 0 || (m === 0 && now.getDate() < bd.getDate())) age--;
+  return age;
+};
+
 const VERDICT_SHORT = {
   recommended: 'рекомендован к зачислению',
   trial: 'пробные занятия',
@@ -208,10 +219,22 @@ export async function getRecipientReadiness(recipientId) {
   const currentScanTypeIds = new Set(
     scans.filter((s) => s.isCurrent !== false).map((s) => s.docType)
   );
-  const requiredTypes = docTypes.filter((t) => t.isRequired);
+  const age = yearsOld(recipient.birthDate);
+  const selfRepresented = !recipient.representativeId && (age ?? 0) >= 18;
+
+  const skipCodes = new Set();
+  if (selfRepresented) skipCodes.add('rep-pass');
+  if (age != null && age >= 14) skipCodes.add('housing');
+
+  const applicableTypes = skipCodes.size
+    ? docTypes.filter((t) => !skipCodes.has(t.code))
+    : docTypes;
+
+  const requiredTypes = applicableTypes.filter((t) => t.isRequired);
   const missingScans = requiredTypes
     .filter((t) => !currentScanTypeIds.has(t.id))
     .map((t) => ({ id: t.id, code: t.code, name: t.name }));
+  const missingAll = applicableTypes.filter((t) => !currentScanTypeIds.has(t.id)).length;
 
   const expired = [];
   const expiringSoon = [];
@@ -239,8 +262,10 @@ export async function getRecipientReadiness(recipientId) {
     {
       key: 'representative',
       label: 'Представитель',
-      done: !!recipient.representativeId,
-      hint: 'Законный представитель привязан к карточке'
+      done: !!recipient.representativeId || selfRepresented,
+      hint: selfRepresented
+        ? 'Совершеннолетний — представляет себя сам'
+        : 'Законный представитель привязан к карточке'
     },
     {
       key: 'documents',
@@ -458,6 +483,7 @@ export async function getRecipientReadiness(recipientId) {
       expired,
       expiringSoon,
       missingScans,
+      missingAll,
       alertCount: expired.length + missingScans.length,
       warnCount: expiringSoon.length
     },

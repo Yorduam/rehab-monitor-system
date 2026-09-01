@@ -30,7 +30,7 @@
           <div class="name">{{ fullName(r) }}</div>
           <div class="sub">{{ recipientAge(r) != null ? recipientAge(r) + ' лет · ' : '' }}{{ r.group?.curatorUser?.fullName || '—' }}</div>
           <div class="tags">
-            <span class="badge-blue">{{ r.diagnosis }}</span>
+            <span class="badge-blue">{{ formatDiagnoses(r.diagnosis) }}</span>
             <span class="badge-gray">{{ r.group?.groupName || '—' }}</span>
           </div>
         </div>
@@ -55,6 +55,7 @@
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue';
 import api from '../api';
 import { fullName, recipientAge } from '../utils/recipient';
+import { formatDiagnoses } from '../utils/diagnosisList';
 import Pagination from '../components/Pagination.vue';
 import Chart from 'chart.js/auto';
 

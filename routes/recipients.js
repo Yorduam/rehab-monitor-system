@@ -9,14 +9,15 @@ import {
   Nozology, CRG, CRGDesc, User,
   RecipientDoc, RecipientDocVersion, RecipientScanDoc, ReResult, CRGRecipientSec, DocType,
   ScheduleEvent, Direction, RecipientDraft, RecipientDraftScan,
-  FamilyStatus, LegalRepFamilyStatus
+  FamilyStatus, LegalRepFamilyStatus,
+  DiagnosticSession, DiagnosticAssignment, DiagnosticConclusion, AccessGrant
 } from '../models/index.js';
 import { getRecipientReadiness } from '../services/recipientReadiness.js';
 import { getEnrollmentState, generateEnrollmentDocument } from '../services/enrollmentDocs.js';
 import { summarizeDraft } from '../src/utils/recipientDraft.js';
 import { buildScanFileName } from '../services/scanFileName.js';
 import {
-  CATEGORIES, CATEGORY_LABELS, REASON_CODES, GRANT_MS,
+  CATEGORIES, CATEGORY_LABELS, REASON_CODES, GRANT_MS, CATEGORY_OF,
   hasGrant, grantAccess, loadGrants, validateReason, logAccess, redactRecipient, isAdmin
 } from '../services/dataAccess.js';
 
@@ -58,6 +59,20 @@ function pickFields(body) {
   }
   return out;
 }
+
+const likeEscape = (v) => String(v).replace(/[\\%_]/g, (c) => '\\' + c);
+
+const diagnosisWhere = (value) => {
+  const d = likeEscape(value);
+  return {
+    [Op.or]: [
+      { [Op.eq]: value },
+      { [Op.like]: `${d}\n%` },
+      { [Op.like]: `%\n${d}` },
+      { [Op.like]: `%\n${d}\n%` }
+    ]
+  };
+};
 
 const fmtDate = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -143,7 +158,7 @@ router.get('/', authMiddleware, async (req, res, next) => {
         { middleName: { [Op.like]: `%${search}%` } }
       ];
     }
-    if (diagnosis && diagnosis !== 'all') where.diagnosis = diagnosis;
+    if (diagnosis && diagnosis !== 'all') where.diagnosis = diagnosisWhere(diagnosis);
     if (groupId) where.groupId = groupId;
 
     const teacherUserId = req.user.role === 'teacher' ? req.user.id : null;
@@ -178,15 +193,20 @@ router.get('/', authMiddleware, async (req, res, next) => {
 });
 
 router.get('/access/options', authMiddleware, (req, res) => {
+  const fields = {};
+  for (const [scope, map] of Object.entries(CATEGORY_OF)) {
+    fields[scope] = Object.fromEntries(map);
+  }
   res.json({
     categories: CATEGORIES.map((code) => ({ code, label: CATEGORY_LABELS[code] })),
     reasons: REASON_CODES,
-    grantMinutes: Math.round(GRANT_MS / 60000)
+    grantMinutes: Math.round(GRANT_MS / 60000),
+    fields
   });
 });
 
-
-const DRAFT_EDIT_ROLES = ['admin', 'teacher', 'employee'];
+const DRAFT_EDIT_ROLES = ['admin', 'employee'];
+const INTAKE_ROLES = ['admin', 'employee'];
 const DRAFT_LIST_ROLES = ['admin', 'employee'];
 
 const MAX_DRAFT_PAYLOAD = 100 * 1024;
@@ -477,6 +497,12 @@ router.get('/:id', authMiddleware, loadGrants, async (req, res, next) => {
 
     const payload = redactRecipient(recipient, req);
 
+    payload.repSharedWith = recipient.representativeId
+      ? await Recipient.count({
+          where: { representativeId: recipient.representativeId, id: { [Op.ne]: recipient.id } }
+        })
+      : 0;
+
     if (isAdmin(req.user)) {
       await logAccess(req, { recipientId: recipient.id, category: 'passport', action: 'view' });
     }
@@ -605,7 +631,7 @@ async function findDocMatch({ docSeries, docNumber }, excludeId) {
   };
 }
 
-router.post('/check-duplicate', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
+router.post('/check-duplicate', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (req, res, next) => {
   try {
     const { firstName, middleName, lastName, birthDate, docSeries, docNumber, excludeId } = req.body || {};
     const skip = Number(excludeId) || null;
@@ -621,7 +647,7 @@ router.post('/check-duplicate', authMiddleware, roleMiddleware('admin', 'teacher
   }
 });
 
-router.post('/family-status-lookup', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
+router.post('/family-status-lookup', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (req, res, next) => {
   try {
     const series = String(req.body?.passportSeries || '').trim();
     const number = String(req.body?.passportNumber || '').trim();
@@ -676,11 +702,17 @@ async function applyFamilyStatuses(repId, codes, userId, t) {
   );
 }
 
-router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
+router.post('/intake', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (req, res, next) => {
   const {
-    recipient = {}, representative = {}, doc = {},
+    recipient = {}, doc = {},
     nozologyClasses = [], crg = {}, groupId, familyStatuses = []
   } = req.body;
+
+  const representative = req.body.representative || {};
+  const hasRep = req.body.representative != null;
+  const contactPhone = hasRep
+    ? (representative.telephone || '')
+    : (req.body.telephone || recipient.telephone || '');
 
   if (!recipient.firstName || !recipient.lastName) {
     return res.status(400).json({ message: 'Не заполнено ФИО реабилитанта' });
@@ -738,14 +770,16 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
       const repSeries = String(representative.passportSeries || '').trim();
       const repNumber = String(representative.passportNumber || '').trim();
 
-      let rep = repSeries && repNumber
+      let rep = hasRep && repSeries && repNumber
         ? await LegalRepresentative.findOne({
             where: { passportSeries: repSeries, passportNumber: repNumber },
             transaction: t
           })
         : null;
 
-      if (rep) {
+      if (!hasRep) {
+        rep = null;
+      } else if (rep) {
         const fresh = {};
         const carry = (field, value) => {
           const v = typeof value === 'string' ? value.trim() : value;
@@ -778,7 +812,7 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
         }, { transaction: t });
       }
 
-      await applyFamilyStatuses(rep.id, familyStatuses, req.user?.id, t);
+      if (rep) await applyFamilyStatuses(rep.id, familyStatuses, req.user?.id, t);
 
       const recEmail = `rcp-${onlyDigits(doc.snils) || 'na'}-${uniqSuffix}@intake.local`;
       const tempHash = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
@@ -786,13 +820,13 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
 
       const created = await Recipient.create({
         userId: user.id,
-        representativeId: rep.id,
+        representativeId: rep ? rep.id : null,
         firstName: recipient.firstName,
         middleName: recipient.middleName || '',
         lastName: recipient.lastName,
         birthDate: recipient.birthDate || null,
         email: recEmail,
-        telephone: repPhone,
+        telephone: contactPhone,
         photo: '',
         status: recipient.status || 'draft',
         diagnosis: recipient.diagnosis || '',
@@ -852,7 +886,7 @@ router.post('/intake', authMiddleware, roleMiddleware('admin', 'teacher', 'emplo
   }
 });
 
-router.post('/', authMiddleware, roleMiddleware('admin', 'teacher'), async (req, res, next) => {
+router.post('/', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (req, res, next) => {
   try {
     const data = pickFields(req.body);
     const recipient = await Recipient.create(data);
@@ -886,10 +920,135 @@ router.put('/:id', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'
   }
 });
 
-const CARD_RECIPIENT_FIELDS = ['firstName', 'middleName', 'lastName', 'birthDate'];
-const CARD_DOC_FIELDS = ['educationPlace', 'district'];
+const CARD_RECIPIENT_FIELDS = [
+  'firstName', 'middleName', 'lastName', 'birthDate', 'telephone', 'email',
+  'status', 'disableGroup', 'diagnosis', 'nozology', 'groupId', 'CRGMain'
+];
+const CARD_DOC_FIELDS = [
+  'docType', 'docSeries', 'docNumber', 'docIssuer', 'docIssuerDate', 'snils',
+  'mseIssueDate', 'mseValidDate', 'mseIndefinite',
+  'regAddress', 'factAddress', 'factSameReg', 'district', 'area',
+  'educationPlace', 'specialNote'
+];
+const CARD_REP_FIELDS = [
+  'firstName', 'middleName', 'lastName', 'relation', 'telephone', 'email',
+  'passportSeries', 'passportNumber', 'passportIssuer', 'passportIssuerDate',
+  'passportDeptCode', 'passportReg'
+];
 
-const sameValue = (a, b) => String(a ?? '').slice(0, 250) === String(b ?? '').slice(0, 250);
+const DOC_REQUIRED = [
+  'docSeries', 'docNumber', 'docIssuer', 'docIssuerDate',
+  'snils', 'mseIssueDate', 'regAddress', 'educationPlace'
+];
+
+const DOC_FIELD_LABELS = {
+  docType: 'тип документа',
+  docSeries: 'серия документа',
+  docNumber: 'номер документа',
+  docIssuer: 'кем выдан документ',
+  docIssuerDate: 'дата выдачи документа',
+  snils: 'СНИЛС',
+  mseIssueDate: 'дата выдачи справки МСЭ',
+  mseValidDate: 'срок действия справки МСЭ',
+  regAddress: 'адрес регистрации',
+  factAddress: 'адрес проживания',
+  educationPlace: 'место обучения'
+};
+
+const DATE_FIELDS = new Set(['birthDate', 'docIssuerDate', 'mseIssueDate', 'mseValidDate', 'passportIssuerDate']);
+const BOOL_FIELDS = new Set(['mseIndefinite', 'factSameReg']);
+const INT_FIELDS = new Set(['nozology', 'groupId', 'CRGMain']);
+const ENUM_VALUES = {
+  docType: ['Свидетельство', 'Паспорт'],
+  status: ['draft', 'active', 'archived'],
+  disableGroup: ['Ребенок-инвалид', 'I группа', 'II группа', 'III группа', 'Нет']
+};
+
+const normalizeField = (field, raw) => {
+  if (DATE_FIELDS.has(field)) {
+    const s = String(raw ?? '').slice(0, 10);
+    return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+  }
+  if (BOOL_FIELDS.has(field)) return raw === true || raw === 'true';
+  if (INT_FIELDS.has(field)) {
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  return String(raw ?? '').trim();
+};
+
+const sameValue = (prev, next) => {
+  if (typeof next === 'boolean') return !!prev === next;
+  if (prev == null && next == null) return true;
+  return String(prev ?? '').slice(0, 500) === String(next ?? '').slice(0, 500);
+};
+
+const NEVER_EMPTY = new Set([
+  'firstName', 'lastName', 'telephone', 'email', 'nozology', 'CRGMain',
+  'docSeries', 'docNumber', 'docIssuer', 'docIssuerDate', 'snils',
+  'mseIssueDate', 'regAddress', 'factAddress', 'educationPlace',
+  'passportSeries', 'passportNumber', 'passportIssuer', 'passportDeptCode', 'passportReg'
+]);
+
+const FIXED_FORMATS = {
+  snils: [/^\d{3}-\d{3}-\d{3} \d{2}$/, 'СНИЛС записывается как 000-000-000 00'],
+  passportSeries: [/^\d{4}$/, 'серия паспорта — ровно 4 цифры'],
+  passportNumber: [/^\d{6}$/, 'номер паспорта — ровно 6 цифр'],
+  passportDeptCode: [/^\d{3}-\d{3}$/, 'код подразделения записывается как 000-000']
+};
+
+const CARD_FIELD_LABELS = {
+  firstName: 'имя', middleName: 'отчество', lastName: 'фамилия',
+  birthDate: 'дата рождения', telephone: 'телефон', email: 'e-mail',
+  status: 'статус карточки', disableGroup: 'группа инвалидности',
+  diagnosis: 'диагноз', nozology: 'нозология', groupId: 'группа', CRGMain: 'КРГ',
+  relation: 'степень родства', passportSeries: 'серия паспорта',
+  passportNumber: 'номер паспорта', passportIssuer: 'кем выдан паспорт',
+  passportIssuerDate: 'дата выдачи паспорта', passportDeptCode: 'код подразделения',
+  passportReg: 'адрес регистрации по паспорту',
+  district: 'округ проживания', area: 'район', factSameReg: 'совпадение адресов',
+  mseIndefinite: 'бессрочность МСЭ',
+  ...DOC_FIELD_LABELS
+};
+
+const collectPatch = (req, recipientId, target, allowed, categoryOf, body, scope = '') => {
+  const patch = {};
+  const lockedTouched = [];
+  const rejected = [];
+  const name = (field) => scope + (CARD_FIELD_LABELS[field] || field);
+  if (!target || !body || typeof body !== 'object') return { patch, lockedTouched, rejected };
+
+  for (const field of allowed) {
+    if (body[field] === undefined) continue;
+
+    const category = categoryOf.get(field);
+    if (category && !hasGrant(req, recipientId, category)) {
+      if (String(body[field] ?? '').trim()) lockedTouched.push(category);
+      continue;
+    }
+
+    const next = normalizeField(field, body[field]);
+    if (ENUM_VALUES[field] && !ENUM_VALUES[field].includes(next)) continue;
+
+    if (NEVER_EMPTY.has(field) && (next == null || next === '')) {
+      rejected.push(`${name(field)} — это поле нельзя оставить пустым`);
+      continue;
+    }
+
+    const format = FIXED_FORMATS[field];
+    if (format && next && !format[0].test(next)) {
+      rejected.push(`${name(field)}: ${format[1]}`);
+      continue;
+    }
+
+    const prev = DATE_FIELDS.has(field)
+      ? (target.get(field) == null ? null : String(target.get(field)).slice(0, 10))
+      : target.get(field);
+    if (!sameValue(prev, next)) patch[field] = next;
+  }
+
+  return { patch, lockedTouched, rejected };
+};
 
 router.patch('/:id/card', authMiddleware, roleMiddleware('admin', 'employee'), loadGrants, async (req, res, next) => {
   try {
@@ -905,53 +1064,140 @@ router.patch('/:id/card', authMiddleware, roleMiddleware('admin', 'employee'), l
     }
 
     const doc = await RecipientDoc.findOne({ where: { recipientId: recipient.id } });
+    const rep = recipient.representativeId
+      ? await LegalRepresentative.findByPk(recipient.representativeId)
+      : null;
 
-    const recipientPatch = {};
-    for (const f of CARD_RECIPIENT_FIELDS) {
-      if (req.body[f] === undefined) continue;
-      const next = f === 'birthDate' ? String(req.body[f] || '').slice(0, 10) : String(req.body[f] ?? '').trim();
-      const prev = f === 'birthDate' ? String(recipient.birthDate ?? '').slice(0, 10) : recipient.get(f);
-      if (!sameValue(prev, next)) recipientPatch[f] = next;
-    }
+    const r = collectPatch(req, recipient.id, recipient, CARD_RECIPIENT_FIELDS, CATEGORY_OF.recipient, req.body);
+    const d = collectPatch(req, recipient.id, doc, CARD_DOC_FIELDS, CATEGORY_OF.doc, req.body);
+    const p = collectPatch(req, recipient.id, rep, CARD_REP_FIELDS, CATEGORY_OF.rep, req.body?.representative, 'у представителя ');
 
-    const docPatch = {};
     if (doc) {
-      for (const f of CARD_DOC_FIELDS) {
-        if (req.body[f] === undefined) continue;
-        const next = String(req.body[f] ?? '').trim();
-        if (!sameValue(doc.get(f), next)) docPatch[f] = next;
+      const sameReg = 'factSameReg' in d.patch ? d.patch.factSameReg : !!doc.factSameReg;
+      if (sameReg) {
+        const reg = 'regAddress' in d.patch ? d.patch.regAddress : doc.regAddress;
+        d.rejected = d.rejected.filter((m) => !m.startsWith('адрес проживания'));
+        if (reg && reg !== doc.factAddress) d.patch.factAddress = reg;
+        else delete d.patch.factAddress;
       }
     }
 
-    const changedFields = [...Object.keys(recipientPatch), ...Object.keys(docPatch)];
+    const rejected = [...r.rejected, ...d.rejected, ...p.rejected];
+    if (rejected.length) {
+      return res.status(400).json({
+        message: 'Проверьте заполнение: ' + rejected.join('; ') + '.',
+        rejectedFields: rejected
+      });
+    }
+
+    const locked = [...new Set([...r.lockedTouched, ...d.lockedTouched, ...p.lockedTouched])];
+    if (locked.length) {
+      return res.status(403).json({
+        message: 'Сначала откройте доступ кнопкой «Показать»: ' +
+          locked.map((c) => (CATEGORY_LABELS[c] || c).toLowerCase()).join(', ') +
+          '. Править вслепую нельзя — прежнее значение не видно, и его легко затереть.',
+        lockedCategories: locked
+      });
+    }
+
+    let createdDoc = null;
+    if (!doc) {
+      const draft = {};
+      for (const field of CARD_DOC_FIELDS) {
+        if (req.body[field] === undefined) continue;
+        const category = CATEGORY_OF.doc.get(field);
+        if (category && !hasGrant(req, recipient.id, category)) continue;
+        draft[field] = normalizeField(field, req.body[field]);
+      }
+      const filled = (v) => v != null && String(v).trim() !== '';
+      const anyGiven = Object.values(draft).some(filled);
+      if (anyGiven) {
+        const missing = DOC_REQUIRED.filter((f) => !filled(draft[f]));
+        if (!draft.mseIndefinite && !filled(draft.mseValidDate)) missing.push('mseValidDate');
+        if (missing.length) {
+          return res.status(400).json({
+            message: 'Анкета этой карточки ещё не заведена, а для неё нужны все поля. ' +
+              'Не заполнено: ' + missing.map((f) => DOC_FIELD_LABELS[f] || f).join(', ') + '.',
+            missingFields: missing
+          });
+        }
+        createdDoc = {
+          ...draft,
+          recipientId: recipient.id,
+          docType: draft.docType || 'Свидетельство',
+          factAddress: draft.factSameReg ? draft.regAddress : (draft.factAddress || draft.regAddress),
+          mseValidDate: draft.mseIndefinite ? null : draft.mseValidDate,
+          specialNote: draft.specialNote || ''
+        };
+      }
+    }
+
+    const changedFields = [
+      ...Object.keys(r.patch),
+      ...Object.keys(d.patch),
+      ...Object.keys(p.patch).map((f) => 'representative.' + f),
+      ...(createdDoc ? ['docs'] : [])
+    ];
     if (!changedFields.length) {
       return res.status(400).json({ message: 'Данные карточки не изменились' });
     }
 
-    if (doc) {
+    const snapshot = {
+      ...(doc ? doc.toJSON() : {}),
+      firstName: recipient.firstName,
+      middleName: recipient.middleName,
+      lastName: recipient.lastName,
+      birthDate: recipient.birthDate,
+      telephone: recipient.telephone,
+      email: recipient.email,
+      status: recipient.status,
+      disableGroup: recipient.disableGroup,
+      diagnosis: recipient.diagnosis,
+      nozology: recipient.nozology,
+      groupId: recipient.groupId,
+      CRGMain: recipient.CRGMain,
+      representative: rep ? rep.toJSON() : null
+    };
+
+    await sequelize.transaction(async (t) => {
       await RecipientDocVersion.create({
-        docId: doc.id,
+        docId: doc ? doc.id : null,
         recipientId: recipient.id,
-        snapshot: {
-          ...doc.toJSON(),
-          firstName: recipient.firstName,
-          middleName: recipient.middleName,
-          lastName: recipient.lastName,
-          birthDate: recipient.birthDate
-        },
+        snapshot,
         changedFields,
         reason,
         changedBy: req.user.id,
         changedAt: new Date()
+      }, { transaction: t });
+
+      if (Object.keys(r.patch).length) await recipient.update(r.patch, { transaction: t });
+      if (Object.keys(d.patch).length) await doc.update(d.patch, { transaction: t });
+      if (Object.keys(p.patch).length) await rep.update(p.patch, { transaction: t });
+      if (createdDoc) await RecipientDoc.create(createdDoc, { transaction: t });
+    });
+
+    let repSharedWith = 0;
+    if (Object.keys(p.patch).length) {
+      repSharedWith = await Recipient.count({
+        where: { representativeId: recipient.representativeId, id: { [Op.ne]: recipient.id } }
       });
     }
 
-    if (Object.keys(recipientPatch).length) await recipient.update(recipientPatch);
-    if (Object.keys(docPatch).length) await doc.update(docPatch);
-
     const updated = await Recipient.findByPk(recipient.id, { include: detailInclude });
-    res.json({ recipient: redactRecipient(updated, req), changedFields, reason });
+    res.json({ recipient: redactRecipient(updated, req), changedFields, reason, repSharedWith });
   } catch (err) {
+    if (err?.name === 'SequelizeUniqueConstraintError') {
+      const path = err?.errors?.[0]?.path || '';
+      let msg = `Такое значение уже занято другой записью (${path || 'дубликат'})`;
+      if (/snils/i.test(path)) {
+        msg = 'Этот СНИЛС уже записан за другим реабилитантом — проверьте номер';
+      } else if (/telephone/i.test(path)) {
+        msg = 'Этот номер телефона уже записан за другим законным представителем';
+      } else if (/email/i.test(path)) {
+        msg = 'Этот e-mail уже занят другой учётной записью';
+      }
+      return res.status(409).json({ message: msg });
+    }
     next(err);
   }
 });
@@ -988,12 +1234,34 @@ router.delete('/:id', authMiddleware, roleMiddleware('admin', 'teacher'), async 
     const recipient = await Recipient.findByPk(req.params.id);
     if (!recipient) return res.status(404).json({ message: 'Реабилитант не найден' });
 
-    await CRGRecipientSec.destroy({ where: { idRecipient: recipient.id } });
-    await RecipientDocVersion.destroy({ where: { recipientId: recipient.id } });
-    await RecipientDoc.destroy({ where: { recipientId: recipient.id } });
-    await RecipientScanDoc.destroy({ where: { recipId: recipient.id } });
-    await ReResult.destroy({ where: { idRecipient: recipient.id } });
-    await recipient.destroy();
+    const id = recipient.id;
+    const sessionIds = (await DiagnosticSession.findAll({
+      where: { recipientId: id }, attributes: ['id'], raw: true
+    })).map((s) => s.id);
+
+    await sequelize.transaction(async (t) => {
+      await DiagnosticConclusion.destroy({
+        where: sessionIds.length
+          ? { [Op.or]: [{ recipientId: id }, { sessionId: { [Op.in]: sessionIds } }] }
+          : { recipientId: id },
+        transaction: t
+      });
+      await DiagnosticAssignment.destroy({
+        where: sessionIds.length
+          ? { [Op.or]: [{ recipientId: id }, { diagnosticSessionId: { [Op.in]: sessionIds } }] }
+          : { recipientId: id },
+        transaction: t
+      });
+      await DiagnosticSession.destroy({ where: { recipientId: id }, transaction: t });
+      await ScheduleEvent.destroy({ where: { recipientId: id }, transaction: t });
+      await AccessGrant.destroy({ where: { recipientId: id }, transaction: t });
+      await CRGRecipientSec.destroy({ where: { idRecipient: id }, transaction: t });
+      await RecipientDocVersion.destroy({ where: { recipientId: id }, transaction: t });
+      await RecipientDoc.destroy({ where: { recipientId: id }, transaction: t });
+      await RecipientScanDoc.destroy({ where: { recipId: id }, transaction: t });
+      await ReResult.destroy({ where: { idRecipient: id }, transaction: t });
+      await recipient.destroy({ transaction: t });
+    });
 
     res.json({ message: 'Реабилитант удалён' });
   } catch (err) {
@@ -1084,7 +1352,7 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
       const row = await RecipientScanDoc.create({
         entityType: et,
         recipId: recipient.id,
-        represId: recipient.representativeId,
+        represId: recipient.representativeId ?? null,
         docType: docTypeId,
         storageKey: `db://${checksum}`,
         originalName: buildScanFileName({

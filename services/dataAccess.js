@@ -95,20 +95,34 @@ export const logAccess = async (req, entry) => {
   }
 };
 
-const RECIPIENT_FIELDS = {
+export const RECIPIENT_FIELDS = {
   contacts: ['telephone', 'email'],
   medical: ['diagnosis', 'nozology']
 };
 
-const DOC_FIELDS = {
+export const DOC_FIELDS = {
   passport: ['docSeries', 'docNumber', 'docIssuer', 'docIssuerDate', 'snils'],
   contacts: ['regAddress', 'factAddress'],
   medical: ['mseIssueDate', 'mseValidDate', 'mseIndefinite', 'specialNote']
 };
 
-const REP_FIELDS = {
+export const REP_FIELDS = {
   passport: ['passportSeries', 'passportNumber', 'passportIssuer', 'passportIssuerDate', 'passportDeptCode'],
   contacts: ['telephone', 'email', 'passportReg']
+};
+
+const reverse = (map) => {
+  const out = new Map();
+  for (const [category, fields] of Object.entries(map)) {
+    for (const f of fields) out.set(f, category);
+  }
+  return out;
+};
+
+export const CATEGORY_OF = {
+  recipient: reverse(RECIPIENT_FIELDS),
+  doc: reverse(DOC_FIELDS),
+  rep: reverse(REP_FIELDS)
 };
 
 const blankOut = (target, fields) => {

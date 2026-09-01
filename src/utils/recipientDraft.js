@@ -12,7 +12,9 @@ const str = (v) => (typeof v === 'string' ? v : '');
 export const draftPersonFields = (form) => {
   const v = form || {};
 
-  const step1 = [
+  const noRep = v.lrNone === true;
+
+  const step1 = noRep ? [] : [
     { g: 'ФИО',               l: 'Фамилия',                         ok: isFilled(v.lrLast),               a: '#lr-last'  },
     { g: 'ФИО',               l: 'Имя',                             ok: isFilled(v.lrFirst),              a: '#lr-first' },
     { g: 'ФИО',               l: 'Кем приходится реабилитанту',     ok: isFilled(v.lrRelation),           a: '#lr-rel'   },
@@ -29,14 +31,17 @@ export const draftPersonFields = (form) => {
     { g: 'ФИО и дата рождения', l: 'Фамилия',       ok: isFilled(v.rLast),  a: '#r-last'  },
     { g: 'ФИО и дата рождения', l: 'Имя',           ok: isFilled(v.rFirst), a: '#r-first' },
     { g: 'ФИО и дата рождения', l: 'Дата рождения', ok: isFilled(v.rBirth), a: '#r-birth' },
-    { g: 'Медицинские сведения', l: 'Группа инвалидности',                   ok: isFilled(v.rInvalidity),        a: '#r-invalidity'       },
-    { g: 'Медицинские сведения', l: 'СНИЛС',                                 ok: str(v.rSnils).length === 14,    a: '#r-snils'            },
-    { g: 'Медицинские сведения', l: 'Целевая реабилитационная группа (ЦРГ)', ok: isFilled(v.rCrg),               a: '#r-crg-trigger'      },
-    { g: 'Медицинские сведения', l: 'Нозология',                             ok: (v.rNosology || []).length > 0, a: '#r-nosology-trigger' },
+    ...(noRep
+      ? [{ g: 'ФИО и дата рождения', l: 'Телефон', ok: str(v.rPhone).length === 18, a: '#r-phone' }]
+      : []),
     { g: 'Документ, удостоверяющий личность', l: 'Серия',       ok: v.rDocType === 'birth' ? isFilled(v.rDocSeries) : str(v.rDocSeries).length === 4, a: '#rd-ser' },
     { g: 'Документ, удостоверяющий личность', l: 'Номер',       ok: str(v.rDocNum).length === 6, a: '#rd-num' },
     { g: 'Документ, удостоверяющий личность', l: 'Дата выдачи', ok: isFilled(v.rDocDate),       a: '#rd-dt'  },
     { g: 'Документ, удостоверяющий личность', l: 'Кем выдан',   ok: isFilled(v.rDocIssuer),     a: '#rd-iss' },
+    { g: 'Медицинские сведения', l: 'Группа инвалидности',                   ok: isFilled(v.rInvalidity),        a: '#r-invalidity'       },
+    { g: 'Медицинские сведения', l: 'СНИЛС',                                 ok: str(v.rSnils).length === 14,    a: '#r-snils'            },
+    { g: 'Медицинские сведения', l: 'Целевая реабилитационная группа (ЦРГ)', ok: isFilled(v.rCrg),               a: '#r-crg-trigger'      },
+    { g: 'Медицинские сведения', l: 'Нозология',                             ok: (v.rNosology || []).length > 0, a: '#r-nosology-trigger' },
     { g: 'Адрес регистрации', l: 'Адрес регистрации', ok: isFilled(v.rAddrReg), a: '#r-reg' },
   ];
   if (!v.rAddrSame) {

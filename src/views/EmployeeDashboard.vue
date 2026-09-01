@@ -33,7 +33,7 @@
           <span class="ava" :class="avaTone(r.id)" aria-hidden="true">{{ initials(fullName(r)) }}</span>
           <span class="tl-main">
             <span class="tl-name">{{ fullName(r) }}</span>
-            <span class="tl-note">{{ r.diagnosis || 'Диагноз не указан' }}</span>
+            <span class="tl-note">{{ formatDiagnoses(r.diagnosis) || 'Диагноз не указан' }}</span>
           </span>
           <span v-if="statusWord(r)" class="pill pill-mute">{{ statusWord(r) }}</span>
         </button>
@@ -186,6 +186,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { usePageStore } from '../stores/page';
 import { useAuthStore } from '../stores/auth';
 import api from '../api';
+import { formatDiagnoses } from '../utils/diagnosisList';
 import AddRecipientWizard from '../components/AddRecipientWizard.vue';
 
 const pageStore = usePageStore();

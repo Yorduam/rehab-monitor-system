@@ -95,7 +95,7 @@
               <img :src="p.photo || defaultPhoto" class="participant-avatar" />
               <div class="participant-info">
                 <div class="participant-name">{{ fullName(p) }}</div>
-                <div class="participant-meta">{{ recipientAge(p) != null ? recipientAge(p) + ' лет · ' : '' }}{{ p.diagnosis || '—' }}</div>
+                <div class="participant-meta">{{ recipientAge(p) != null ? recipientAge(p) + ' лет · ' : '' }}{{ formatDiagnoses(p.diagnosis) || '—' }}</div>
               </div>
               <button
                 class="participant-remove"
@@ -144,6 +144,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import api from '../api'
 import { useAuthStore } from '../stores/auth'
 import { fullName, recipientAge } from '../utils/recipient'
+import { formatDiagnoses } from '../utils/diagnosisList'
 import { notifySaved } from '../utils/toast'
 import Modal from '../components/Modal.vue'
 import Pagination from '../components/Pagination.vue'

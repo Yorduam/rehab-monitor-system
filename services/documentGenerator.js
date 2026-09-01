@@ -112,7 +112,7 @@ export function buildTokens(form = {}, isMinor) {
     rehDoc,
     repAddress: form.lrAddress || '',
     repPhone,
-    rehPhone: repPhone,
+    rehPhone: form.rPhone || repPhone,
     rehRegAddress,
     rehBirthDate: fmtDate(form.rBirth),
     rehRelation: relationInstr(form.rDocRelation),

@@ -112,6 +112,7 @@ import { ref, computed, nextTick } from 'vue'
 import { usePageStore } from '../stores/page'
 import { useAuthStore } from '../stores/auth'
 import { fullName } from '../utils/recipient'
+import { formatDiagnoses } from '../utils/diagnosisList'
 import api from '../api'
 
 const pageStore = usePageStore()
@@ -200,7 +201,7 @@ function fuzzyPage(q) {
 const pageById = (id) => PAGES.find((p) => p.id === id)
 
 const nameOf = (r) => r._name || fullName(r)
-const subOf = (r) => r._sub || r.diagnosis || 'Диагноз не указан'
+const subOf = (r) => r._sub || formatDiagnoses(r.diagnosis) || 'Диагноз не указан'
 const initials = (r) => {
   const src = r._name || [r.lastName, r.firstName].filter(Boolean).join(' ')
   const parts = (src || '').trim().split(/\s+/)

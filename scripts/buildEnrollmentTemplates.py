@@ -1,14 +1,4 @@
 # -*- coding: utf-8 -*-
-"""Rebuild the six enrollment templates as native Word documents.
-
-The originals were Excel sheets saved as .docx: the whole page was one
-borderless 9-10 column grid, no font was declared anywhere (so Word fell back
-to the Calibri theme font) and the statement's grid was a third wider than the
-printable area. This script emits proper paragraphs, real bordered tables and
-Times New Roman, reusing the wording from enrollmentContent.py.
-
-    python scripts/buildEnrollmentTemplates.py
-"""
 import os
 import sys
 
@@ -46,7 +36,6 @@ ORG_REQUISITES = [
 ]
 SIGN_LINE = '___________________ / А.А.Мартыненко /'
 
-
 def _borders(pr, edges, sz=4, color='000000', container=False):
     if container:
         el = pr
@@ -69,16 +58,13 @@ def _borders(pr, edges, sz=4, color='000000', container=False):
             edge.set(qn('w:space'), '0')
             edge.set(qn('w:color'), color)
 
-
 TBL_PR_SEQ = ('w:tblStyle', 'w:tblpPr', 'w:tblOverlap', 'w:bidiVisual',
               'w:tblStyleRowBandSize', 'w:tblStyleColBandSize', 'w:tblW', 'w:jc',
               'w:tblCellSpacing', 'w:tblInd', 'w:tblBorders', 'w:shd',
               'w:tblLayout', 'w:tblCellMar', 'w:tblLook', 'w:tblCaption',
               'w:tblDescription')
 
-
 def tbl_pr_add(table, tag):
-    """Word rejects tblPr children written out of schema order."""
     tblPr = table._tbl.tblPr
     el = tblPr.find(qn(tag))
     if el is None:
@@ -86,17 +72,14 @@ def tbl_pr_add(table, tag):
         tblPr.insert_element_before(el, *TBL_PR_SEQ[TBL_PR_SEQ.index(tag) + 1:])
     return el
 
-
 def table_borders(table, inside_h=True):
     edges = {k: True for k in ('top', 'left', 'bottom', 'right', 'insideV')}
     edges['insideH'] = True if inside_h else None
     _borders(tbl_pr_add(table, 'w:tblBorders'), edges, container=True)
 
-
 TC_PR_SEQ = ('w:cnfStyle', 'w:tcW', 'w:gridSpan', 'w:hMerge', 'w:vMerge',
              'w:tcBorders', 'w:shd', 'w:noWrap', 'w:tcMar', 'w:textDirection',
              'w:tcFitText', 'w:vAlign', 'w:hideMark')
-
 
 def tc_pr_add(cell, tag):
     tcPr = cell._tc.get_or_add_tcPr()
@@ -106,16 +89,13 @@ def tc_pr_add(cell, tag):
         tcPr.insert_element_before(el, *TC_PR_SEQ[TC_PR_SEQ.index(tag) + 1:])
     return el
 
-
 def underline_cell(cell):
     _borders(tc_pr_add(cell, 'w:tcBorders'), {'bottom': True}, container=True)
-
 
 def shade(cell, fill='F2F2F2'):
     el = tc_pr_add(cell, 'w:shd')
     el.set(qn('w:val'), 'clear')
     el.set(qn('w:fill'), fill)
-
 
 def cell_margins(table, left=108, right=108, top=40, bottom=40):
     mar = tbl_pr_add(table, 'w:tblCellMar')
@@ -125,10 +105,8 @@ def cell_margins(table, left=108, right=108, top=40, bottom=40):
         el.set(qn('w:type'), 'dxa')
         mar.append(el)
 
-
 def fixed_layout(table):
     tbl_pr_add(table, 'w:tblLayout').set(qn('w:type'), 'fixed')
-
 
 P_PR_SEQ = ('w:pStyle', 'w:keepNext', 'w:keepLines', 'w:pageBreakBefore',
             'w:framePr', 'w:widowControl', 'w:numPr', 'w:suppressLineNumbers',
@@ -140,7 +118,6 @@ P_PR_SEQ = ('w:pStyle', 'w:keepNext', 'w:keepLines', 'w:pageBreakBefore',
             'w:textboxTightWrap', 'w:outlineLvl', 'w:divId', 'w:cnfStyle',
             'w:rPr', 'w:sectPr', 'w:pPrChange')
 
-
 def p_pr_add(paragraph, tag):
     pPr = paragraph._p.get_or_add_pPr()
     el = pPr.find(qn(tag))
@@ -149,11 +126,9 @@ def p_pr_add(paragraph, tag):
         pPr.insert_element_before(el, *P_PR_SEQ[P_PR_SEQ.index(tag) + 1:])
     return el
 
-
 def keep_together(paragraph):
     p_pr_add(paragraph, 'w:keepNext')
     p_pr_add(paragraph, 'w:keepLines')
-
 
 def new_document():
     doc = Document()
@@ -181,7 +156,6 @@ def new_document():
     section.right_margin = Cm(1.5)
     return doc
 
-
 def para(host, text='', align=None, bold=False, italic=False, size=BODY_PT,
          first_line=None, left=None, space_before=0, space_after=0, caps=False):
     p = host.add_paragraph()
@@ -205,28 +179,22 @@ def para(host, text='', align=None, bold=False, italic=False, size=BODY_PT,
         pf.left_indent = left
     return p
 
-
 def heading(host, text, size=BODY_PT, space_before=10, space_after=6):
     p = para(host, text, align=WD_ALIGN_PARAGRAPH.CENTER, bold=True, size=size,
              space_before=space_before, space_after=space_after)
     keep_together(p)
     return p
 
-
 def body(host, text):
     return para(host, text, align=WD_ALIGN_PARAGRAPH.JUSTIFY, first_line=INDENT,
                 space_after=2)
 
-
 def caption(host, text, align=WD_ALIGN_PARAGRAPH.CENTER):
     return para(host, text, align=align, italic=True, size=SMALL_PT, space_after=4)
 
-
 def clear(cell):
-    """A fresh cell already owns one empty paragraph — drop it."""
     p = cell.paragraphs[0]._p
     p.getparent().remove(p)
-
 
 def grid(doc, widths, rows=0):
     table = doc.add_table(rows=rows, cols=len(widths))
@@ -245,7 +213,6 @@ def grid(doc, widths, rows=0):
     table._widths = widths
     return table
 
-
 def add_row(table):
     row = table.add_row()
     for cell, w in zip(row.cells, table._widths):
@@ -253,10 +220,7 @@ def add_row(table):
         clear(cell)
     return row
 
-
 def span_row(table, row):
-    """Collapse a row to one cell. python-docx's merge() needs each cell to own
-    a paragraph, but add_row() strips them, so write the gridSpan directly."""
     tcs = row._tr.tc_lst
     for tc in tcs[1:]:
         row._tr.remove(tc)
@@ -265,9 +229,7 @@ def span_row(table, row):
     tc_pr_add(cell, 'w:gridSpan').set(qn('w:val'), str(len(tcs)))
     return cell
 
-
 def field_row(table, label, value, note=None):
-    """label | value-on-a-rule, with an optional italic note under the value."""
     row = add_row(table)
     para(row.cells[0], label, space_after=2)
     para(row.cells[1], value, space_after=0)
@@ -277,7 +239,6 @@ def field_row(table, label, value, note=None):
         para(note_row.cells[0], '')
         caption(note_row.cells[1], note)
     return row
-
 
 def signature_block(doc, name_token, who='Заказчика', width=TEXT_WIDTH):
     table = grid(doc, [Cm(7), width - Cm(7)])
@@ -292,7 +253,6 @@ def signature_block(doc, name_token, who='Заказчика', width=TEXT_WIDTH)
     caption(row.cells[1], '(Ф.И.О. %s)' % who)
     return table
 
-
 STATEMENT_TITLE = [
     'ЗАЯВЛЕНИЕ',
     'о зачислении на реабилитационный курс социальной интеграции',
@@ -306,7 +266,6 @@ STATEMENT_SUBJECT = (
     'по социальной интеграции лиц с ограничениями жизнедеятельности '
     '(далее – услуги) в соответствии с индивидуальным планом предоставления услуг '
     'на срок с «____» ______________ 20___ г. по «____» ______________ 20___ г.')
-
 
 def build_statement(minor):
     doc = new_document()
@@ -394,7 +353,6 @@ def build_statement(minor):
         caption(row.cells[1], '(подпись)')
     return doc
 
-
 def build_plan(minor):
     doc = new_document()
     age = 'minor' if minor else 'adult'
@@ -460,7 +418,6 @@ def build_plan(minor):
     caption(right_cell, '(подпись)', WD_ALIGN_PARAGRAPH.LEFT)
     return doc
 
-
 REQ_ADULT = [
     ('ФИО (полностью):', '${fullName}'),
     ('Адрес регистрации:', '${passportRegistration}'),
@@ -497,7 +454,6 @@ REQ_MINOR_CHILD = [
     ('дата выдачи:', '${passportDate}'),
 ]
 
-
 def requisites_lines(cell, title, pairs):
     para(cell, title, bold=True, space_after=4)
     for label, value in pairs:
@@ -505,7 +461,6 @@ def requisites_lines(cell, title, pairs):
             para(cell, label, space_before=4, space_after=2)
         else:
             para(cell, '%s %s' % (label, value), size=SMALL_PT + 2, space_after=2)
-
 
 def build_contract(minor):
     doc = new_document()
@@ -574,7 +529,6 @@ def build_contract(minor):
          space_before=14, space_after=2)
     caption(right_cell, '(подпись и Ф.И.О. Заказчика)', WD_ALIGN_PARAGRAPH.LEFT)
     return doc
-
 
 BUILDERS = [
     ('enroll_statement_adult.docx', build_statement, False),

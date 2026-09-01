@@ -147,7 +147,6 @@
       >
         <span class="s-icon" v-html="item.icon"></span>
         {{ item.label }}
-        <span v-if="item.badge" class="s-badge">{{ item.badge }}</span>
       </button>
     </nav>
 
@@ -326,7 +325,6 @@
       >
         <span class="icon" v-html="item.icon"></span>
         {{ item.label }}
-        <span v-if="item.badge" class="badge">{{ item.badge }}</span>
       </button>
     </nav>
 
@@ -465,7 +463,7 @@ watch(
 
 const mainNav = [
   { id: 'dashboard',  label: 'Дашборд',      icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>' },
-  { id: 'recipients', label: 'Реабилитанты', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>', badge: 2 },
+  { id: 'recipients', label: 'Реабилитанты', icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>' },
   { id: 'groups',     label: 'Группы',       icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>' }
 ];
 const analyticsNav = [
@@ -610,22 +608,6 @@ const logout = () => {
   flex-shrink: 0;
 }
 .s-item--active svg { opacity: 1; }
-.s-badge {
-  margin-left: auto;
-  font-size: 0.6875rem;
-  background: rgba(255, 255, 255, 0.18);
-  color: #FFFFFF;
-  padding: 0.0625rem 0.4375rem;
-  border-radius: 999px;
-  font-weight: 500;
-  min-width: 1.25rem;
-  text-align: center;
-  font-variant-numeric: tabular-nums;
-}
-.s-item--active .s-badge {
-  background: #112211;
-  color: #F3F6EA;
-}
 .s-footer {
   margin-top: auto;
   padding-top: 1rem;
@@ -782,13 +764,6 @@ const logout = () => {
 }
 .sidebar nav button:active  { background: rgba(255,255,255,0.16); }
 .sidebar nav button.active  { background: rgba(255,255,255,0.15); color: white; }
-.badge {
-  margin-left: auto;
-  background: var(--accent);
-  font-size: 0.7rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 20px;
-}
 .sidebar-footer {
   margin-top: auto;
   padding: 1rem;

@@ -1,10 +1,4 @@
 # -*- coding: utf-8 -*-
-"""
-One-time prep: copy the 6 enrollment Excel templates into
-templates/documents/ under ASCII names, then verify that every ${token}
-survives intact inside the raw XML (a token split across <r> runs would
-never be replaced at runtime).
-"""
 import os, re, shutil, zipfile, sys, io
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')

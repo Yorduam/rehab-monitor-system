@@ -198,9 +198,6 @@ export async function generateEnrollmentDocument(recipientId, docKey) {
   return generateDocument(docKey, form);
 }
 
-/**
- * @returns {Promise<Map<number, Set<string>>>} id → набор scanCode
- */
 export async function signedEnrollCodesFor(recipientIds) {
   const ids = [...new Set((recipientIds || []).filter((x) => x != null))];
   const signed = new Map(ids.map((id) => [id, new Set()]));

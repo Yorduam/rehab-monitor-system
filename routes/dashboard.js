@@ -284,7 +284,7 @@ router.get('/teacher', authMiddleware, roleMiddleware('admin', 'employee', 'teac
       })
     ]);
 
-    const today_ = todayEvents.map((e) => {
+    const today_ = todayEvents.filter((e) => e.type !== 'diagnostic' || e.recipient).map((e) => {
       const state = eventState(e, today, nowMin);
       return {
         id: e.id,
@@ -462,7 +462,7 @@ router.get('/employee-alerts', authMiddleware, roleMiddleware('admin', 'employee
           where: { status: { [Op.in]: ['open', 'in_progress'] } },
           attributes: ['id', 'recipientId', 'date', 'status'],
           include: [
-            { model: Recipient, as: 'recipient', attributes: nameAttrs },
+            { model: Recipient, as: 'recipient', attributes: nameAttrs, required: true },
             {
               model: DiagnosticAssignment, as: 'assignments', required: false,
               attributes: ['id', 'blockStatus', 'date', 'completedAt']
@@ -472,7 +472,7 @@ router.get('/employee-alerts', authMiddleware, roleMiddleware('admin', 'employee
         ScheduleEvent.findAll({
           where: { type: 'diagnostic', status: 'scheduled', date: { [Op.lt]: today } },
           attributes: ['id', 'recipientId', 'date', 'title'],
-          include: [{ model: Recipient, as: 'recipient', attributes: nameAttrs }]
+          include: [{ model: Recipient, as: 'recipient', attributes: nameAttrs, required: true }]
         }),
         Recipient.findAll({
           where: { status: 'active' },
@@ -509,7 +509,7 @@ router.get('/employee-alerts', authMiddleware, roleMiddleware('admin', 'employee
 
     const noShowItems = noShows.map((e) => ({
       recipientId: e.recipientId,
-      name: e.recipient ? named(e.recipient) : (e.title || 'Без имени'),
+      name: named(e.recipient),
       days: daysSince(e.date, today),
       note: `Диагностика ${ruDate(e.date)} не отмечена`
     }));
@@ -701,7 +701,6 @@ router.get('/employee-alerts', authMiddleware, roleMiddleware('admin', 'employee
   }
 });
 
-
 const blockTouched = (a) => {
   if (a.blockStatus === 'completed') return true;
   const crit = a.results?.criteria;
@@ -807,7 +806,7 @@ async function loadDayRows(date, today, nowMin) {
     where: { date, status: { [Op.ne]: 'cancelled' } },
     attributes: ['id', 'recipientId', 'kind', 'date', 'reservedFrom', 'reservedTo', 'status'],
     include: [
-      { model: Recipient, as: 'recipient', attributes: nameAttrs },
+      { model: Recipient, as: 'recipient', attributes: nameAttrs, required: true },
       {
         model: DiagnosticAssignment, as: 'assignments', required: false,
         attributes: ['id', 'blockStatus', 'results', 'startTime']
@@ -842,7 +841,7 @@ async function loadDayRows(date, today, nowMin) {
     return {
       sessionId: s.id,
       recipientId: s.recipientId,
-      name: s.recipient ? recipientFullName(s.recipient) : 'Без имени',
+      name: recipientFullName(s.recipient),
       initials: initialsOf(s.recipient),
       time: hhmm(startTime),
       status,
@@ -917,7 +916,7 @@ router.get('/employee-tiles', authMiddleware, roleMiddleware('admin', 'employee'
       return Number.isFinite(diff) ? diff : null;
     };
 
-    const [expiringDocs, expiringScans, activeRecipients, scanTypes, currentScans, drafts, staleSessions] =
+    const [expiringDocs, expiringScans, activeRecipients, allDocTypes, currentScans, drafts, staleSessions] =
       await Promise.all([
         RecipientDoc.findAll({
           where: {
@@ -938,10 +937,7 @@ router.get('/employee-tiles', authMiddleware, roleMiddleware('admin', 'employee'
           attributes: ['id', 'recipId', 'docType', 'validUntil']
         }),
         Recipient.findAll({ where: { status: 'active' }, attributes: nameAttrs }),
-        DocType.findAll({
-          where: { category: 'scan', isRequired: true },
-          attributes: ['id', 'code', 'name']
-        }),
+        DocType.findAll({ attributes: ['id', 'code', 'name', 'isRequired'] }),
         RecipientScanDoc.findAll({ where: { isCurrent: true }, attributes: ['recipId', 'docType'] }),
         RecipientDraft.findAll({
           attributes: ['id', 'lastName', 'firstName', 'middleName', 'repName', 'payload', 'createdBy', 'createdByName', 'updatedAt'],
@@ -952,7 +948,7 @@ router.get('/employee-tiles', authMiddleware, roleMiddleware('admin', 'employee'
           where: { date: { [Op.lte]: today }, status: { [Op.ne]: 'cancelled' } },
           attributes: ['id', 'recipientId', 'kind', 'date', 'reservedFrom', 'status'],
           include: [
-            { model: Recipient, as: 'recipient', attributes: nameAttrs },
+            { model: Recipient, as: 'recipient', attributes: nameAttrs, required: true },
             {
               model: DiagnosticAssignment, as: 'assignments', required: false,
               attributes: ['id', 'blockStatus', 'results', 'startTime']
@@ -992,12 +988,15 @@ router.get('/employee-tiles', authMiddleware, roleMiddleware('admin', 'employee'
     const scanItems = [];
     for (const r of activeRecipients) {
       const have = haveScans.get(r.id) || new Set();
-      const missing = scanTypes.filter((t) => !have.has(t.id));
+      const missing = allDocTypes.filter((t) => !have.has(t.id));
       if (!missing.length) continue;
+      const ordered = [...missing].sort((a, b) => Number(b.isRequired) - Number(a.isRequired));
+      const shown = ordered.slice(0, 3).map((t) => t.name).join(', ');
+      const restCount = ordered.length - 3;
       scanItems.push({
         recipientId: r.id,
         name: recipientFullName(r),
-        note: `Не загружено: ${missing.map((t) => t.name).join(', ')}`,
+        note: `Не загружено: ${shown}${restCount > 0 ? ` и ещё ${restCount}` : ''}`,
         missing: missing.length,
         tab: 'documents'
       });
@@ -1030,7 +1029,7 @@ router.get('/employee-tiles', authMiddleware, roleMiddleware('admin', 'employee'
       noShowItems.push({
         recipientId: s.recipientId,
         sessionId: s.id,
-        name: s.recipient ? recipientFullName(s.recipient) : 'Без имени',
+        name: recipientFullName(s.recipient),
         note: `Не пришли ${day === today ? `сегодня, ${hhmm(startTime)}` : fmtRuFull(day)}`,
         days: ago === 0 ? 'сегодня' : daysWord(ago)
       });
@@ -1062,7 +1061,6 @@ router.get('/employee-tiles', authMiddleware, roleMiddleware('admin', 'employee'
         tile({
           key: 'scans', tone: 'rose', unit: card,
           title: 'Пакет сканов неполный',
-          action: { page: 'documents', title: 'Документы' },
           items: scanItems
         }),
         tile({
@@ -1180,10 +1178,12 @@ router.get('/exec-overview', authMiddleware, roleMiddleware('admin'), async (req
     ] = await Promise.all([
       Recipient.findAll({ attributes: ['id', 'status'] }),
       DiagnosticSession.findAll({
-        attributes: ['id', 'recipientId', 'date', 'status', 'createdAt']
+        attributes: ['id', 'recipientId', 'date', 'status', 'createdAt'],
+        include: [{ model: Recipient, as: 'recipient', attributes: ['id'], required: true }]
       }),
       DiagnosticConclusion.findAll({
-        attributes: ['id', 'sessionId', 'recipientId', 'verdict', 'issuedAt']
+        attributes: ['id', 'sessionId', 'recipientId', 'verdict', 'issuedAt'],
+        include: [{ model: Recipient, as: 'recipient', attributes: ['id'], required: true }]
       }),
       DiagnosticAssignment.findAll({
         attributes: [
@@ -1193,7 +1193,7 @@ router.get('/exec-overview', authMiddleware, roleMiddleware('admin'), async (req
       }),
       Direction.findAll({ attributes: ['id', 'name', 'profileKey'] }),
       User.findAll({ attributes: ['id', 'firstName', 'lastName', 'email', 'role'] }),
-      ScheduleEvent.findAll({ attributes: ['id', 'status', 'date'] }),
+      ScheduleEvent.findAll({ attributes: ['id', 'status', 'date', 'type', 'recipientId'] }),
       RecipientDoc.findAll({
         where: { mseValidDate: { [Op.lt]: today } },
         attributes: ['id', 'recipientId']
@@ -1204,6 +1204,11 @@ router.get('/exec-overview', authMiddleware, roleMiddleware('admin'), async (req
 
     const byStatus = (s) => recipients.filter((r) => r.status === s).length;
     const activeCount = byStatus('active');
+
+    const liveIds = new Set(recipients.map((r) => r.id));
+    const liveEvents = events.filter(
+      (e) => e.type !== 'diagnostic' || (e.recipientId != null && liveIds.has(e.recipientId))
+    );
 
     const firstSession = new Map();
     for (const s of sessions) {
@@ -1327,7 +1332,7 @@ router.get('/exec-overview', authMiddleware, roleMiddleware('admin'), async (req
 
     const liveSessions = sessions.filter((s) => s.status !== 'cancelled');
     const sessionsClosed = liveSessions.filter((s) => s.status === 'completed').length;
-    const eventsDone = events.filter((e) => e.status === 'completed').length;
+    const eventsDone = liveEvents.filter((e) => e.status === 'completed').length;
     const scores = [
       {
         key: 'sessions',
@@ -1338,8 +1343,8 @@ router.get('/exec-overview', authMiddleware, roleMiddleware('admin'), async (req
       {
         key: 'events',
         label: 'Занятий проведено',
-        value: String(pctOf(eventsDone, events.length)), unit: '%',
-        note: `${eventsDone} из ${events.length}`
+        value: String(pctOf(eventsDone, liveEvents.length)), unit: '%',
+        note: `${eventsDone} из ${liveEvents.length}`
       }
     ];
 
