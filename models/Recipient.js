@@ -31,7 +31,10 @@ const Recipient = sequelize.define('Recipient', {
   CRGMain: { type: DataTypes.INTEGER, allowNull: false },
 
   attendanceStatus: { type: DataTypes.ENUM('present', 'absent', 'left'), allowNull: true, defaultValue: null },
-  attendanceDate: { type: DataTypes.DATEONLY, allowNull: true, defaultValue: null }
+  attendanceDate: { type: DataTypes.DATEONLY, allowNull: true, defaultValue: null },
+
+  createdAt: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
+  createdBy: { type: DataTypes.INTEGER, allowNull: true, defaultValue: null }
 }, {
   tableName: 'Recipients',
   timestamps: false

@@ -1843,7 +1843,8 @@ onUnmounted(() => {
   cursor: pointer; transition: all 150ms;
 }
 .t-chip:hover { border-color: var(--t-ink-muted); background: var(--t-paper-soft); }
-.t-chip.active { background: var(--btn-primary-bg); color: var(--btn-primary-fg); border-color: var(--btn-primary-bg); }
+.t-chip.active { background: var(--t-sage-500); color: #FFFFFF; border-color: var(--t-sage-500); }
+.t-chip.active:hover { background: var(--t-sage-700); border-color: var(--t-sage-700); }
 .t-chip-count {
   background: rgba(255,255,255,.2); color: inherit;
   padding: 0 0.4375rem; border-radius: 999px;

@@ -13,6 +13,7 @@ const User = sequelize.define('User', {
   directionId: { type: DataTypes.INTEGER, allowNull: true },
   canConclude: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   canViewAllResults: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  canFillForOthers: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   failedLoginCount: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   lockedUntil: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
   fullName: {

@@ -1603,6 +1603,22 @@
         </select>
         <p id="assignment-meta" class="save-bar-assign-meta"></p>
       </div>
+      <div class="save-bar-assign save-bar-delegate" v-if="canDelegate">
+        <label for="delegate-target" class="save-bar-assign-label">Заполняю за преподавателя</label>
+        <div class="save-bar-delegate-row">
+          <select id="delegate-target" class="save-bar-assign-select" v-model="delegateTarget">
+            <option value="">— выберите преподавателя —</option>
+            <option v-for="t in delegateOptions" :key="t.id" :value="t.id">{{ specialistLabel(t) }}</option>
+          </select>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            :disabled="!delegateTarget || delegateBusy"
+            @click="addDelegatedBlock"
+          >Открыть блок</button>
+        </div>
+        <p class="save-bar-assign-meta">{{ delegateNote }}</p>
+      </div>
       <div class="save-bar-spacer"></div>
       <div class="save-bar-actions">
         <button type="button" class="btn btn-secondary" data-action="save-draft">
@@ -1650,6 +1666,7 @@ const authStore = useAuthStore()
 
 const isTeacher = computed(() => authStore.isTeacher)
 const isEmployee = computed(() => authStore.isEmployee)
+const sharedAccess = computed(() => authStore.isTeacher && authStore.user?.canFillForOthers === true)
 let employeeReadonlyGuards = null
 let peersPoller = null
 let peersClickHandler = null
@@ -1780,6 +1797,56 @@ async function startObservation() {
   }
 }
 
+const specialists = ref([])
+const delegateTarget = ref('')
+const delegateBusy = ref(false)
+const delegateNote = ref('')
+
+const canDelegate = computed(() =>
+  sharedAccess.value && !readonlyView.value && !!selectedSession.value
+)
+
+const specialistLabel = (t) => {
+  const name = [t.lastName, t.firstName].filter(Boolean).join(' ').trim() || t.email || `#${t.id}`
+  const dir = t.direction?.name || ''
+  return dir ? `${name} — ${dir}` : name
+}
+
+const delegateOptions = computed(() => {
+  const taken = new Set((selectedSession.value?.blocks || []).map((b) => b.specialistUserId))
+  return specialists.value.filter((t) => t.directionId && !taken.has(t.id))
+})
+
+async function loadSpecialists() {
+  try {
+    const { data } = await api.get('/schedule/specialists')
+    specialists.value = Array.isArray(data) ? data : []
+  } catch (err) {
+    console.warn('Не удалось загрузить список преподавателей', err)
+  }
+}
+
+async function addDelegatedBlock() {
+  const sessionId = selectedSessionId.value
+  const teacherId = Number(delegateTarget.value)
+  if (!sessionId || !teacherId) return
+  const who = specialists.value.find((t) => t.id === teacherId)
+  delegateBusy.value = true
+  delegateNote.value = ''
+  try {
+    await api.post(`/schedule/sessions/${sessionId}/delegate`, { specialistUserId: teacherId })
+    delegateTarget.value = ''
+    if (typeof window.__reloadDiagnosticSession === 'function') {
+      await window.__reloadDiagnosticSession()
+    }
+    delegateNote.value = `Блок открыт за ${who ? specialistLabel(who) : 'преподавателя'} — заполняйте его этап и сдавайте.`
+  } catch (err) {
+    delegateNote.value = err?.response?.data?.message || 'Не удалось открыть блок за преподавателя.'
+  } finally {
+    delegateBusy.value = false
+  }
+}
+
 async function joinSelectedSession() {
   const id = selectedSessionId.value
   if (!id) return
@@ -1831,8 +1898,11 @@ onMounted(() => {
 
   window.__forcedProfileKey = '';
 
-  if (authStore.isTeacher) {
+  if (authStore.isTeacher && !sharedAccess.value) {
     lockTeacherProfile();
+  }
+  if (sharedAccess.value) {
+    loadSpecialists();
   }
 
   {
@@ -2221,7 +2291,7 @@ onMounted(() => {
         const isTeacher = authStore.isTeacher;
         let pending = [];
         for (const b of (target?.blocks || [])) {
-          if (isTeacher && !b.isMine) continue;
+          if (isTeacher && !(b.canEdit ?? b.isMine)) continue;
           pending.push(b);
         }
         if (window.__forcedProfileKey) {
@@ -2264,7 +2334,7 @@ onMounted(() => {
         const place = blockPlace(a);
         if (!place || place.stage !== stageKey) return false;
         if (subKey && place.sub !== subKey) return false;
-        if (a.isMine !== true) return false;
+        if ((a.canEdit ?? a.isMine) !== true) return false;
         return sid != null && String(a.diagnosticSessionId) === String(sid);
       });
     }
@@ -2285,9 +2355,11 @@ onMounted(() => {
       }
       const mine = ownBlocksAt(stageKey, subKey);
       if (!mine.length) {
-        showToast(authStore.isTeacher
-          ? 'У вас нет назначения на этот блок у выбранного реабилитанта — сдавать нечего.'
-          : 'Блок закрывает специалист, который его вёл: из карточки отметить за него нельзя.', 5600);
+        showToast(sharedAccess.value
+          ? 'По этому блоку ещё нет преподавателя — откройте блок за преподавателя в нижней панели.'
+          : authStore.isTeacher
+            ? 'У вас нет назначения на этот блок у выбранного реабилитанта — сдавать нечего.'
+            : 'Блок закрывает специалист, который его вёл: из карточки отметить за него нельзя.', 5600);
         return { ok: false, stageDone: false };
       }
 
@@ -2444,7 +2516,8 @@ onMounted(() => {
       modal.hidden = false;
       document.body.style.overflow = 'hidden';
       const input = document.getElementById('recipient-search-input');
-      if (input) setTimeout(() => input.focus(), 60);
+      const finePointer = window.matchMedia?.('(pointer: fine)')?.matches ?? true;
+      if (input && finePointer) setTimeout(() => input.focus(), 60);
     }
 
     function closeRecipientModal() {
@@ -3637,7 +3710,7 @@ onMounted(() => {
       }
       window.__applyProfileRestriction = applyProfileRestriction;
       window.__applyAssignmentProfile = function () {
-        applyProfileRestriction(selectedAssignmentProfileKey());
+        applyProfileRestriction(sharedAccess.value ? '' : selectedAssignmentProfileKey());
         renderAssignmentMeta();
       };
 
@@ -4351,15 +4424,14 @@ onMounted(() => {
         }
         const ok = finishDiagnostic();
         if (!ok) return;
-        if (authStore.isTeacher && !window.__forcedProfileKey) {
+        if (authStore.isTeacher && !sharedAccess.value && !window.__forcedProfileKey) {
           const key = selectedAssignmentProfileKey();
           if (key) window.__forcedProfileKey = key;
         }
         await persistResultToAssignment();
       });
       q('#assignment-target')?.addEventListener('change', () => {
-        applyProfileRestriction(selectedAssignmentProfileKey());
-        renderAssignmentMeta();
+        window.__applyAssignmentProfile();
       });
       q('[data-action="download-pdf"]')?.addEventListener('click', downloadReportPdf);
       document.addEventListener('click', (e) => {
@@ -7149,6 +7221,8 @@ onUnmounted(() => {
       max-width: 22rem; overflow-wrap: anywhere;
     }
     .diagnostics-page .save-bar-assign-meta:empty{ display: none; }
+    .diagnostics-page .save-bar-delegate-row{ display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
+    .diagnostics-page .save-bar-delegate-row .btn{ flex: 0 0 auto; white-space: nowrap; }
     .diagnostics-page .test-list{ display: grid; gap: 0.75rem; }
     .diagnostics-page .test-row{
       display: grid;
@@ -8292,6 +8366,10 @@ onUnmounted(() => {
         text-overflow: ellipsis;
       }
       .diagnostics-page .save-bar-assign-meta{ max-width: none; font-size: 0.75rem; }
+      .diagnostics-page .save-bar-delegate-row{ flex-wrap: wrap; }
+      .diagnostics-page .save-bar-delegate-row .btn{
+        flex: 1 1 100%; min-height: var(--tap, 2.75rem); font-size: 0.8125rem;
+      }
       .diagnostics-page .save-bar-actions{ flex: 1 1 100%; flex-wrap: wrap; gap: 0.5rem; min-width: 0; }
       .diagnostics-page .save-bar-actions > .btn{
         flex: 1 1 0;

@@ -18,7 +18,8 @@ import { summarizeDraft } from '../src/utils/recipientDraft.js';
 import { buildScanFileName } from '../services/scanFileName.js';
 import {
   CATEGORIES, CATEGORY_LABELS, REASON_CODES, GRANT_MS, CATEGORY_OF,
-  hasGrant, grantAccess, loadGrants, validateReason, logAccess, redactRecipient, isAdmin
+  hasGrant, grantAccess, loadGrants, validateReason, logAccess, redactRecipient, isAdmin,
+  authorWindowUntil
 } from '../services/dataAccess.js';
 
 const router = express.Router();
@@ -76,6 +77,32 @@ const diagnosisWhere = (value) => {
 
 const fmtDate = (d) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+const personName = (u) => (u ? (u.fullName || u.email || null) : null);
+
+async function buildCardAudit(recipient) {
+  const [creator, lastChange] = await Promise.all([
+    recipient.createdBy
+      ? User.findByPk(recipient.createdBy, { attributes: ['id', 'firstName', 'lastName', 'email'] })
+      : null,
+    RecipientDocVersion.findOne({
+      where: { recipientId: recipient.id },
+      attributes: ['id', 'changedAt', 'changedBy', 'reason'],
+      include: [{ model: User, as: 'author', attributes: ['id', 'firstName', 'lastName', 'email'] }],
+      order: [['changedAt', 'DESC'], ['id', 'DESC']]
+    })
+  ]);
+
+  return {
+    createdAt: recipient.createdAt || null,
+    createdBy: recipient.createdBy || null,
+    createdByName: personName(creator),
+    changedAt: lastChange?.changedAt || null,
+    changedBy: lastChange?.changedBy || null,
+    changedByName: personName(lastChange?.author),
+    changeReason: lastChange?.reason || null
+  };
+}
 
 async function enrichRecipients(rows, teacherUserId = null) {
   const ids = rows.map((r) => r.id);
@@ -503,6 +530,9 @@ router.get('/:id', authMiddleware, loadGrants, async (req, res, next) => {
         })
       : 0;
 
+    payload.audit = await buildCardAudit(recipient);
+    payload.authorWindowUntil = authorWindowUntil(req, recipient.id);
+
     if (isAdmin(req.user)) {
       await logAccess(req, { recipientId: recipient.id, category: 'passport', action: 'view' });
     }
@@ -832,7 +862,9 @@ router.post('/intake', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (r
         diagnosis: recipient.diagnosis || '',
         nozology: nozId,
         groupId: groupId || null,
-        CRGMain: crgId
+        CRGMain: crgId,
+        createdAt: new Date(),
+        createdBy: req.user?.id ?? null
       }, { transaction: t });
 
       const mseIndefinite = doc.mseIndefinite === true || doc.mseIndefinite === 'true';
@@ -864,6 +896,16 @@ router.post('/intake', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (r
       return created.id;
     });
 
+    for (const category of CATEGORIES) {
+      await logAccess(req, {
+        recipientId: result,
+        category,
+        action: 'view',
+        reasonCode: 'author',
+        reasonText: 'Карточка только что заведена этим сотрудником — полный доступ на 30 минут'
+      });
+    }
+
     const full = await Recipient.findByPk(result, { include: detailInclude });
     res.status(201).json(full);
   } catch (err) {
@@ -889,7 +931,11 @@ router.post('/intake', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (r
 router.post('/', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (req, res, next) => {
   try {
     const data = pickFields(req.body);
-    const recipient = await Recipient.create(data);
+    const recipient = await Recipient.create({
+      ...data,
+      createdAt: new Date(),
+      createdBy: req.user?.id ?? null
+    });
 
     if (Array.isArray(req.body.secondaryCRG) && req.body.secondaryCRG.length) {
       await recipient.setSecondaryCRG(req.body.secondaryCRG);
@@ -1184,7 +1230,10 @@ router.patch('/:id/card', authMiddleware, roleMiddleware('admin', 'employee'), l
     }
 
     const updated = await Recipient.findByPk(recipient.id, { include: detailInclude });
-    res.json({ recipient: redactRecipient(updated, req), changedFields, reason, repSharedWith });
+    const payload = redactRecipient(updated, req);
+    payload.audit = await buildCardAudit(updated);
+    payload.authorWindowUntil = authorWindowUntil(req, updated.id);
+    res.json({ recipient: payload, changedFields, reason, repSharedWith });
   } catch (err) {
     if (err?.name === 'SequelizeUniqueConstraintError') {
       const path = err?.errors?.[0]?.path || '';

@@ -323,19 +323,19 @@
                     </div>
                   </fieldset>
                 </div>
-                <div class="rw-f rw-c3">
+                <div class="rw-f" :class="noRep ? 'rw-c4' : 'rw-c3'">
                   <label class="rw-label" for="rd-ser">Серия <span class="rw-req">*</span><span v-if="ocrFilled.includes('rDocSeries')" class="rw-ocr-tag">распознано</span></label>
                   <input id="rd-ser" class="rw-input" type="text" :placeholder="f.rDocType === 'birth' ? 'IV-АБ' : '0000'" :value="f.rDocSeries" @input="onDocSeries($event)" :inputmode="f.rDocType === 'birth' ? 'text' : 'numeric'" :maxlength="f.rDocType === 'birth' ? 12 : 4" />
                 </div>
-                <div class="rw-f rw-c3">
+                <div class="rw-f" :class="noRep ? 'rw-c4' : 'rw-c3'">
                   <label class="rw-label" for="rd-num">Номер <span class="rw-req">*</span><span v-if="ocrFilled.includes('rDocNum')" class="rw-ocr-tag">распознано</span></label>
                   <input id="rd-num" class="rw-input" type="text" inputmode="numeric" maxlength="6" placeholder="000000" :value="f.rDocNum" @input="onMask('rDocNum', $event, v => onlyDigits(v, 6), { len: 6, to: 'rd-dt' })" enterkeyhint="next" />
                 </div>
-                <div class="rw-f rw-c3">
+                <div class="rw-f" :class="noRep ? 'rw-c4' : 'rw-c3'">
                   <label class="rw-label" for="rd-dt">Дата выдачи <span class="rw-req">*</span><span v-if="ocrFilled.includes('rDocDate')" class="rw-ocr-tag">распознано</span></label>
                   <input id="rd-dt" class="rw-input" type="date" v-model="f.rDocDate" :max="today" @input="clearOcrTag('rDocDate')" />
                 </div>
-                <div class="rw-f rw-c3">
+                <div v-if="!noRep" class="rw-f rw-c3">
                   <label class="rw-label" for="rd-rel">Кем приходится представителю</label>
                   <select id="rd-rel" class="rw-select" v-model="f.rDocRelation">
                     <option value="">Выберите…</option>
@@ -642,7 +642,7 @@
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
                           Посмотреть
                         </button>
-                        <button type="button" class="rw-ut-del" @click.prevent.stop="removeUpload('main', t.k, t.title)">
+                        <button type="button" class="rw-ut-del" @click.prevent.stop="removeUpload('main', t.k)">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                           Удалить
                         </button>
@@ -728,7 +728,7 @@
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
                           Посмотреть
                         </button>
-                        <button type="button" class="rw-ut-del" @click.prevent.stop="removeUpload('signed', t.k, t.title)">
+                        <button type="button" class="rw-ut-del" @click.prevent.stop="removeUpload('signed', t.k)">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
                           Удалить
                         </button>
@@ -1343,7 +1343,7 @@ const toggleNoRep = () => {
 
   f.value.lrNone = true;
 
-  if (uploads.value['rep-pass']) removeUpload('main', 'rep-pass', '', { ask: false });
+  if (uploads.value['rep-pass']) removeUpload('main', 'rep-pass');
 };
 
 const crgGroupDisabled = computed(() => crgAge.value === null);
@@ -2153,11 +2153,10 @@ const onSignedFile = (key, e) => {
   uploadDraftScan(key, file);
 };
 
-const removeUpload = async (kind, key, title, { ask = true } = {}) => {
+const removeUpload = async (kind, key) => {
   const store = kind === 'signed' ? signedUploads : uploads;
   const file = store.value[key];
   if (!file) return;
-  if (ask && !confirm(`Удалить приложенный файл «${file.name}»?\n\n${title}\n\nФайл будет убран и из черновика — приложить его снова можно в любой момент.`)) return;
 
   const next = { ...store.value };
   delete next[key];

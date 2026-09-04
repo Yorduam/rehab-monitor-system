@@ -96,17 +96,22 @@ function isCoordinator(user) {
   return user.role === 'admin' || user.role === 'employee';
 }
 
+function hasSharedAccess(user) {
+  return user.canFillForOthers === true;
+}
+
 function ownsAssignment(user, assignment) {
-  return user.role === 'admin' || assignment.specialistUserId === user.id;
+  return user.role === 'admin' || hasSharedAccess(user) || assignment.specialistUserId === user.id;
 }
 
 function canSeeAllResults(user) {
-  return isCoordinator(user) || user.canViewAllResults === true;
+  return isCoordinator(user) || hasSharedAccess(user) || user.canViewAllResults === true;
 }
 
 function canIssueConclusion(user) {
   return user.role === 'admin' || user.canConclude === true;
 }
+
 
 const VERDICTS = ['recommended', 'trial', 'rejected'];
 
@@ -184,6 +189,7 @@ function serializeBlock(a, viewer) {
     endTime: a.endTime,
     completedAt: a.completedAt,
     isMine: mine,
+    canEdit: mine || viewer.role === 'admin' || hasSharedAccess(viewer),
     results: visible ? (a.results || null) : null,
     comment: visible ? (a.comment || null) : null,
     resultsHidden: !visible
@@ -596,7 +602,7 @@ router.get('/sessions', authMiddleware, roleMiddleware('admin', 'employee', 'tea
       where.recipientId = rid;
     }
 
-    if (req.user.role === 'teacher' && !recipientId) {
+    if (req.user.role === 'teacher' && !recipientId && !hasSharedAccess(req.user)) {
       const mine = await DiagnosticAssignment.findAll({
         where: { specialistUserId: req.user.id, diagnosticSessionId: { [Op.ne]: null } },
         attributes: ['diagnosticSessionId']
@@ -830,6 +836,69 @@ router.post('/sessions/:id/join', authMiddleware, roleMiddleware('teacher'), asy
       recipientId: session.recipientId,
       directionId: specialist.directionId,
       specialistUserId: req.user.id,
+      date: session.date,
+      startTime: null,
+      endTime: null,
+      blockStatus: 'assigned',
+      results: null,
+      comment: null,
+      createdBy: req.user.id
+    });
+
+    if (session.status === 'open') {
+      session.status = 'in_progress';
+      await session.save();
+    }
+
+    res.status(201).json(serializeSession(await loadSession(session.id), req.user));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
+router.post('/sessions/:id/delegate', authMiddleware, roleMiddleware('teacher'), async (req, res) => {
+  try {
+    if (!hasSharedAccess(req.user)) {
+      return res.status(403).json({ message: 'Нет права заполнять диагностику за других преподавателей' });
+    }
+
+    const targetId = parseInt(req.body?.specialistUserId, 10);
+    if (!Number.isInteger(targetId)) {
+      return res.status(400).json({ message: 'Выберите преподавателя' });
+    }
+    const specialist = await User.findByPk(targetId);
+    if (!specialist || specialist.role !== 'teacher') {
+      return res.status(404).json({ message: 'Преподаватель не найден' });
+    }
+    if (!specialist.directionId) {
+      return res.status(400).json({
+        message: `У ${specialist.fullName} не указана профессиональная ориентированность. Обратитесь к администратору.`
+      });
+    }
+
+    const session = await DiagnosticSession.findByPk(req.params.id);
+    if (!session) return res.status(404).json({ message: 'Диагностика не найдена' });
+    if (session.status === 'cancelled') {
+      return res.status(409).json({ message: 'Диагностика отменена' });
+    }
+    if (session.status === 'completed') {
+      return res.status(409).json({ message: 'По диагностике уже выдано заключение' });
+    }
+
+    const already = await DiagnosticAssignment.findOne({
+      where: { diagnosticSessionId: session.id, specialistUserId: specialist.id }
+    });
+    if (already) {
+      return res.status(409).json({ message: `${specialist.fullName} уже участвует в этой диагностике` });
+    }
+
+    await DiagnosticAssignment.create({
+      sessionId: `S-${session.recipientId}-${String(session.date).slice(0, 10)}`,
+      diagnosticSessionId: session.id,
+      recipientId: session.recipientId,
+      directionId: specialist.directionId,
+      specialistUserId: specialist.id,
       date: session.date,
       startTime: null,
       endTime: null,

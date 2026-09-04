@@ -58,13 +58,14 @@
               <th>Телефон</th>
               <th>Кабинет</th>
               <th>Роль</th>
+              <th>Проф. ориентированность</th>
               <th>Действия</th>
             </tr>
           </thead>
           <tbody>
             <template v-for="row in pageRows" :key="row.user.id">
               <tr v-if="row.head" class="group-row">
-                <td colspan="8">
+                <td colspan="9">
                   <span class="group-title">{{ row.head === 'staff' ? 'Сотрудники центра' : 'Реабилитанты' }}</span>
                   <span class="group-count">{{ groupCounts[row.head] }}</span>
                 </td>
@@ -84,6 +85,7 @@
                     <option value="recipient">Реабилитант</option>
                   </select>
                  </td>
+                <td data-label="Проф. ориентированность">{{ userDirection(row.user) }}</td>
                 <td class="cell-actions" data-label="Действия">
                   <div class="row-actions">
                     <button class="btn-ghost-sm" @click="openEditModal(row.user)">Изменить</button>
@@ -94,7 +96,7 @@
                </tr>
             </template>
             <tr v-if="!pageRows.length" class="empty-row">
-              <td colspan="8">Ничего не найдено — измените фильтр или поисковый запрос.</td>
+              <td colspan="9">Ничего не найдено — измените фильтр или поисковый запрос.</td>
             </tr>
           </tbody>
         </table>
@@ -160,6 +162,13 @@
                 <small>Без этого специалист видит только свой блок диагностики.</small>
               </span>
             </label>
+            <label class="perm-check">
+              <input type="checkbox" v-model="newUser.canFillForOthers">
+              <span>
+                Общий доступ
+                <small>Видит все этапы и бланки диагностики и заполняет их за других педагогов — с выбором, кто вёл блок.</small>
+              </span>
+            </label>
           </div>
         </template>
         <div class="modal-buttons"><button type="button" class="btn-secondary" @click="addModalVisible = false">Отмена</button><button type="submit" class="btn-primary">Создать</button></div>
@@ -212,6 +221,13 @@
                 <small>Без этого специалист видит только свой блок диагностики.</small>
               </span>
             </label>
+            <label class="perm-check">
+              <input type="checkbox" v-model="editUser.canFillForOthers">
+              <span>
+                Общий доступ
+                <small>Видит все этапы и бланки диагностики и заполняет их за других педагогов — с выбором, кто вёл блок.</small>
+              </span>
+            </label>
           </div>
         </template>
         <div class="modal-buttons"><button type="button" class="btn-secondary" @click="editModalVisible = false">Отмена</button><button type="submit" class="btn-primary">Сохранить</button></div>
@@ -243,12 +259,12 @@ const limit = ref(10);
 const addModalVisible = ref(false);
 const showPassword = ref(false);
 const editModalVisible = ref(false);
-const editUser = ref({ id: null, email: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null, canConclude: false, canViewAllResults: false });
+const editUser = ref({ id: null, email: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null, canConclude: false, canViewAllResults: false, canFillForOthers: false });
 const passwordModalVisible = ref(false);
 const selectedUser = ref(null);
 const newPassword = ref('');
 const confirmPassword = ref('');
-const newUser = ref({ email: '', password: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null, canConclude: false, canViewAllResults: false });
+const newUser = ref({ email: '', password: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null, canConclude: false, canViewAllResults: false, canFillForOthers: false });
 const directions = ref([]);
 
 const PROFILE_LABELS = {
@@ -261,6 +277,11 @@ const PROFILE_LABELS = {
   theatre: 'Театр'
 };
 const directionLabel = (dir) => PROFILE_LABELS[dir.profileKey] || dir.name;
+const userDirection = (user) => {
+  if (user.role !== 'teacher') return '—';
+  const dir = directions.value.find((d) => d.id === user.directionId);
+  return dir ? directionLabel(dir) : 'не указана';
+};
 
 const ROLE_ORDER = { admin: 0, teacher: 1, employee: 2, recipient: 3 };
 const ROLE_LABELS = {
@@ -361,7 +382,7 @@ const loadDirections = async () => {
   directions.value = data;
 };
 const openAddModal = () => {
-  newUser.value = { email: '', password: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null, canConclude: false, canViewAllResults: false };
+  newUser.value = { email: '', password: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null, canConclude: false, canViewAllResults: false, canFillForOthers: false };
   showPassword.value = false;
   addModalVisible.value = true;
 };
@@ -376,7 +397,8 @@ const openEditModal = (user) => {
     cabinet: user.cabinet || '',
     directionId: user.directionId ?? null,
     canConclude: user.canConclude === true,
-    canViewAllResults: user.canViewAllResults === true
+    canViewAllResults: user.canViewAllResults === true,
+    canFillForOthers: user.canFillForOthers === true
   };
   editModalVisible.value = true;
 };
@@ -391,7 +413,8 @@ const saveUser = async () => {
     cabinet: u.cabinet,
     directionId: isTeacher ? u.directionId : null,
     canConclude: isTeacher ? u.canConclude === true : false,
-    canViewAllResults: isTeacher ? u.canViewAllResults === true : false
+    canViewAllResults: isTeacher ? u.canViewAllResults === true : false,
+    canFillForOthers: isTeacher ? u.canFillForOthers === true : false
   };
   if (u.id !== authStore.user?.id) payload.role = u.role;
   try {
@@ -410,6 +433,7 @@ const createUser = async () => {
     payload.directionId = null;
     payload.canConclude = false;
     payload.canViewAllResults = false;
+    payload.canFillForOthers = false;
   }
   try {
     await api.post('/users', payload);

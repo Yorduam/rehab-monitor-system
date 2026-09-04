@@ -24,7 +24,7 @@ router.post('/', authMiddleware, roleMiddleware('admin'), async (req, res) => {
   try {
     const {
       email, password, role, firstName, lastName, directionId, phone, cabinet,
-      canConclude, canViewAllResults
+      canConclude, canViewAllResults, canFillForOthers
     } = req.body
     if (!email || !password) {
       return res.status(400).json({ message: 'Email и пароль обязательны' })
@@ -49,7 +49,8 @@ router.post('/', authMiddleware, roleMiddleware('admin'), async (req, res) => {
       cabinet: cabinet || null,
       directionId: finalRole === 'teacher' && directionId ? directionId : null,
       canConclude: finalRole === 'teacher' ? canConclude === true : false,
-      canViewAllResults: finalRole === 'teacher' ? canViewAllResults === true : false
+      canViewAllResults: finalRole === 'teacher' ? canViewAllResults === true : false,
+      canFillForOthers: finalRole === 'teacher' ? canFillForOthers === true : false
     })
     const { passwordHash, ...safeUser } = user.toJSON()
     res.status(201).json(safeUser)
@@ -81,7 +82,7 @@ router.put('/:id', authMiddleware, async (req, res) => {
     if (!user) return res.status(404).json({ message: 'Пользователь не найден' })
     const {
       email, role, password, firstName, lastName, directionId, phone, cabinet,
-      canConclude, canViewAllResults
+      canConclude, canViewAllResults, canFillForOthers
     } = req.body
     if (password) {
       const weak = validatePassword(password)
@@ -101,11 +102,13 @@ router.put('/:id', authMiddleware, async (req, res) => {
     if (req.user.role === 'admin') {
       if (canConclude !== undefined) user.canConclude = canConclude === true
       if (canViewAllResults !== undefined) user.canViewAllResults = canViewAllResults === true
+      if (canFillForOthers !== undefined) user.canFillForOthers = canFillForOthers === true
     }
     if (user.role !== 'teacher') {
       user.directionId = null
       user.canConclude = false
       user.canViewAllResults = false
+      user.canFillForOthers = false
     }
     await user.save()
     const { passwordHash, ...safeUser } = user.toJSON()

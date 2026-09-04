@@ -96,16 +96,17 @@
           <ol v-if="lifecycleStages.length" class="steps">
             <li v-for="s in lifecycleStages" :key="s.key" class="step" :class="[s.state, { warn: s.warn }]">
               <span class="step-num">{{ s.num }}</span>
-              <button type="button" class="step-name"
-                      :title="`${s.hint} — открыть «${stageTabLabel(s.key)}»`"
-                      @click="goStage(s.key)">
-                {{ s.label }}
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
-              </button>
-              <span v-if="s.state === 'current'" class="step-mark">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12.5"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                Нужно действие
-              </span>
+              <div class="step-row">
+                <button type="button" class="step-name"
+                        :title="`${s.hint} — открыть «${stageTabLabel(s.key)}»`"
+                        @click="goStage(s.key)">
+                  {{ s.label }}
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+                <span v-if="s.state === 'current'" class="step-mark" title="Нужно действие" aria-label="Нужно действие">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="12.5"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                </span>
+              </div>
             </li>
           </ol>
           <div v-else class="route-load">
@@ -299,6 +300,28 @@
               <button type="button" class="card-foot" @click="activeTab = 'diagnostics'">Все циклы и результаты
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
               </button>
+            </section>
+
+            <section class="card">
+              <div class="card-head"><h2 class="card-title-sans">Карточка в системе</h2></div>
+              <div class="card-body">
+                <div v-if="authorWindowLeft" class="pd-note">
+                  <span class="pd-note-ic" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                  </span>
+                  <span class="pd-note-text">Вы завели эту карточку — данные открыты без запроса доступа ещё {{ authorWindowLeft }}.</span>
+                </div>
+                <dl class="kv-grid">
+                  <div class="kv kv-full">
+                    <dt class="kv-key">Заведена</dt>
+                    <dd class="kv-val"><span class="kv-text">{{ createdLine }}</span></dd>
+                  </div>
+                  <div class="kv kv-full">
+                    <dt class="kv-key">Последнее изменение</dt>
+                    <dd class="kv-val"><span class="kv-text" :title="audit?.changeReason || ''">{{ changedLine }}</span></dd>
+                  </div>
+                </dl>
+              </div>
             </section>
           </aside>
         </div>
@@ -2442,6 +2465,35 @@ const formatDateTime = (v) => {
   });
 };
 
+const audit = computed(() => recipient.value?.audit || null);
+
+const createdLine = computed(() => {
+  const a = audit.value;
+  if (!a?.createdAt) return 'Заведена до того, как система начала вести учёт автора';
+  return formatDateTime(a.createdAt) + (a.createdByName ? ` · ${a.createdByName}` : '');
+});
+
+const changedLine = computed(() => {
+  const a = audit.value;
+  if (!a?.changedAt) return 'С момента создания карточку не редактировали';
+  return formatDateTime(a.changedAt) + (a.changedByName ? ` · ${a.changedByName}` : '');
+});
+
+const now = ref(Date.now());
+let nowTimer = null;
+
+const authorWindowLeft = computed(() => {
+  const until = Number(recipient.value?.authorWindowUntil) || 0;
+  const left = until - now.value;
+  if (left <= 0) return '';
+  const minutes = Math.ceil(left / 60000);
+  const last = minutes % 10;
+  const word = minutes % 100 >= 11 && minutes % 100 <= 14 ? 'минут'
+    : last === 1 ? 'минуту'
+      : last >= 2 && last <= 4 ? 'минуты' : 'минут';
+  return `${minutes} ${word}`;
+});
+
 const loadRecipient = async () => {
   if (!recipientId) { loading.value = false; return; }
   try {
@@ -3711,10 +3763,15 @@ onMounted(async () => {
   loadEnrollment();
   const wanted = pageStore.params?.tab;
   if (wanted && tabs.some((t) => t.id === wanted)) activeTab.value = wanted;
+
+  if (recipient.value?.authorWindowUntil) {
+    nowTimer = window.setInterval(() => { now.value = Date.now(); }, 30000);
+  }
 });
 
 onUnmounted(() => {
   if (overlayOpen.value) ui.unlockScroll();
+  if (nowTimer) window.clearInterval(nowTimer);
 });
 </script>
 
@@ -3922,6 +3979,7 @@ onUnmounted(() => {
 .step-name {
   display: inline-flex; align-items: center; gap: 0.25rem; padding: 0; border: none; background: none;
   font: inherit; font-size: 0.9375rem; line-height: 1.25; text-align: left; color: var(--ink-muted); cursor: pointer;
+  min-width: 0;
 }
 .step.done .step-name { color: var(--ink); }
 .step.current .step-name { color: var(--ink-strong); font-weight: 600; }
@@ -3929,10 +3987,10 @@ onUnmounted(() => {
 .step-name svg { width: 0.75rem; height: 0.75rem; flex: none; opacity: 0; transition: opacity 0.12s; }
 .step-name:hover svg, .step-name:focus-visible svg { opacity: 0.7; }
 
+.step-row { display: flex; align-items: center; gap: 0.375rem; min-width: 0; min-height: 1.25rem; }
 .step-mark {
-  display: inline-flex; align-items: center; gap: 0.3125rem; align-self: flex-start;
-  font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase;
-  padding: 0.1875rem 0.5rem 0.1875rem 0.375rem; border-radius: 62.5rem;
+  display: inline-grid; place-items: center; flex: none;
+  width: 1.25rem; height: 1.25rem; border-radius: 50%;
   background: var(--amber-700); color: #FFF7EA;
 }
 .step-mark svg { width: 0.8125rem; height: 0.8125rem; flex: 0 0 0.8125rem; }
@@ -4996,6 +5054,7 @@ textarea.input { min-height: 5rem; resize: vertical; }
   .route { padding: 1rem; }
   .steps { grid-template-columns: 1fr; gap: 0.5rem; }
   .step { padding-top: 0; padding-left: 0.875rem; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
+  .step-row { flex: 1 1 0; }
   .step::before { top: 0; bottom: 0; left: 0; right: auto; width: 0.25rem; height: auto; }
   .kv-grid { grid-template-columns: 1fr; }
   .card-body { padding: 1rem; }

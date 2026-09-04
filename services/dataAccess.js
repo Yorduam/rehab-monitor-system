@@ -1,5 +1,5 @@
 import { Op } from '@sequelize/core';
-import { AccessLog, AccessGrant } from '../models/index.js';
+import { AccessLog, AccessGrant, Recipient } from '../models/index.js';
 
 export const CATEGORIES = ['passport', 'scans', 'contacts', 'medical'];
 
@@ -31,19 +31,36 @@ export const isAdmin = (user) => user?.role === 'admin';
 export const loadGrants = async (req, res, next) => {
   if (!req._grants) {
     req._grants = new Set();
+    req._ownCards = new Map();
     if (req.user?.id) {
       const rows = await AccessGrant.findAll({
         attributes: ['recipientId', 'category'],
         where: { userId: req.user.id, expiresAt: { [Op.gt]: new Date() } }
       });
       for (const row of rows) req._grants.add(keyOf(row.recipientId, row.category));
+
+      const fresh = await Recipient.findAll({
+        attributes: ['id', 'createdAt'],
+        where: {
+          createdBy: req.user.id,
+          createdAt: { [Op.gt]: new Date(Date.now() - GRANT_MS) }
+        },
+        raw: true
+      });
+      for (const row of fresh) {
+        req._ownCards.set(Number(row.id), new Date(row.createdAt).getTime() + GRANT_MS);
+      }
     }
   }
   if (typeof next === 'function') next();
 };
 
+export const authorWindowUntil = (req, recipientId) =>
+  req?._ownCards?.get(Number(recipientId)) ?? null;
+
 export const hasGrant = (req, recipientId, category) => {
   if (isAdmin(req?.user)) return true;
+  if (req?._ownCards?.has(Number(recipientId))) return true;
   return req?._grants?.has(keyOf(Number(recipientId), category)) === true;
 };
 
