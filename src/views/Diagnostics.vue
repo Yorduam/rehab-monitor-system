@@ -234,6 +234,43 @@
                   </div>
                 </div>
 
+                <div class="block-delegate" v-if="canDelegate">
+                  <div class="bd-head">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+                    <span class="bd-title">Кто заполняет этот блок</span>
+                  </div>
+                  <div class="bd-item" v-for="b in delegateBlocks.psy" :key="b.id">
+                    <template v-if="delegateEditId === b.id">
+                      <select class="bd-select" v-model="delegateEditPick" aria-label="Новый преподаватель для блока «Психолог»">
+                        <option value="">— выберите преподавателя —</option>
+                        <option v-for="t in delegateOptions.psy" :key="t.id" :value="t.id">{{ specialistShort(t) }}</option>
+                      </select>
+                      <button type="button" class="btn btn-primary btn-sm bd-btn" :disabled="!delegateEditPick || delegateBusyProfile === 'psy'" @click="saveBlockOwner('psy', b.id)">Сохранить</button>
+                      <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="delegateBusyProfile === 'psy'" @click="cancelOwnerEdit()">Отмена</button>
+                    </template>
+                    <template v-else-if="delegateRemoveId === b.id">
+                      <span class="bd-name">Убрать блок? Преподаватель: <b>{{ b.name }}</b>. Всё заполненное в этом бланке пропадёт.</span>
+                      <button type="button" class="btn btn-danger btn-sm bd-btn" :disabled="delegateBusyProfile === 'psy'" @click="removeBlockOwner('psy', b.id)">Да, убрать</button>
+                      <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="delegateBusyProfile === 'psy'" @click="cancelRemoveBlock()">Отмена</button>
+                    </template>
+                    <template v-else>
+                      <span class="bd-name">Запись идёт за: <b>{{ b.name }}</b></span>
+                      <button type="button" class="bd-change" v-if="delegateOptions.psy.length" @click="startOwnerEdit('psy', b.id)">Изменить</button>
+                      <button type="button" class="bd-change is-danger" @click="askRemoveBlock('psy', b.id)">Убрать</button>
+                    </template>
+                  </div>
+                  <p class="bd-current" v-if="!delegateBlocks.psy.length">Блок ещё не открыт — выберите, за кого заполняете.</p>
+                  <div class="bd-row" v-if="!delegateBlocks.psy.length && delegateOptions.psy.length">
+                    <select class="bd-select" v-model="delegatePick.psy" aria-label="Преподаватель, за которого заполняется блок «Психолог»">
+                      <option value="">— выберите преподавателя —</option>
+                      <option v-for="t in delegateOptions.psy" :key="t.id" :value="t.id">{{ specialistShort(t) }}</option>
+                    </select>
+                    <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="!delegatePick.psy || delegateBusyProfile === 'psy'" @click="openBlockFor('psy')">Открыть блок</button>
+                  </div>
+                  <p class="bd-empty" v-else-if="!delegateBlocks.psy.length">Свободных преподавателей этой ориентированности нет.</p>
+                  <p class="bd-note" v-if="delegateNotes.psy">{{ delegateNotes.psy }}</p>
+                </div>
+
               <div class="sub-section">
                 <h3 class="sub-section-title">
                   <span class="ss-icon" aria-hidden="true" style="background: var(--blue-50); color: var(--blue-700);">
@@ -552,6 +589,43 @@
                   </div>
                 </div>
 
+                <div class="block-delegate" v-if="canDelegate">
+                  <div class="bd-head">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+                    <span class="bd-title">Кто заполняет этот блок</span>
+                  </div>
+                  <div class="bd-item" v-for="b in delegateBlocks.log" :key="b.id">
+                    <template v-if="delegateEditId === b.id">
+                      <select class="bd-select" v-model="delegateEditPick" aria-label="Новый преподаватель для блока «Логопед»">
+                        <option value="">— выберите преподавателя —</option>
+                        <option v-for="t in delegateOptions.log" :key="t.id" :value="t.id">{{ specialistShort(t) }}</option>
+                      </select>
+                      <button type="button" class="btn btn-primary btn-sm bd-btn" :disabled="!delegateEditPick || delegateBusyProfile === 'log'" @click="saveBlockOwner('log', b.id)">Сохранить</button>
+                      <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="delegateBusyProfile === 'log'" @click="cancelOwnerEdit()">Отмена</button>
+                    </template>
+                    <template v-else-if="delegateRemoveId === b.id">
+                      <span class="bd-name">Убрать блок? Преподаватель: <b>{{ b.name }}</b>. Всё заполненное в этом бланке пропадёт.</span>
+                      <button type="button" class="btn btn-danger btn-sm bd-btn" :disabled="delegateBusyProfile === 'log'" @click="removeBlockOwner('log', b.id)">Да, убрать</button>
+                      <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="delegateBusyProfile === 'log'" @click="cancelRemoveBlock()">Отмена</button>
+                    </template>
+                    <template v-else>
+                      <span class="bd-name">Запись идёт за: <b>{{ b.name }}</b></span>
+                      <button type="button" class="bd-change" v-if="delegateOptions.log.length" @click="startOwnerEdit('log', b.id)">Изменить</button>
+                      <button type="button" class="bd-change is-danger" @click="askRemoveBlock('log', b.id)">Убрать</button>
+                    </template>
+                  </div>
+                  <p class="bd-current" v-if="!delegateBlocks.log.length">Блок ещё не открыт — выберите, за кого заполняете.</p>
+                  <div class="bd-row" v-if="!delegateBlocks.log.length && delegateOptions.log.length">
+                    <select class="bd-select" v-model="delegatePick.log" aria-label="Преподаватель, за которого заполняется блок «Логопед»">
+                      <option value="">— выберите преподавателя —</option>
+                      <option v-for="t in delegateOptions.log" :key="t.id" :value="t.id">{{ specialistShort(t) }}</option>
+                    </select>
+                    <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="!delegatePick.log || delegateBusyProfile === 'log'" @click="openBlockFor('log')">Открыть блок</button>
+                  </div>
+                  <p class="bd-empty" v-else-if="!delegateBlocks.log.length">Свободных преподавателей этой ориентированности нет.</p>
+                  <p class="bd-note" v-if="delegateNotes.log">{{ delegateNotes.log }}</p>
+                </div>
+
                 <fieldset class="qgroup">
                   <legend class="qlabel">
                     <span class="qlabel-text">Понимание обращённой речи</span>
@@ -826,6 +900,43 @@
             </button>
             <div class="stage-body" id="stage-afk-body">
 
+              <div class="block-delegate is-stage-top" v-if="canDelegate">
+                <div class="bd-head">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+                  <span class="bd-title">Кто заполняет этот блок</span>
+                </div>
+                <div class="bd-item" v-for="b in delegateBlocks.afk" :key="b.id">
+                  <template v-if="delegateEditId === b.id">
+                    <select class="bd-select" v-model="delegateEditPick" aria-label="Новый преподаватель для блока «АФК»">
+                      <option value="">— выберите преподавателя —</option>
+                      <option v-for="t in delegateOptions.afk" :key="t.id" :value="t.id">{{ specialistShort(t) }}</option>
+                    </select>
+                    <button type="button" class="btn btn-primary btn-sm bd-btn" :disabled="!delegateEditPick || delegateBusyProfile === 'afk'" @click="saveBlockOwner('afk', b.id)">Сохранить</button>
+                    <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="delegateBusyProfile === 'afk'" @click="cancelOwnerEdit()">Отмена</button>
+                  </template>
+                  <template v-else-if="delegateRemoveId === b.id">
+                    <span class="bd-name">Убрать блок? Преподаватель: <b>{{ b.name }}</b>. Всё заполненное в этом бланке пропадёт.</span>
+                    <button type="button" class="btn btn-danger btn-sm bd-btn" :disabled="delegateBusyProfile === 'afk'" @click="removeBlockOwner('afk', b.id)">Да, убрать</button>
+                    <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="delegateBusyProfile === 'afk'" @click="cancelRemoveBlock()">Отмена</button>
+                  </template>
+                  <template v-else>
+                    <span class="bd-name">Запись идёт за: <b>{{ b.name }}</b></span>
+                    <button type="button" class="bd-change" v-if="delegateOptions.afk.length" @click="startOwnerEdit('afk', b.id)">Изменить</button>
+                    <button type="button" class="bd-change is-danger" @click="askRemoveBlock('afk', b.id)">Убрать</button>
+                  </template>
+                </div>
+                <p class="bd-current" v-if="!delegateBlocks.afk.length">Блок ещё не открыт — выберите, за кого заполняете.</p>
+                <div class="bd-row" v-if="!delegateBlocks.afk.length && delegateOptions.afk.length">
+                  <select class="bd-select" v-model="delegatePick.afk" aria-label="Преподаватель, за которого заполняется блок «АФК»">
+                    <option value="">— выберите преподавателя —</option>
+                    <option v-for="t in delegateOptions.afk" :key="t.id" :value="t.id">{{ specialistShort(t) }}</option>
+                  </select>
+                  <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="!delegatePick.afk || delegateBusyProfile === 'afk'" @click="openBlockFor('afk')">Открыть блок</button>
+                </div>
+                <p class="bd-empty" v-else-if="!delegateBlocks.afk.length">Свободных преподавателей этой ориентированности нет.</p>
+                <p class="bd-note" v-if="delegateNotes.afk">{{ delegateNotes.afk }}</p>
+              </div>
+
               <div class="qgroup" style="margin-top: 0; padding-top: 0; border-top: none;">
                 <div class="qlabel"><span class="qlabel-text">Целевая группа реабилитации (ЦРГ)</span></div>
                 <input type="text" class="input" placeholder="Из таблицы целевых групп центра" />
@@ -1066,6 +1177,43 @@
                   </div>
                 </div>
 
+                <div class="block-delegate" v-if="canDelegate">
+                  <div class="bd-head">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+                    <span class="bd-title">Кто заполняет этот блок</span>
+                  </div>
+                  <div class="bd-item" v-for="b in delegateBlocks.izo" :key="b.id">
+                    <template v-if="delegateEditId === b.id">
+                      <select class="bd-select" v-model="delegateEditPick" aria-label="Новый преподаватель для блока «ИЗО»">
+                        <option value="">— выберите преподавателя —</option>
+                        <option v-for="t in delegateOptions.izo" :key="t.id" :value="t.id">{{ specialistShort(t) }}</option>
+                      </select>
+                      <button type="button" class="btn btn-primary btn-sm bd-btn" :disabled="!delegateEditPick || delegateBusyProfile === 'izo'" @click="saveBlockOwner('izo', b.id)">Сохранить</button>
+                      <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="delegateBusyProfile === 'izo'" @click="cancelOwnerEdit()">Отмена</button>
+                    </template>
+                    <template v-else-if="delegateRemoveId === b.id">
+                      <span class="bd-name">Убрать блок? Преподаватель: <b>{{ b.name }}</b>. Всё заполненное в этом бланке пропадёт.</span>
+                      <button type="button" class="btn btn-danger btn-sm bd-btn" :disabled="delegateBusyProfile === 'izo'" @click="removeBlockOwner('izo', b.id)">Да, убрать</button>
+                      <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="delegateBusyProfile === 'izo'" @click="cancelRemoveBlock()">Отмена</button>
+                    </template>
+                    <template v-else>
+                      <span class="bd-name">Запись идёт за: <b>{{ b.name }}</b></span>
+                      <button type="button" class="bd-change" v-if="delegateOptions.izo.length" @click="startOwnerEdit('izo', b.id)">Изменить</button>
+                      <button type="button" class="bd-change is-danger" @click="askRemoveBlock('izo', b.id)">Убрать</button>
+                    </template>
+                  </div>
+                  <p class="bd-current" v-if="!delegateBlocks.izo.length">Блок ещё не открыт — выберите, за кого заполняете.</p>
+                  <div class="bd-row" v-if="!delegateBlocks.izo.length && delegateOptions.izo.length">
+                    <select class="bd-select" v-model="delegatePick.izo" aria-label="Преподаватель, за которого заполняется блок «ИЗО»">
+                      <option value="">— выберите преподавателя —</option>
+                      <option v-for="t in delegateOptions.izo" :key="t.id" :value="t.id">{{ specialistShort(t) }}</option>
+                    </select>
+                    <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="!delegatePick.izo || delegateBusyProfile === 'izo'" @click="openBlockFor('izo')">Открыть блок</button>
+                  </div>
+                  <p class="bd-empty" v-else-if="!delegateBlocks.izo.length">Свободных преподавателей этой ориентированности нет.</p>
+                  <p class="bd-note" v-if="delegateNotes.izo">{{ delegateNotes.izo }}</p>
+                </div>
+
                 <fieldset class="qgroup" style="margin-top: 0;">
                   <legend class="sr-only">Критерии оценки ИЗО</legend>
                   <div class="izo-list">
@@ -1189,6 +1337,43 @@
                   </div>
                 </div>
 
+                <div class="block-delegate" v-if="canDelegate">
+                  <div class="bd-head">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+                    <span class="bd-title">Кто заполняет этот блок</span>
+                  </div>
+                  <div class="bd-item" v-for="b in delegateBlocks.theatre" :key="b.id">
+                    <template v-if="delegateEditId === b.id">
+                      <select class="bd-select" v-model="delegateEditPick" aria-label="Новый преподаватель для блока «Театр»">
+                        <option value="">— выберите преподавателя —</option>
+                        <option v-for="t in delegateOptions.theatre" :key="t.id" :value="t.id">{{ specialistShort(t) }}</option>
+                      </select>
+                      <button type="button" class="btn btn-primary btn-sm bd-btn" :disabled="!delegateEditPick || delegateBusyProfile === 'theatre'" @click="saveBlockOwner('theatre', b.id)">Сохранить</button>
+                      <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="delegateBusyProfile === 'theatre'" @click="cancelOwnerEdit()">Отмена</button>
+                    </template>
+                    <template v-else-if="delegateRemoveId === b.id">
+                      <span class="bd-name">Убрать блок? Преподаватель: <b>{{ b.name }}</b>. Всё заполненное в этом бланке пропадёт.</span>
+                      <button type="button" class="btn btn-danger btn-sm bd-btn" :disabled="delegateBusyProfile === 'theatre'" @click="removeBlockOwner('theatre', b.id)">Да, убрать</button>
+                      <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="delegateBusyProfile === 'theatre'" @click="cancelRemoveBlock()">Отмена</button>
+                    </template>
+                    <template v-else>
+                      <span class="bd-name">Запись идёт за: <b>{{ b.name }}</b></span>
+                      <button type="button" class="bd-change" v-if="delegateOptions.theatre.length" @click="startOwnerEdit('theatre', b.id)">Изменить</button>
+                      <button type="button" class="bd-change is-danger" @click="askRemoveBlock('theatre', b.id)">Убрать</button>
+                    </template>
+                  </div>
+                  <p class="bd-current" v-if="!delegateBlocks.theatre.length">Блок ещё не открыт — выберите, за кого заполняете.</p>
+                  <div class="bd-row" v-if="!delegateBlocks.theatre.length && delegateOptions.theatre.length">
+                    <select class="bd-select" v-model="delegatePick.theatre" aria-label="Преподаватель, за которого заполняется блок «Театр»">
+                      <option value="">— выберите преподавателя —</option>
+                      <option v-for="t in delegateOptions.theatre" :key="t.id" :value="t.id">{{ specialistShort(t) }}</option>
+                    </select>
+                    <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="!delegatePick.theatre || delegateBusyProfile === 'theatre'" @click="openBlockFor('theatre')">Открыть блок</button>
+                  </div>
+                  <p class="bd-empty" v-else-if="!delegateBlocks.theatre.length">Свободных преподавателей этой ориентированности нет.</p>
+                  <p class="bd-note" v-if="delegateNotes.theatre">{{ delegateNotes.theatre }}</p>
+                </div>
+
                 <fieldset class="qgroup" style="margin-top: 0;">
                   <legend class="sr-only">Критерии оценки театрального блока</legend>
 
@@ -1298,6 +1483,43 @@
                     <div class="pp">0 <span class="of">/ 50</span></div>
                     <div class="pl">сумма баллов</div>
                   </div>
+                </div>
+
+                <div class="block-delegate" v-if="canDelegate">
+                  <div class="bd-head">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M22 11h-6"/></svg>
+                    <span class="bd-title">Кто заполняет этот блок</span>
+                  </div>
+                  <div class="bd-item" v-for="b in delegateBlocks.vocal" :key="b.id">
+                    <template v-if="delegateEditId === b.id">
+                      <select class="bd-select" v-model="delegateEditPick" aria-label="Новый преподаватель для блока «Вокал / инструмент»">
+                        <option value="">— выберите преподавателя —</option>
+                        <option v-for="t in delegateOptions.vocal" :key="t.id" :value="t.id">{{ specialistShort(t) }}</option>
+                      </select>
+                      <button type="button" class="btn btn-primary btn-sm bd-btn" :disabled="!delegateEditPick || delegateBusyProfile === 'vocal'" @click="saveBlockOwner('vocal', b.id)">Сохранить</button>
+                      <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="delegateBusyProfile === 'vocal'" @click="cancelOwnerEdit()">Отмена</button>
+                    </template>
+                    <template v-else-if="delegateRemoveId === b.id">
+                      <span class="bd-name">Убрать блок? Преподаватель: <b>{{ b.name }}</b>. Всё заполненное в этом бланке пропадёт.</span>
+                      <button type="button" class="btn btn-danger btn-sm bd-btn" :disabled="delegateBusyProfile === 'vocal'" @click="removeBlockOwner('vocal', b.id)">Да, убрать</button>
+                      <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="delegateBusyProfile === 'vocal'" @click="cancelRemoveBlock()">Отмена</button>
+                    </template>
+                    <template v-else>
+                      <span class="bd-name">Запись идёт за: <b>{{ b.name }}</b></span>
+                      <button type="button" class="bd-change" v-if="delegateOptions.vocal.length" @click="startOwnerEdit('vocal', b.id)">Изменить</button>
+                      <button type="button" class="bd-change is-danger" @click="askRemoveBlock('vocal', b.id)">Убрать</button>
+                    </template>
+                  </div>
+                  <p class="bd-current" v-if="!delegateBlocks.vocal.length">Блок ещё не открыт — выберите, за кого заполняете.</p>
+                  <div class="bd-row" v-if="!delegateBlocks.vocal.length && delegateOptions.vocal.length">
+                    <select class="bd-select" v-model="delegatePick.vocal" aria-label="Преподаватель, за которого заполняется блок «Вокал / инструмент»">
+                      <option value="">— выберите преподавателя —</option>
+                      <option v-for="t in delegateOptions.vocal" :key="t.id" :value="t.id">{{ specialistShort(t) }}</option>
+                    </select>
+                    <button type="button" class="btn btn-secondary btn-sm bd-btn" :disabled="!delegatePick.vocal || delegateBusyProfile === 'vocal'" @click="openBlockFor('vocal')">Открыть блок</button>
+                  </div>
+                  <p class="bd-empty" v-else-if="!delegateBlocks.vocal.length">Свободных преподавателей этой ориентированности нет.</p>
+                  <p class="bd-note" v-if="delegateNotes.vocal">{{ delegateNotes.vocal }}</p>
                 </div>
 
                 <fieldset class="qgroup" style="margin-top: 0;">
@@ -1603,22 +1825,6 @@
         </select>
         <p id="assignment-meta" class="save-bar-assign-meta"></p>
       </div>
-      <div class="save-bar-assign save-bar-delegate" v-if="canDelegate">
-        <label for="delegate-target" class="save-bar-assign-label">Заполняю за преподавателя</label>
-        <div class="save-bar-delegate-row">
-          <select id="delegate-target" class="save-bar-assign-select" v-model="delegateTarget">
-            <option value="">— выберите преподавателя —</option>
-            <option v-for="t in delegateOptions" :key="t.id" :value="t.id">{{ specialistLabel(t) }}</option>
-          </select>
-          <button
-            type="button"
-            class="btn btn-secondary"
-            :disabled="!delegateTarget || delegateBusy"
-            @click="addDelegatedBlock"
-          >Открыть блок</button>
-        </div>
-        <p class="save-bar-assign-meta">{{ delegateNote }}</p>
-      </div>
       <div class="save-bar-spacer"></div>
       <div class="save-bar-actions">
         <button type="button" class="btn btn-secondary" data-action="save-draft">
@@ -1797,10 +2003,17 @@ async function startObservation() {
   }
 }
 
+const DELEGATE_PROFILES = ['psy', 'log', 'afk', 'izo', 'theatre', 'vocal']
+const emptyByProfile = (value) =>
+  DELEGATE_PROFILES.reduce((acc, key) => { acc[key] = typeof value === 'function' ? value() : value; return acc }, {})
+
 const specialists = ref([])
-const delegateTarget = ref('')
-const delegateBusy = ref(false)
-const delegateNote = ref('')
+const delegatePick = ref(emptyByProfile(''))
+const delegateNotes = ref(emptyByProfile(''))
+const delegateBusyProfile = ref('')
+const delegateEditId = ref(0)
+const delegateEditPick = ref('')
+const delegateRemoveId = ref(0)
 
 const canDelegate = computed(() =>
   sharedAccess.value && !readonlyView.value && !!selectedSession.value
@@ -1812,9 +2025,32 @@ const specialistLabel = (t) => {
   return dir ? `${name} — ${dir}` : name
 }
 
+const specialistShort = (t) =>
+  [t.lastName, t.firstName].filter(Boolean).join(' ').trim() || t.email || `#${t.id}`
+
 const delegateOptions = computed(() => {
+  const map = emptyByProfile(() => [])
   const taken = new Set((selectedSession.value?.blocks || []).map((b) => b.specialistUserId))
-  return specialists.value.filter((t) => t.directionId && !taken.has(t.id))
+  specialists.value.forEach((t) => {
+    const key = t.direction?.profileKey || ''
+    if (!t.directionId || !map[key] || taken.has(t.id)) return
+    map[key].push(t)
+  })
+  return map
+})
+
+const delegateBlocks = computed(() => {
+  const map = emptyByProfile(() => [])
+  ;(selectedSession.value?.blocks || []).forEach((b) => {
+    const key = b.profileKey || b.direction?.profileKey || ''
+    if (!map[key]) return
+    map[key].push({
+      id: b.id,
+      name: String(b.specialistName || '').trim() || `#${b.specialistUserId}`,
+      done: b.blockStatus === 'completed'
+    })
+  })
+  return map
 })
 
 async function loadSpecialists() {
@@ -1826,24 +2062,86 @@ async function loadSpecialists() {
   }
 }
 
-async function addDelegatedBlock() {
+async function openBlockFor(profile) {
   const sessionId = selectedSessionId.value
-  const teacherId = Number(delegateTarget.value)
-  if (!sessionId || !teacherId) return
-  const who = specialists.value.find((t) => t.id === teacherId)
-  delegateBusy.value = true
-  delegateNote.value = ''
+  const teacherId = Number(delegatePick.value[profile])
+  if (!sessionId || !teacherId || delegateBusyProfile.value) return
+  delegateBusyProfile.value = profile
+  delegateNotes.value[profile] = ''
   try {
     await api.post(`/schedule/sessions/${sessionId}/delegate`, { specialistUserId: teacherId })
-    delegateTarget.value = ''
+    delegatePick.value[profile] = ''
     if (typeof window.__reloadDiagnosticSession === 'function') {
       await window.__reloadDiagnosticSession()
     }
-    delegateNote.value = `Блок открыт за ${who ? specialistLabel(who) : 'преподавателя'} — заполняйте его этап и сдавайте.`
+    delegateNotes.value[profile] = 'Блок открыт — заполняйте бланк и сдавайте этап.'
   } catch (err) {
-    delegateNote.value = err?.response?.data?.message || 'Не удалось открыть блок за преподавателя.'
+    delegateNotes.value[profile] =
+      err?.response?.data?.message || 'Не удалось открыть блок за преподавателя.'
   } finally {
-    delegateBusy.value = false
+    delegateBusyProfile.value = ''
+  }
+}
+
+function startOwnerEdit(profile, blockId) {
+  delegateEditId.value = blockId
+  delegateEditPick.value = ''
+  delegateRemoveId.value = 0
+  delegateNotes.value[profile] = ''
+}
+
+function cancelOwnerEdit() {
+  delegateEditId.value = 0
+  delegateEditPick.value = ''
+}
+
+function askRemoveBlock(profile, blockId) {
+  delegateRemoveId.value = blockId
+  delegateEditId.value = 0
+  delegateNotes.value[profile] = ''
+}
+
+function cancelRemoveBlock() {
+  delegateRemoveId.value = 0
+}
+
+async function removeBlockOwner(profile, blockId) {
+  if (!blockId || delegateBusyProfile.value) return
+  delegateBusyProfile.value = profile
+  delegateNotes.value[profile] = ''
+  try {
+    await api.post(`/schedule/assignments/${blockId}/release`)
+    delegateRemoveId.value = 0
+    if (typeof window.__reloadDiagnosticSession === 'function') {
+      await window.__reloadDiagnosticSession()
+    }
+    delegateNotes.value[profile] = 'Блок убран — можно открыть его за нужного преподавателя.'
+  } catch (err) {
+    delegateNotes.value[profile] =
+      err?.response?.data?.message || 'Не удалось убрать блок.'
+  } finally {
+    delegateBusyProfile.value = ''
+  }
+}
+
+async function saveBlockOwner(profile, blockId) {
+  const teacherId = Number(delegateEditPick.value)
+  if (!blockId || !teacherId || delegateBusyProfile.value) return
+  delegateBusyProfile.value = profile
+  delegateNotes.value[profile] = ''
+  try {
+    await api.patch(`/schedule/assignments/${blockId}/specialist`, { specialistUserId: teacherId })
+    delegateEditId.value = 0
+    delegateEditPick.value = ''
+    if (typeof window.__reloadDiagnosticSession === 'function') {
+      await window.__reloadDiagnosticSession()
+    }
+    delegateNotes.value[profile] = 'Преподаватель изменён — всё заполненное в бланке сохранилось.'
+  } catch (err) {
+    delegateNotes.value[profile] =
+      err?.response?.data?.message || 'Не удалось изменить преподавателя.'
+  } finally {
+    delegateBusyProfile.value = ''
   }
 }
 
@@ -2356,7 +2654,7 @@ onMounted(() => {
       const mine = ownBlocksAt(stageKey, subKey);
       if (!mine.length) {
         showToast(sharedAccess.value
-          ? 'По этому блоку ещё нет преподавателя — откройте блок за преподавателя в нижней панели.'
+          ? 'По этому блоку ещё нет преподавателя — выберите его в бланке, в строке «Кто заполняет этот блок».'
           : authStore.isTeacher
             ? 'У вас нет назначения на этот блок у выбранного реабилитанта — сдавать нечего.'
             : 'Блок закрывает специалист, который его вёл: из карточки отметить за него нельзя.', 5600);
@@ -3210,6 +3508,7 @@ onMounted(() => {
           i.setAttribute('aria-readonly', 'true');
         });
         panel.querySelectorAll('select').forEach(s => {
+          if (s.closest('.block-delegate')) return;
           s.dataset.lockedPrev = s.disabled ? 'disabled' : 'enabled';
           if (!s.disabled) s.disabled = true;
         });
@@ -7221,8 +7520,104 @@ onUnmounted(() => {
       max-width: 22rem; overflow-wrap: anywhere;
     }
     .diagnostics-page .save-bar-assign-meta:empty{ display: none; }
-    .diagnostics-page .save-bar-delegate-row{ display: flex; align-items: center; gap: 0.5rem; min-width: 0; }
-    .diagnostics-page .save-bar-delegate-row .btn{ flex: 0 0 auto; white-space: nowrap; }
+    .diagnostics-page .block-delegate{
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding: 0.875rem 1rem;
+      margin-bottom: 1.25rem;
+      border: 0.0625rem solid var(--line-soft);
+      border-left: 0.1875rem solid var(--sage-700);
+      border-radius: var(--radius-md);
+      background: var(--paper-sunken);
+      min-width: 0;
+    }
+    .diagnostics-page .block-delegate.is-stage-top{ margin-bottom: 1.5rem; }
+    .diagnostics-page .block-delegate .bd-head{
+      display: flex;
+      align-items: center;
+      gap: 0.4375rem;
+      color: var(--sage-700);
+    }
+    .diagnostics-page .block-delegate .bd-head svg{ width: 1rem; height: 1rem; flex: none; }
+    .diagnostics-page .block-delegate .bd-title{
+      font-size: 0.6875rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      line-height: 1.2;
+    }
+    .diagnostics-page .block-delegate .bd-current{
+      font-size: 0.8125rem;
+      line-height: 1.35;
+      color: var(--ink-muted);
+      overflow-wrap: anywhere;
+    }
+    .diagnostics-page .block-delegate .bd-current.set{ color: var(--ink-strong); font-weight: 600; }
+    .diagnostics-page .block-delegate .bd-item{
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      min-width: 0;
+    }
+    .diagnostics-page .block-delegate .bd-name{
+      flex: 1 1 auto;
+      min-width: 0;
+      font-size: 0.8125rem;
+      line-height: 1.35;
+      color: var(--ink-muted);
+      overflow-wrap: anywhere;
+    }
+    .diagnostics-page .block-delegate .bd-name b{ color: var(--ink-strong); font-weight: 600; }
+    .diagnostics-page .block-delegate .bd-change{
+      flex: 0 0 auto;
+      min-height: 1.75rem;
+      padding: 0.125rem 0.375rem;
+      margin: -0.125rem -0.375rem;
+      font: inherit;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--sage-700);
+      background: none;
+      border: none;
+      border-radius: 0.375rem;
+      text-decoration: underline;
+      text-underline-offset: 0.125rem;
+      cursor: pointer;
+    }
+    .diagnostics-page .block-delegate .bd-change:hover{ background: var(--sage-050, rgba(0,0,0,0.04)); }
+    .diagnostics-page .block-delegate .bd-change.is-danger{ color: var(--danger-600, #b42318); }
+    .diagnostics-page .block-delegate .bd-change.is-danger:hover{ background: rgba(180, 35, 24, 0.08); }
+    .diagnostics-page .block-delegate .bd-row{
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      min-width: 0;
+    }
+    .diagnostics-page .block-delegate .bd-select{
+      flex: 1 1 12rem;
+      min-width: 0;
+      max-width: 22rem;
+      min-height: 2.25rem;
+      padding: 0.4rem 0.6rem;
+      font: inherit;
+      font-size: 0.8125rem;
+      color: inherit;
+      border: 0.0625rem solid var(--line-strong);
+      border-radius: 0.5rem;
+      background: var(--paper, #fff);
+      cursor: pointer;
+    }
+    .diagnostics-page .block-delegate .bd-btn{ flex: 0 0 auto; white-space: nowrap; }
+    .diagnostics-page .block-delegate .bd-empty,
+    .diagnostics-page .block-delegate .bd-note{
+      font-size: 0.75rem;
+      line-height: 1.35;
+      color: var(--ink-soft, #6b7280);
+      overflow-wrap: anywhere;
+    }
     .diagnostics-page .test-list{ display: grid; gap: 0.75rem; }
     .diagnostics-page .test-row{
       display: grid;
@@ -8366,9 +8761,16 @@ onUnmounted(() => {
         text-overflow: ellipsis;
       }
       .diagnostics-page .save-bar-assign-meta{ max-width: none; font-size: 0.75rem; }
-      .diagnostics-page .save-bar-delegate-row{ flex-wrap: wrap; }
-      .diagnostics-page .save-bar-delegate-row .btn{
-        flex: 1 1 100%; min-height: var(--tap, 2.75rem); font-size: 0.8125rem;
+      .diagnostics-page .block-delegate{ padding: 0.75rem 0.875rem; }
+      .diagnostics-page .block-delegate .bd-row{ flex-wrap: wrap; }
+      .diagnostics-page .block-delegate .bd-select,
+      .diagnostics-page .block-delegate .bd-btn{
+        flex: 1 1 100%; max-width: none; min-height: var(--tap, 2.75rem); font-size: 0.8125rem;
+      }
+      .diagnostics-page .block-delegate .bd-name{ flex: 1 1 100%; }
+      .diagnostics-page .block-delegate .bd-item .bd-btn{ flex: 1 1 calc(50% - 0.25rem); }
+      .diagnostics-page .block-delegate .bd-change{
+        min-height: var(--tap, 2.75rem); padding: 0 0.5rem; margin: 0 0 0 -0.5rem;
       }
       .diagnostics-page .save-bar-actions{ flex: 1 1 100%; flex-wrap: wrap; gap: 0.5rem; min-width: 0; }
       .diagnostics-page .save-bar-actions > .btn{

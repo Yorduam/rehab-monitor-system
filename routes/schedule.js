@@ -920,6 +920,90 @@ router.post('/sessions/:id/delegate', authMiddleware, roleMiddleware('teacher'),
   }
 });
 
+router.patch('/assignments/:id/specialist', authMiddleware, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin' && !hasSharedAccess(req.user)) {
+      return res.status(403).json({ message: 'Нет права менять преподавателя, за которого заполняется блок' });
+    }
+
+    const assignment = await DiagnosticAssignment.findByPk(req.params.id, { include: assignmentIncludes });
+    if (!assignment) return res.status(404).json({ message: 'Блок не найден' });
+    if (!assignment.diagnosticSessionId) {
+      return res.status(409).json({ message: 'Блок не привязан к диагностике' });
+    }
+    if (assignment.blockStatus === 'completed') {
+      return res.status(409).json({
+        message: 'Этап уже сдан. Нажмите «Отредактировать блок», а затем меняйте преподавателя'
+      });
+    }
+
+    const inSchedule = assignment.startTime || assignment.endTime
+      || (await ScheduleEvent.count({ where: { assignmentId: assignment.id } })) > 0;
+    if (inSchedule) {
+      return res.status(409).json({
+        message: 'У блока есть занятие в расписании — замену делает сотрудник через расписание'
+      });
+    }
+
+    const targetId = parseInt(req.body?.specialistUserId, 10);
+    if (!Number.isInteger(targetId)) {
+      return res.status(400).json({ message: 'Выберите преподавателя' });
+    }
+    if (targetId === assignment.specialistUserId) {
+      return res.status(400).json({ message: 'Этот преподаватель уже указан' });
+    }
+
+    const specialist = await User.findByPk(targetId, {
+      include: [{ model: Direction, as: 'direction', attributes: DIRECTION_ATTRS }]
+    });
+    if (!specialist || specialist.role !== 'teacher') {
+      return res.status(404).json({ message: 'Преподаватель не найден' });
+    }
+    if (!specialist.directionId) {
+      return res.status(400).json({
+        message: `У ${specialist.fullName} не указана профессиональная ориентированность. Обратитесь к администратору.`
+      });
+    }
+
+    const wasProfile = assignment.direction?.profileKey || null;
+    const willProfile = specialist.direction?.profileKey || null;
+    if (wasProfile && willProfile && wasProfile !== willProfile) {
+      return res.status(400).json({
+        message: `${specialist.fullName} другой профессиональной ориентированности — этот блок относится к другому бланку`
+      });
+    }
+
+    const session = await DiagnosticSession.findByPk(assignment.diagnosticSessionId);
+    if (!session) return res.status(404).json({ message: 'Диагностика не найдена' });
+    if (session.status === 'cancelled') {
+      return res.status(409).json({ message: 'Диагностика отменена' });
+    }
+    if (session.status === 'completed') {
+      return res.status(409).json({ message: 'По диагностике уже выдано заключение' });
+    }
+
+    const busy = await DiagnosticAssignment.findOne({
+      where: {
+        diagnosticSessionId: session.id,
+        specialistUserId: specialist.id,
+        id: { [Op.ne]: assignment.id }
+      }
+    });
+    if (busy) {
+      return res.status(409).json({ message: `${specialist.fullName} уже участвует в этой диагностике` });
+    }
+
+    assignment.specialistUserId = specialist.id;
+    assignment.directionId = specialist.directionId;
+    await assignment.save();
+
+    res.json(serializeSession(await loadSession(session.id), req.user));
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Ошибка сервера' });
+  }
+});
+
 router.post('/sessions/:id/cancel', authMiddleware, roleMiddleware('admin', 'employee'), async (req, res) => {
   try {
     const session = await DiagnosticSession.findByPk(req.params.id);
