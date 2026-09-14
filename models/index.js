@@ -24,6 +24,7 @@ import DiagnosticAssignment from './DiagnosticAssignment.js';
 import DiagnosticSession from './DiagnosticSession.js';
 import DiagnosticConclusion from './DiagnosticConclusion.js';
 import AccessLog from './AccessLog.js';
+import AdminAuditLog from './AdminAuditLog.js';
 import AccessGrant from './AccessGrant.js';
 
 Recipient.belongsTo(User, { as: 'user', foreignKey: 'userId' });
@@ -114,6 +115,8 @@ RecipientDraft.belongsTo(User, { as: 'author', foreignKey: 'createdBy', foreignK
 
 AccessLog.belongsTo(User, { as: 'user', foreignKey: 'userId', foreignKeyConstraints: false });
 AccessLog.belongsTo(Recipient, { as: 'recipient', foreignKey: 'recipientId', foreignKeyConstraints: false });
+AdminAuditLog.belongsTo(User, { as: 'actor', foreignKey: 'actorId', foreignKeyConstraints: false });
+AdminAuditLog.belongsTo(User, { as: 'targetUser', foreignKey: 'targetUserId', foreignKeyConstraints: false });
 
 export {
   sequelize,
@@ -140,5 +143,6 @@ export {
   DiagnosticSession,
   DiagnosticConclusion,
   AccessLog,
+  AdminAuditLog,
   AccessGrant
 };

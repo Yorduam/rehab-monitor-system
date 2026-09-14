@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 import pinoHttp from 'pino-http';
 import dotenv from 'dotenv';
@@ -11,7 +11,7 @@ import { Op } from '@sequelize/core';
 import { sequelize, Recipient } from './models/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestId } from './middleware/requestId.js';
-import { authMiddleware } from './middleware/auth.js';
+import { authMiddleware, staffOnly } from './middleware/auth.js';
 import logger from './config/logger.js';
 
 import authRoutes from './routes/auth.js';
@@ -56,6 +56,23 @@ const guestLimiter = rateLimit({
 });
 app.use('/api', guestLimiter);
 
+const userLimiter = rateLimit({
+  windowMs: 5 * 60 * 1000,
+  max: 600,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: (req) => !isAuthenticated(req),
+  keyGenerator: (req) => {
+    try {
+      return 'user:' + jwt.verify(req.cookies.token, process.env.JWT_SECRET).id;
+    } catch {
+      return ipKeyGenerator(req.ip);
+    }
+  },
+  message: { message: 'Слишком много запросов подряд. Подождите несколько минут.' },
+});
+app.use('/api', userLimiter);
+
 app.use(pinoHttp({
   logger,
   genReqId: (req) => req.headers['x-request-id'] || uuidv4(),
@@ -67,16 +84,18 @@ app.use(pinoHttp({
 app.use(requestId);
 
 app.use('/api/v1/auth', authRoutes);
-app.use('/api/v1/recipients', recipientsRoutes);
-app.use('/api/v1/groups', groupsRoutes);
-app.use('/api/v1/diagnostics', diagnosticsRoutes);
+
+app.use('/api/v1/recipients', authMiddleware, staffOnly, recipientsRoutes);
+app.use('/api/v1/groups', authMiddleware, staffOnly, groupsRoutes);
+app.use('/api/v1/diagnostics', authMiddleware, staffOnly, diagnosticsRoutes);
+app.use('/api/v1/lists', authMiddleware, staffOnly, listsRoutes);
+app.use('/api/v1/dashboard', authMiddleware, staffOnly, dashboardRoutes);
+app.use('/api/v1/schedule', authMiddleware, staffOnly, scheduleRoutes);
+
 app.use('/api/v1/users', usersRoutes);
 app.use('/api/v1/documents', documentsRoutes);
-app.use('/api/v1/lists', listsRoutes);
-app.use('/api/v1/dashboard', dashboardRoutes);
-app.use('/api/v1/schedule', scheduleRoutes);
 
-app.get('/api/search', authMiddleware, async (req, res, next) => {
+app.get('/api/search', authMiddleware, staffOnly, async (req, res, next) => {
   try {
     const q = req.query.q?.toLowerCase();
     if (!q) return res.json({});
@@ -89,13 +108,14 @@ app.get('/api/search', authMiddleware, async (req, res, next) => {
     ];
     const matchedPage = pages.find(p => p.keywords.some(k => q.includes(k)));
     if (matchedPage) return res.json({ page: matchedPage });
+    const like = `%${q.replace(/[\\%_]/g, (c) => '\\' + c)}%`;
     const recipient = await Recipient.findOne({
       attributes: ['id', 'lastName', 'firstName', 'middleName'],
       where: {
         [Op.or]: [
-          { lastName: { [Op.like]: `%${q}%` } },
-          { firstName: { [Op.like]: `%${q}%` } },
-          { middleName: { [Op.like]: `%${q}%` } }
+          { lastName: { [Op.like]: like } },
+          { firstName: { [Op.like]: like } },
+          { middleName: { [Op.like]: like } }
         ]
       }
     });

@@ -236,6 +236,11 @@
 
     <Modal v-if="passwordModalVisible" title="Сброс пароля" @close="passwordModalVisible = false">
       <form @submit.prevent="saveNewPassword">
+        <div v-if="resettingSelf" class="form-group">
+          <label>Текущий пароль</label>
+          <input v-model="currentPassword" type="password" required autocomplete="current-password">
+          <small class="form-hint">Свой пароль меняется только с вводом текущего.</small>
+        </div>
         <div class="form-group"><label>Новый пароль</label><input v-model="newPassword" type="password" required></div>
         <div class="form-group"><label>Подтвердите</label><input v-model="confirmPassword" type="password" required></div>
         <div class="modal-buttons"><button type="button" class="btn-secondary" @click="passwordModalVisible = false">Отмена</button><button type="submit" class="btn-primary">Сохранить</button></div>
@@ -264,6 +269,8 @@ const passwordModalVisible = ref(false);
 const selectedUser = ref(null);
 const newPassword = ref('');
 const confirmPassword = ref('');
+const currentPassword = ref('');
+const resettingSelf = computed(() => selectedUser.value?.id === authStore.user?.id);
 const newUser = ref({ email: '', password: '', role: 'recipient', lastName: '', firstName: '', phone: '', cabinet: '', directionId: null, canConclude: false, canViewAllResults: false, canFillForOthers: false });
 const directions = ref([]);
 
@@ -362,20 +369,32 @@ const resetPassword = (user) => {
   selectedUser.value = user;
   newPassword.value = '';
   confirmPassword.value = '';
+  currentPassword.value = '';
   passwordModalVisible.value = true;
 };
 const saveNewPassword = async () => {
   if (newPassword.value !== confirmPassword.value) return alert('Пароли не совпадают');
   const who = userLabel(selectedUser.value);
-  await api.put(`/users/${selectedUser.value.id}`, { password: newPassword.value });
+  const body = { password: newPassword.value };
+  if (resettingSelf.value) body.currentPassword = currentPassword.value;
+  try {
+    await api.put(`/users/${selectedUser.value.id}`, body);
+  } catch (err) {
+    alert(err?.response?.data?.message || 'Не удалось изменить пароль');
+    return;
+  }
   passwordModalVisible.value = false;
   notifySaved(`Пароль изменён: ${who}`);
 };
 const deleteUser = async (id) => {
-  if (confirm('Удалить пользователя?')) {
+  if (!confirm('Удалить пользователя?')) return;
+  try {
     await api.delete(`/users/${id}`);
-    await loadUsers();
+  } catch (err) {
+    alert(err?.response?.data?.message || 'Не удалось удалить пользователя');
+    return;
   }
+  await loadUsers();
 };
 const loadDirections = async () => {
   const { data } = await api.get('/lists/directions');

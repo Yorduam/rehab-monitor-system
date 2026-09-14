@@ -361,8 +361,8 @@
                           </svg>
                           Назначить диагностику
                         </button>
-                        <div v-if="canManageRecipients" class="t-menu-divider"></div>
-                        <button v-if="canManageRecipients" class="t-menu-item t-menu-danger" @click="deleteRecipient(r.id); closeDropdown()">
+                        <div v-if="canDeleteRecipient" class="t-menu-divider"></div>
+                        <button v-if="canDeleteRecipient" class="t-menu-item t-menu-danger" @click="deleteRecipient(r.id); closeDropdown()">
                           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
                             <polyline points="3 6 5 6 21 6"/>
                             <path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/>
@@ -529,7 +529,7 @@
                     <button class="t-menu-item" @click="openDetails(r.id); closeDropdown()">Карточка</button>
                     <button v-if="canManageRecipients" class="t-menu-item" @click="editRecipient(r); closeDropdown()">Редактировать</button>
                     <button v-if="canAssignDiagnostic" class="t-menu-item" @click="openAssignDiagnostic(r); closeDropdown()">Назначить диагностику</button>
-                    <template v-if="canManageRecipients">
+                    <template v-if="canDeleteRecipient">
                       <div class="t-menu-divider"></div>
                       <button class="t-menu-item t-menu-danger" @click="deleteRecipient(r.id); closeDropdown()">Удалить</button>
                     </template>
@@ -540,7 +540,7 @@
           </div>
         </div>
 
-        <div v-if="canManageRecipients" class="t-selection-toolbar" :class="{ visible: selectedIds.length > 0 }" aria-live="polite">
+        <div v-if="canDeleteRecipient" class="t-selection-toolbar" :class="{ visible: selectedIds.length > 0 }" aria-live="polite">
           <div class="t-selection-info">
             <span class="t-selection-badge">{{ selectedIds.length }}</span>
             выбрано
@@ -886,6 +886,7 @@ const authStore = useAuthStore();
 const pageStore = usePageStore();
 
 const canManageRecipients = computed(() => authStore.isAdmin || authStore.isTeacher);
+const canDeleteRecipient = computed(() => authStore.isAdmin || authStore.isEmployee);
 
 const canCreateRecipient = computed(() => authStore.isAdmin || authStore.isEmployee);
 
@@ -1032,7 +1033,7 @@ const myGroupIds = computed(() => {
 });
 const myGroupCount = computed(() => recipients.value.filter(r => myGroupIds.value.includes(r.groupId)).length);
 
-const attentionList = computed(() => recipients.value.filter(r => r.attentionNote || r.docExpiring));
+const attentionList = computed(() => recipients.value.filter(r => r.needsAttention || r.docExpiring));
 const todayList     = computed(() => recipients.value.filter(r => r.attendsToday));
 const tomorrowList  = computed(() => recipients.value.filter(r => r.attendsTomorrow));
 
@@ -1063,7 +1064,7 @@ const baseFiltered = computed(() => {
     case 'today':     list = list.filter(r => r.attendsToday); break;
     case 'tomorrow':  list = list.filter(r => r.attendsTomorrow); break;
     case 'mygroup':   list = list.filter(r => myGroupIds.value.includes(r.groupId)); break;
-    case 'attention': list = list.filter(r => r.attentionNote || r.docExpiring); break;
+    case 'attention': list = list.filter(r => r.needsAttention || r.docExpiring); break;
   }
   return list;
 });
@@ -1125,8 +1126,12 @@ const onPhotoError = (r) => { photoError.value = { ...photoError.value, [r.id]: 
 
 const recipientFlags = (r) => {
   const flags = [];
-  if (r.attentionNote) {
-    flags.push({ kind: 'rose', label: 'Требует особого внимания', text: r.attentionNote });
+  if (r.needsAttention) {
+    flags.push({
+      kind: 'rose',
+      label: 'Требует особого внимания',
+      text: r.attentionNote || 'Откройте карточку и медицинские сведения, чтобы прочитать заметку'
+    });
   }
   if (r.docExpiring) {
     flags.push({
@@ -1138,7 +1143,7 @@ const recipientFlags = (r) => {
   return flags;
 };
 const stripeStatus = (r) => {
-  if (r.attentionNote) return 'red';
+  if (r.needsAttention) return 'red';
   if (r.docExpiring)   return 'amber';
   if (r.attendsToday)  return 'green';
   return '';
@@ -1214,15 +1219,33 @@ const toggleSelectAll = () => {
   else selectedIds.value = visibleRecipients.value.map(r => r.id);
 };
 const clearSelection = () => { selectedIds.value = []; };
+const askDeleteReason = (what) => {
+  const reason = prompt(
+    `${what}\n\nЭто действие нельзя отменить. Оно записывается в журнал изменений.\n` +
+    'Укажите причину (не менее 3 символов):'
+  );
+  if (reason === null) return null;
+  const text = String(reason).trim();
+  if (text.length < 3) {
+    alert('Причина обязательна — не менее 3 символов.');
+    return null;
+  }
+  return text;
+};
+
 const deleteSelected = async () => {
-  if (!confirm(`Удалить ${selectedIds.value.length} реабилитантов?`)) return;
+  const reason = askDeleteReason(`Удалить ${selectedIds.value.length} реабилитантов?`);
+  if (!reason) return;
   try {
     for (const id of selectedIds.value) {
-      await api.delete(`/recipients/${id}`);
+      await api.delete(`/recipients/${id}`, { data: { reason } });
     }
     clearSelection();
     await loadRecipients();
-  } catch (err) { console.error(err); alert('Ошибка при удалении'); }
+  } catch (err) {
+    console.error(err);
+    alert(err?.response?.data?.message || 'Ошибка при удалении');
+  }
 };
 const clearSearch = () => { search.value = ''; page.value = 1; loadRecipients(); };
 
@@ -1414,43 +1437,29 @@ const openAddModal = () => {
   showWizard.value = true;
 };
 const editRecipient = (r) => {
-  editId.value = r.id;
-  form.value = {
-    firstName:  r.firstName || '',
-    middleName: r.middleName || '',
-    lastName:   r.lastName || '',
-    birthDate:  r.birthDate || '',
-    email:      r.email || '',
-    telephone:  r.telephone || '',
-    diagnosis:  r.diagnosis || '',
-    groupId:    r.groupId || null,
-    photo:      r.photo || '',
-    status:     r.status || 'active'
-  };
-  modalTitle.value = 'Редактировать';
-  showModal.value = true;
+  openDetails(r.id);
 };
 const saveRecipient = async () => {
   try {
-    const editing = !!editId.value;
     const fio = [form.value.lastName, form.value.firstName].filter(Boolean).join(' ').trim();
-    if (editing) await api.put(`/recipients/${editId.value}`, form.value);
-    else         await api.post('/recipients', form.value);
+    await api.put(`/recipients/${editId.value}`, { groupId: form.value.groupId });
     await loadRecipients();
     closeModal();
-    notifySaved(editing
-      ? (fio ? `Изменения сохранены: ${fio}` : 'Изменения сохранены')
-      : (fio ? `Реабилитант ${fio} добавлен` : 'Реабилитант добавлен'));
-  } catch (err) { console.error(err); alert('Ошибка сохранения'); }
+    notifySaved(fio ? `Изменения сохранены: ${fio}` : 'Изменения сохранены');
+  } catch (err) {
+    console.error(err);
+    alert(err?.response?.data?.message || 'Ошибка сохранения');
+  }
 };
 const deleteRecipient = async (id) => {
-  if (!confirm('Удалить реабилитанта? Это действие нельзя отменить.')) return;
+  const reason = askDeleteReason('Удалить карточку реабилитанта вместе с документами и сканами?');
+  if (!reason) return;
   try {
-    await api.delete(`/recipients/${id}`);
+    await api.delete(`/recipients/${id}`, { data: { reason } });
     await loadRecipients();
   } catch (err) {
     console.error(err);
-    alert('Не удалось удалить реабилитанта. Попробуйте ещё раз.');
+    alert(err?.response?.data?.message || 'Не удалось удалить реабилитанта. Попробуйте ещё раз.');
   }
 };
 const closeModal = () => { showModal.value = false; };

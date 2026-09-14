@@ -17,13 +17,17 @@
         <div class="rw-topbar-right">
           <span
             v-if="draftState" class="rw-save-state"
-            :class="{ 'is-saving': draftState === 'saving' }"
-            :title="draftState === 'saving' ? 'Сохранение…' : 'Черновик сохранён'"
+            :class="{ 'is-saving': draftState === 'saving', 'is-warn': draftStateWarn }"
+            :title="draftStateTitle"
             role="status" aria-live="polite"
           >
             <span class="rw-save-dot"></span>
-            <span class="rw-save-text">{{ draftState === 'saving' ? 'Сохранение…' : 'Черновик сохранён' }}</span>
+            <span class="rw-save-text">{{ draftStateText }}</span>
           </span>
+          <button class="rw-clear-btn" type="button" @click="startNewCard" title="Отложить текущий черновик и начать заполнять новую карточку" aria-label="Начать новую карточку">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M12 18v-6M9 15h6"/></svg>
+            <span class="rw-clear-label">Начать новую</span>
+          </button>
           <button class="rw-clear-btn" type="button" @click="clearDraft" title="Очистить все поля черновика" aria-label="Очистить черновик">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
             <span class="rw-clear-label">Очистить черновик</span>
@@ -323,24 +327,17 @@
                     </div>
                   </fieldset>
                 </div>
-                <div class="rw-f" :class="noRep ? 'rw-c4' : 'rw-c3'">
+                <div class="rw-f rw-c4">
                   <label class="rw-label" for="rd-ser">Серия <span class="rw-req">*</span><span v-if="ocrFilled.includes('rDocSeries')" class="rw-ocr-tag">распознано</span></label>
                   <input id="rd-ser" class="rw-input" type="text" :placeholder="f.rDocType === 'birth' ? 'IV-АБ' : '0000'" :value="f.rDocSeries" @input="onDocSeries($event)" :inputmode="f.rDocType === 'birth' ? 'text' : 'numeric'" :maxlength="f.rDocType === 'birth' ? 12 : 4" />
                 </div>
-                <div class="rw-f" :class="noRep ? 'rw-c4' : 'rw-c3'">
+                <div class="rw-f rw-c4">
                   <label class="rw-label" for="rd-num">Номер <span class="rw-req">*</span><span v-if="ocrFilled.includes('rDocNum')" class="rw-ocr-tag">распознано</span></label>
                   <input id="rd-num" class="rw-input" type="text" inputmode="numeric" maxlength="6" placeholder="000000" :value="f.rDocNum" @input="onMask('rDocNum', $event, v => onlyDigits(v, 6), { len: 6, to: 'rd-dt' })" enterkeyhint="next" />
                 </div>
-                <div class="rw-f" :class="noRep ? 'rw-c4' : 'rw-c3'">
+                <div class="rw-f rw-c4">
                   <label class="rw-label" for="rd-dt">Дата выдачи <span class="rw-req">*</span><span v-if="ocrFilled.includes('rDocDate')" class="rw-ocr-tag">распознано</span></label>
                   <input id="rd-dt" class="rw-input" type="date" v-model="f.rDocDate" :max="today" @input="clearOcrTag('rDocDate')" />
-                </div>
-                <div v-if="!noRep" class="rw-f rw-c3">
-                  <label class="rw-label" for="rd-rel">Кем приходится представителю</label>
-                  <select id="rd-rel" class="rw-select" v-model="f.rDocRelation">
-                    <option value="">Выберите…</option>
-                    <option>Сын</option><option>Дочь</option><option>Подопечный</option>
-                  </select>
                 </div>
                 <div class="rw-f rw-c12">
                   <label class="rw-label" for="rd-iss">Кем выдан <span class="rw-req">*</span></label>
@@ -549,9 +546,13 @@
                     <option v-for="o in moscowOkruga" :key="o" :value="o">{{ o }}</option>
                   </select>
                 </div>
-                <div class="rw-f rw-c8">
+                <div class="rw-f rw-c4">
+                  <label class="rw-label" for="r-reg-area">Район</label>
+                  <input id="r-reg-area" class="rw-input" type="text" placeholder="Например: Тёплый Стан" :value="f.rRegArea" @input="onMask('rRegArea', $event, v => maskText(v, 120))" maxlength="120" />
+                </div>
+                <div class="rw-f rw-c4">
                   <label class="rw-label" for="r-reg">Адрес регистрации <span class="rw-req">*</span></label>
-                  <input id="r-reg" class="rw-input" type="text" placeholder="Город, район, улица, дом, квартира" :value="f.rAddrReg" @input="onMask('rAddrReg', $event, v => maskText(v, 500))" maxlength="500" />
+                  <input id="r-reg" class="rw-input" type="text" placeholder="Город, улица, дом, квартира" :value="f.rAddrReg" @input="onMask('rAddrReg', $event, v => maskText(v, 500))" maxlength="500" />
                 </div>
               </div>
 
@@ -573,9 +574,13 @@
                     <option v-for="o in moscowOkruga" :key="o" :value="o">{{ o }}</option>
                   </select>
                 </div>
-                <div class="rw-f rw-c8">
+                <div class="rw-f rw-c4">
+                  <label class="rw-label" for="r-fact-area">Район</label>
+                  <input id="r-fact-area" class="rw-input" type="text" placeholder="Например: Тёплый Стан" :value="f.rFactArea" @input="onMask('rFactArea', $event, v => maskText(v, 120))" maxlength="120" />
+                </div>
+                <div class="rw-f rw-c4">
                   <label class="rw-label" for="r-fact">Адрес фактического места проживания <span class="rw-req">*</span></label>
-                  <input id="r-fact" class="rw-input" type="text" placeholder="Город, район, улица, дом, квартира" :value="f.rAddrFact" @input="onMask('rAddrFact', $event, v => maskText(v, 500))" maxlength="500" />
+                  <input id="r-fact" class="rw-input" type="text" placeholder="Город, улица, дом, квартира" :value="f.rAddrFact" @input="onMask('rAddrFact', $event, v => maskText(v, 500))" maxlength="500" />
                 </div>
               </div>
 
@@ -665,7 +670,7 @@
                   </div>
                   <span class="rw-ssh-meta">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                    {{ docsGenerated ? 'Сгенерировано' : 'Ещё не сгенерировано' }}
+                    {{ f.docsGenerated ? 'Сгенерировано' : 'Ещё не сгенерировано' }}
                   </span>
                 </div>
                 <div class="rw-gen-row">
@@ -678,21 +683,21 @@
                   </div>
                   <button class="rw-btn rw-btn-primary" type="button" id="gen-docs-btn" @click="generateDocs">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
-                    {{ docsGenerated ? 'Сформировано' : 'Сгенерировать' }}
+                    {{ f.docsGenerated ? 'Сформировано' : 'Сгенерировать' }}
                   </button>
                 </div>
                 <div class="rw-gen-docs">
-                  <div v-for="gd in genDocsList" :key="gd.k" class="rw-gen-doc" :class="{ 'rw-gd-ready': docsGenerated }">
+                  <div v-for="gd in genDocsList" :key="gd.k" class="rw-gen-doc" :class="{ 'rw-gd-ready': f.docsGenerated }">
                     <div class="rw-gd-head">
                       <span class="rw-gd-num">{{ gd.num }}</span>
-                      <span class="rw-gd-badge">{{ docsGenerated ? 'Готов' : 'Не готов' }}</span>
+                      <span class="rw-gd-badge">{{ f.docsGenerated ? 'Готов' : 'Не готов' }}</span>
                     </div>
                     <div>
                       <div class="rw-gd-title">{{ gd.title }}</div>
                       <div class="rw-gd-sub">{{ gd.sub }}</div>
                     </div>
                     <div class="rw-gd-actions">
-                      <button class="rw-btn rw-btn-secondary rw-btn-sm" type="button" :disabled="!docsGenerated || downloadingDoc === gd.k" @click="downloadDoc(gd.k)">
+                      <button class="rw-btn rw-btn-secondary rw-btn-sm" type="button" :disabled="!f.docsGenerated || downloadingDoc === gd.k" @click="downloadDoc(gd.k)">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                         {{ downloadingDoc === gd.k ? 'Скачивание…' : 'Скачать' }}
                       </button>
@@ -742,22 +747,6 @@
                   </label>
                 </div>
               </div>
-
-              <label class="rw-switch-row" id="consent-row" :class="{ 'is-locked': !packageComplete }" style="margin-top:1.5rem">
-                <div class="rw-sr-text">
-                  <div class="rw-sr-title">Подтверждаю комплектность пакета документов</div>
-                  <div class="rw-sr-sub">Все сканы соответствуют оригиналам, согласия и заявление подписаны законным представителем</div>
-                  <div v-if="!packageComplete" class="rw-sr-lock">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    Пока не хватает {{ missingDocs.length }} {{ pluralDocs(missingDocs.length) }} — подтвердить комплектность нельзя.
-                    Карточку при этом создать можно: недостающее догружается позже во вкладке «Документы».
-                  </div>
-                </div>
-                <span class="rw-switch">
-                  <input type="checkbox" v-model="f.consentConfirmed" :disabled="!packageComplete" />
-                  <span class="rw-slider"></span>
-                </span>
-              </label>
 
             </div>
           </div>
@@ -982,7 +971,6 @@ const emit = defineEmits(['close', 'saved']);
 const step = ref(1);
 const saving = ref(false);
 const today = new Date().toISOString().slice(0, 10);
-const docsGenerated = ref(false);
 const nosologyOpen = ref(false);
 const crgGroupOpen = ref(false);
 const crgSubOpen = ref(false);
@@ -1017,6 +1005,15 @@ const invOptions = [
   { v: '3',     l: 'III группа'      },
   { v: 'none',  l: 'Нет'             },
 ];
+
+const DISABLE_GROUP_BY_CODE = {
+  child: 'Ребенок-инвалид',
+  1: 'I группа',
+  2: 'II группа',
+  3: 'III группа',
+  none: 'Нет'
+};
+const disableGroupValue = () => DISABLE_GROUP_BY_CODE[f.value.rInvalidity] || 'Нет';
 
 const moscowOkruga = [
   'ЦАО — Центральный',
@@ -1136,18 +1133,18 @@ const makeEmptyForm = () => ({
   rDiagnosisList: [''],
 
   rDocType: 'birth',
-  rDocSeries: '', rDocNum: '', rDocDate: '', rDocRelation: '', rDocIssuer: '',
+  rDocSeries: '', rDocNum: '', rDocDate: '', rDocIssuer: '',
 
-  rRegOkrug: '', rAddrReg: '',
+  rRegOkrug: '', rRegArea: '', rAddrReg: '',
 
   rAddrSame: false,
-  rFactOkrug: '', rAddrFact: '',
+  rFactOkrug: '', rFactArea: '', rAddrFact: '',
 
   rEduName: '',
 
   rSpecial: '',
 
-  consentConfirmed: false,
+  docsGenerated: false,
 
   groupId: null,
 });
@@ -1159,6 +1156,7 @@ const hydrateForm = (saved) => {
     src.rDiagnosisList != null ? src.rDiagnosisList : src.rDiagnosis
   );
   delete form.rDiagnosis;
+  delete form.consentConfirmed;
   form.lrNone = src.lrNone === true;
   return form;
 };
@@ -1375,17 +1373,31 @@ const selectCrgSub = (sub) => {
   crgSubOpen.value = false;
 };
 
+let hydrating = false;
+const withoutWatchers = async (apply) => {
+  hydrating = true;
+  try {
+    apply();
+  } finally {
+    await nextTick();
+    hydrating = false;
+  }
+};
+
 let prevAgeCategory = null;
 watch(() => f.value.rBirth, () => {
   const age = crgAge.value;
   const cat = age === null ? null : (age < 18 ? 'child' : 'adult');
-  if (prevAgeCategory !== null && prevAgeCategory !== cat) {
+  if (!hydrating && prevAgeCategory !== null && prevAgeCategory !== cat) {
     f.value.rCrg = ''; f.value.rCrgSub = '';
   }
   prevAgeCategory = cat;
 });
 
-watch(() => f.value.rCrg, () => { f.value.rCrgSub = ''; });
+watch(() => f.value.rCrg, () => {
+  if (hydrating) return;
+  f.value.rCrgSub = '';
+});
 
 const uploads = ref({});
 const uploadCount = computed(() => Object.keys(uploads.value).length);
@@ -1448,11 +1460,10 @@ const requiredFields = computed(() => {
     ...tiles.value.filter(t => t.req).map(t => (
       { g: 'Сканы готовых документов', l: t.title, ok: !!uploads.value[t.k], a: '#tile-' + t.k }
     )),
-    { g: 'Документы на подпись', l: 'Сформировать пакет из 3 документов', ok: docsGenerated.value, a: '#gen-docs-btn' },
+    { g: 'Документы на подпись', l: 'Сформировать пакет из 3 документов', ok: f.value.docsGenerated === true, a: '#gen-docs-btn' },
     ...signedTiles.map(t => (
       { g: 'Подписанные документы', l: t.title, ok: !!signedUploads.value[t.k], a: '#tile-' + t.k }
     )),
-    { g: 'Завершение', l: 'Подтверждаю комплектность пакета документов', ok: v.consentConfirmed, a: '#consent-row' },
   ];
 
   return [step1, step2, step3];
@@ -1475,15 +1486,6 @@ const overallProgress = computed(() => {
 
 const allComplete = computed(() => stepProgress.value.every((s) => s.complete));
 
-const packageComplete = computed(() => {
-  const [s1, s2, s3] = requiredChecks.value;
-  return s1.every(Boolean) && s2.every(Boolean) && s3.slice(0, -1).every(Boolean);
-});
-
-watch(packageComplete, (ok) => {
-  if (!ok && f.value.consentConfirmed) f.value.consentConfirmed = false;
-}, { immediate: true });
-
 const personalComplete = computed(() => {
   const [s1, s2] = requiredChecks.value;
   return s1.every(Boolean) && s2.every(Boolean);
@@ -1491,7 +1493,7 @@ const personalComplete = computed(() => {
 
 const missingDocs = computed(() => {
   const list = requiredFields.value[2] || [];
-  return list.slice(0, -1).filter((x) => !x.ok);
+  return list.filter((x) => !x.ok);
 });
 
 const pluralDocs = (n) => {
@@ -1663,18 +1665,35 @@ const restoreDraftFiles = async () => {
   }
 };
 
-const loadDraft = () => {
+const loadDraft = async () => {
   try {
     const raw = localStorage.getItem(DRAFT_KEY);
     if (!raw) return;
     const saved = JSON.parse(raw);
     if (saved && typeof saved === 'object') {
-      f.value = hydrateForm(saved);
+      await withoutWatchers(() => { f.value = hydrateForm(saved); });
       draftState.value = 'saved';
     }
   } catch (e) {  }
 };
 const draftState = ref('');
+
+const DRAFT_STATE_TEXT = {
+  saving: 'Сохранение…',
+  saved: 'Черновик сохранён',
+  local: 'Только в этом браузере',
+  conflict: 'Черновик изменён другим'
+};
+const DRAFT_STATE_TITLE = {
+  saving: 'Сохранение…',
+  saved: 'Черновик сохранён на сервере',
+  local: 'На сервер черновик не ушёл — данные есть только в этом браузере. Проверьте, не истёк ли вход.',
+  conflict: 'Черновик изменил другой сотрудник — откройте его заново, чтобы не затереть правки'
+};
+const draftStateText = computed(() => DRAFT_STATE_TEXT[draftState.value] || 'Черновик сохранён');
+const draftStateTitle = computed(() => DRAFT_STATE_TITLE[draftState.value] || 'Черновик сохранён');
+const draftStateWarn = computed(() => draftState.value === 'local' || draftState.value === 'conflict');
+
 let draftStateTimer = null;
 let skipNextDraftSave = false;
 
@@ -1692,29 +1711,56 @@ const saveDraft = () => {
   scheduleServerSync();
   draftState.value = 'saving';
   if (draftStateTimer) clearTimeout(draftStateTimer);
-  draftStateTimer = setTimeout(() => { draftState.value = 'saved'; }, 400);
+  draftStateTimer = setTimeout(() => {
+    draftState.value = serverDraftFailed.value ? 'local' : 'saved';
+  }, 400);
 };
-const clearDraft = () => {
-  if (!confirm('Очистить черновик? Все введённые данные и приложенные сканы будут удалены безвозвратно.')) return;
+const resetWizardState = async () => {
   skipNextDraftSave = true;
-  f.value = makeEmptyForm();
+  await withoutWatchers(() => { f.value = makeEmptyForm(); });
   uploads.value = {};
   signedUploads.value = {};
-  docsGenerated.value = false;
   stepScroll.clear();
   step.value = 1;
   try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
   forgetDraftSavedAt();
-  dropDraftFiles();
-  dropServerDraft();
+  await dropDraftFiles();
   if (draftStateTimer) clearTimeout(draftStateTimer);
   draftState.value = '';
+};
+
+const clearDraft = async () => {
+  if (!confirm('Очистить черновик? Все введённые данные и приложенные сканы будут удалены безвозвратно.')) return;
+  await resetWizardState();
+  await dropServerDraft();
   notifySaved('Черновик очищен');
+};
+
+const startNewCard = async () => {
+  const hadDraft = !!serverDraftId.value;
+  const msg = hadDraft
+    ? 'Начать новую карточку?\n\nТекущий черновик останется на сервере — его можно открыть ' +
+      'из списка черновиков в разделе «Реабилитанты».'
+    : 'Начать новую карточку? Введённое сейчас будет очищено.';
+  if (!confirm(msg)) return;
+
+  await resetWizardState();
+  serverDraftId.value = null;
+  serverDraftUpdatedAt.value = null;
+  serverDraftFailed.value = false;
+  forgetDraftServerId();
+  if (serverSyncTimer) { clearTimeout(serverSyncTimer); serverSyncTimer = null; }
+
+  notifySaved(hadDraft
+    ? 'Прежний черновик сохранён — он в списке черновиков'
+    : 'Можно заполнять новую карточку');
 };
 
 const SERVER_SYNC_DELAY = 1500;
 
 const serverDraftId = ref(readDraftServerId());
+const serverDraftUpdatedAt = ref(null);
+const serverDraftFailed = ref(false);
 let serverSyncTimer = null;
 let serverSyncBusy = false;
 let serverSyncAgain = false;
@@ -1730,13 +1776,33 @@ const pushDraftToServer = async () => {
   try {
     const payload = JSON.parse(JSON.stringify(f.value));
     if (serverDraftId.value) {
-      await api.put(`/recipients/drafts/${serverDraftId.value}`, { payload });
+      const { data } = await api.put(`/recipients/drafts/${serverDraftId.value}`, {
+        payload,
+        knownUpdatedAt: serverDraftUpdatedAt.value
+      });
+      serverDraftUpdatedAt.value = data?.updatedAt || null;
     } else {
       const { data } = await api.post('/recipients/drafts', { payload });
-      if (data?.id) { serverDraftId.value = data.id; rememberDraftServerId(data.id); }
+      if (data?.id) {
+        serverDraftId.value = data.id;
+        serverDraftUpdatedAt.value = data.updatedAt || null;
+        rememberDraftServerId(data.id);
+      }
     }
+    serverDraftFailed.value = false;
   } catch (err) {
     console.error('черновик не ушёл на сервер:', err);
+    serverDraftFailed.value = true;
+    if (err?.response?.status === 409) {
+      draftState.value = 'conflict';
+      notifySaved(
+        err?.response?.data?.message ||
+        'Черновик изменил другой сотрудник — откройте его заново, чтобы не затереть правки',
+        { key: 'draft-conflict' }
+      );
+    } else {
+      draftState.value = 'local';
+    }
   } finally {
     serverSyncBusy = false;
     if (serverSyncAgain) { serverSyncAgain = false; pushDraftToServer(); }
@@ -1832,7 +1898,8 @@ const openServerDraft = async (id) => {
     await dropDraftFiles();
     uploads.value = {};
     signedUploads.value = {};
-    f.value = hydrateForm(data.payload);
+    await withoutWatchers(() => { f.value = hydrateForm(data.payload); });
+    serverDraftUpdatedAt.value = data.updatedAt || null;
     draftState.value = 'saved';
     const main = {};
     const signed = {};
@@ -1862,7 +1929,12 @@ const draftKept = () => {
   const hasFiles =
     Object.keys(uploads.value).length > 0 || Object.keys(signedUploads.value).length > 0;
   if (!draftState.value && !hasFiles) return;
-  notifySaved('Черновик сохранён — при следующем открытии всё будет на месте');
+  notifySaved(
+    serverDraftFailed.value
+      ? 'Черновик сохранён только в этом браузере — на сервер он не ушёл. ' +
+        'Не закрывайте вкладку в другом браузере и проверьте, не истёк ли вход.'
+      : 'Черновик сохранён — при следующем открытии всё будет на месте'
+  );
 };
 
 if (props.draftId) {
@@ -2138,16 +2210,33 @@ function applyScan() {
   closeScan();
 }
 
+const MAX_SCAN_MB = 15;
+const ALLOWED_SCAN_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
+
+const rejectFile = (file, e) => {
+  if (file.size > MAX_SCAN_MB * 1024 * 1024) {
+    e.target.value = '';
+    alert(`Файл «${file.name}» больше ${MAX_SCAN_MB} МБ — выберите файл меньшего размера.`);
+    return true;
+  }
+  if (file.type && !ALLOWED_SCAN_TYPES.includes(file.type)) {
+    e.target.value = '';
+    alert(`Файл «${file.name}» не подходит: нужен PDF, JPG, PNG или WEBP.`);
+    return true;
+  }
+  return false;
+};
+
 const onFile = (key, e) => {
   const file = e.target.files[0];
-  if (!file) return;
+  if (!file || rejectFile(file, e)) return;
   uploads.value = { ...uploads.value, [key]: file };
   rememberDraftFile('main', key, file);
   uploadDraftScan(key, file);
 };
 const onSignedFile = (key, e) => {
   const file = e.target.files[0];
-  if (!file) return;
+  if (!file || rejectFile(file, e)) return;
   signedUploads.value = { ...signedUploads.value, [key]: file };
   rememberDraftFile('signed', key, file);
   uploadDraftScan(key, file);
@@ -2213,11 +2302,11 @@ const generateDocs = () => {
     alert('Заполните ФИО реабилитанта (шаг 2), чтобы сформировать документы');
     return;
   }
-  docsGenerated.value = true;
+  f.value.docsGenerated = true;
 };
 
 const downloadDoc = async (key) => {
-  if (!docsGenerated.value || downloadingDoc.value) return;
+  if (!f.value.docsGenerated || downloadingDoc.value) return;
   downloadingDoc.value = key;
   try {
     const resp = await api.post(
@@ -2377,17 +2466,19 @@ const save = async () => {
 
     const { data: createdRecipient } = await api.post('/recipients/intake', {
       recipient: {
-        firstName:  f.value.rFirst,
-        middleName: f.value.rMid,
-        lastName:   f.value.rLast,
-        birthDate:  f.value.rBirth || null,
-        diagnosis:  joinDiagnoses(f.value.rDiagnosisList),
-        status:     'active',
+        firstName:    f.value.rFirst,
+        middleName:   f.value.rMid,
+        lastName:     f.value.rLast,
+        birthDate:    f.value.rBirth || null,
+        diagnosis:    joinDiagnoses(f.value.rDiagnosisList),
+        disableGroup: disableGroupValue(),
+        status:       'active',
       },
       representative: noRep.value ? null : {
         firstName:          f.value.lrFirst,
         middleName:         f.value.lrMid,
         lastName:           f.value.lrLast,
+        relation:           f.value.lrRelation,
         telephone:          f.value.lrPhone,
         passportSeries:     f.value.lrPassSeries,
         passportNumber:     f.value.lrPassNum,
@@ -2400,7 +2491,7 @@ const save = async () => {
       groupId:         f.value.groupId,
       familyStatuses:  noRep.value ? [] : f.value.lrFamilyStatus,
       nozologyClasses: f.value.rNosology,
-      crg:             { code: crgNum, child: crgChild },
+      crg:             { code: crgNum, child: crgChild, subCode: selectedCrgSub.value?.num || '' },
       doc: {
         docType:        f.value.rDocType === 'birth' ? 'birth' : 'passport',
         docSeries:      f.value.rDocSeries,
@@ -2417,10 +2508,15 @@ const save = async () => {
         district:       f.value.rAddrSame
                           ? f.value.rRegOkrug
                           : (f.value.rFactOkrug || f.value.rRegOkrug),
+        area:           f.value.rAddrSame
+                          ? f.value.rRegArea
+                          : (f.value.rFactArea || f.value.rRegArea),
         educationPlace: f.value.rEduName,
         specialNote:    f.value.rSpecial,
       },
     });
+
+    let scansFailed = null;
 
     if (createdRecipient?.id) {
       const scans = [];
@@ -2446,7 +2542,12 @@ const save = async () => {
         });
       }
       if (scans.length) {
-        await api.post(`/recipients/${createdRecipient.id}/scans`, { scans });
+        try {
+          await api.post(`/recipients/${createdRecipient.id}/scans`, { scans });
+        } catch (scanErr) {
+          console.error(scanErr);
+          scansFailed = scanErr?.response?.data?.message || scanErr?.message || 'неизвестная ошибка';
+        }
       }
     }
 
@@ -2457,7 +2558,16 @@ const save = async () => {
     savedToDb = true;
     draftState.value = '';
     const fio = [f.value.rLast, f.value.rFirst].filter(Boolean).join(' ').trim();
-    notifySaved(fio ? `Реабилитант ${fio} сохранён` : 'Реабилитант сохранён');
+
+    if (scansFailed) {
+      alert(
+        `Карточка ${fio || 'реабилитанта'} создана, но сканы к ней не загрузились: ${scansFailed}\n\n` +
+        'Повторять создание карточки не нужно — она уже есть. ' +
+        'Приложите файлы в карточке реабилитанта, вкладка «Документы».'
+      );
+    } else {
+      notifySaved(fio ? `Реабилитант ${fio} сохранён` : 'Реабилитант сохранён');
+    }
     emit('saved', createdRecipient);
     emit('close');
   } catch (err) {
@@ -2677,6 +2787,8 @@ onUnmounted(() => {
   flex: 0 0 0.4375rem;
 }
 .rw-save-state.is-saving .rw-save-dot { background: var(--rw-ink-muted); }
+.rw-save-state.is-warn { color: var(--rw-amber-700); font-weight: 600; }
+.rw-save-state.is-warn .rw-save-dot { background: var(--rw-amber-500); }
 .rw-close-btn {
   width: 2.25rem; height: 2.25rem;
   border-radius: 0.5rem;
@@ -3274,7 +3386,6 @@ onUnmounted(() => {
 }
 .rw-sr-text { flex: 1; min-width: 0; }
 .rw-sr-title { font-size: 0.9375rem; font-weight: 600; color: var(--rw-ink-strong); }
-.rw-sr-sub { font-size: 0.8125rem; color: var(--rw-ink-muted); margin-top: 0.1875rem; line-height: 1.45; }
 .rw-switch {
   position: relative; display: inline-block;
   width: 2.75rem; height: 1.625rem; flex: 0 0 2.75rem; margin-top: 0.125rem;
@@ -3294,16 +3405,6 @@ onUnmounted(() => {
 }
 .rw-switch input:checked + .rw-slider { background: var(--rw-sage-500); }
 .rw-switch input:checked + .rw-slider::before { transform: translateX(1.125rem); }
-.rw-switch input:disabled + .rw-slider { cursor: not-allowed; opacity: 0.55; }
-.rw-switch-row.is-locked { cursor: not-allowed; }
-.rw-switch-row.is-locked .rw-slider { cursor: not-allowed; }
-.rw-sr-lock {
-  display: flex; align-items: flex-start; gap: 0.4rem;
-  margin-top: 0.5rem;
-  font-size: 0.8125rem; font-weight: 500; line-height: 1.4;
-  color: var(--rw-amber-700);
-}
-.rw-sr-lock svg { width: 0.95rem; height: 0.95rem; flex: 0 0 auto; margin-top: 0.06rem; color: var(--rw-amber-500); }
 .rw-subsection {
   margin-top: 1.75rem; padding-top: 1.5rem;
   border-top: 1px solid var(--rw-line-soft);

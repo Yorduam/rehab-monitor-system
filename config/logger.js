@@ -8,9 +8,16 @@ const logger = pino({
     paths: [
       'req.headers.cookie',
       'req.headers.authorization',
+      'req.headers["x-access-token"]',
       'res.headers["set-cookie"]',
+      'headers.cookie',
+      'headers["set-cookie"]',
       'req.body.password',
-      'req.body.token'
+      'req.body.currentPassword',
+      'req.body.newPassword',
+      'req.body.token',
+      'req.body.base64',
+      'req.body.scans'
     ],
     censor: '[скрыто]'
   },

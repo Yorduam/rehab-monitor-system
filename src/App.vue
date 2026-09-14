@@ -76,15 +76,38 @@ const componentMap = {
   'recipient-details': RecipientDetails
 };
 
+const PAGE_ROLES = {
+  recipients: ['admin', 'employee', 'teacher'],
+  groups: ['admin', 'employee', 'teacher'],
+  diagnostics: ['admin', 'employee', 'teacher'],
+  progress: ['admin', 'employee', 'teacher'],
+  schedule: ['admin', 'employee', 'teacher'],
+  'recipient-details': ['admin', 'employee', 'teacher'],
+  'admin-users': ['admin']
+};
+
+const canOpenPage = (page) => {
+  const allowed = PAGE_ROLES[page];
+  if (!allowed) return true;
+  return allowed.includes(authStore.user?.role);
+};
+
 const currentComponent = computed(() => {
+  const page = pageStore.current;
 
-  if (pageStore.current === 'dashboard' && authStore.isAdmin) return AdminDashboard;
+  if (!canOpenPage(page)) return dashboardForRole();
 
-  if (pageStore.current === 'dashboard' && authStore.isEmployee) return EmployeeDashboard;
-  if (pageStore.current === 'dashboard' && authStore.isTeacher) return TeacherDashboard;
-  if (pageStore.current === 'documents' && authStore.isEmployee) return EmployeeDocuments;
-  return componentMap[pageStore.current] || Dashboard;
+  if (page === 'dashboard') return dashboardForRole();
+  if (page === 'documents' && authStore.isEmployee) return EmployeeDocuments;
+  return componentMap[page] || dashboardForRole();
 });
+
+function dashboardForRole() {
+  if (authStore.isAdmin) return AdminDashboard;
+  if (authStore.isEmployee) return EmployeeDashboard;
+  if (authStore.isTeacher) return TeacherDashboard;
+  return Dashboard;
+}
 
 let stopViewportWatch = null;
 

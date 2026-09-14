@@ -274,13 +274,22 @@ const saveDoc = async () => {
 
 const deleteDoc = async (d) => {
   const target = d || doc.value;
-  if (!target || !confirm('Удалить документ?')) return;
+  if (!target) return;
+  const reason = prompt(
+    'Удаление анкеты документов записывается в журнал изменений.\n' +
+    'Укажите причину (не менее 3 символов):'
+  );
+  if (reason === null) return;
+  if (String(reason).trim().length < 3) {
+    alert('Причина обязательна — не менее 3 символов.');
+    return;
+  }
   try {
-    await api.delete(`/documents/${target.id}`);
+    await api.delete(`/documents/${target.id}`, { data: { reason: String(reason).trim() } });
     await reload();
   } catch (err) {
     console.error(err);
-    alert('Не удалось удалить документ');
+    alert(err?.response?.data?.message || 'Не удалось удалить документ');
   }
 };
 

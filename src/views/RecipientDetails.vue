@@ -182,11 +182,35 @@
                   </div>
                   <div class="kv">
                     <dt class="kv-key">Группа инвалидности</dt>
-                    <dd class="kv-val"><span class="kv-text">{{ recipient.disableGroup || '—' }}</span></dd>
+                    <dd class="kv-val">
+                      <template v-if="isLocked('medical')">
+                        <span class="kv-mask">•••</span>
+                        <span class="kv-tools">
+                          <button type="button" class="kv-tool" title="Показать данные"
+                                  aria-label="Показать группу инвалидности — с указанием причины"
+                                  @click="openReveal('medical')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                          </button>
+                        </span>
+                      </template>
+                      <span v-else class="kv-text">{{ recipient.disableGroup || '—' }}</span>
+                    </dd>
                   </div>
                   <div class="kv">
                     <dt class="kv-key">Округ проживания</dt>
-                    <dd class="kv-val"><span class="kv-text"><span v-if="district?.code" class="code">{{ district.code }}</span>{{ district?.name || '—' }}</span></dd>
+                    <dd class="kv-val">
+                      <template v-if="isLocked('contacts')">
+                        <span class="kv-mask">•••</span>
+                        <span class="kv-tools">
+                          <button type="button" class="kv-tool" title="Показать данные"
+                                  aria-label="Показать округ проживания — с указанием причины"
+                                  @click="openReveal('contacts')">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                          </button>
+                        </span>
+                      </template>
+                      <span v-else class="kv-text"><span v-if="district?.code" class="code">{{ district.code }}</span>{{ district?.name || '—' }}</span>
+                    </dd>
                   </div>
                   <div class="kv kv-full">
                     <dt class="kv-key">Целевая реабилитационная группа (ЦРГ)</dt>
@@ -311,16 +335,58 @@
                   </span>
                   <span class="pd-note-text">Вы завели эту карточку — данные открыты без запроса доступа ещё {{ authorWindowLeft }}.</span>
                 </div>
-                <dl class="kv-grid">
-                  <div class="kv kv-full">
-                    <dt class="kv-key">Заведена</dt>
-                    <dd class="kv-val"><span class="kv-text">{{ createdLine }}</span></dd>
+                <div class="au">
+                  <div class="au-row">
+                    <span class="au-ic" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+                    </span>
+                    <div class="au-body">
+                      <div class="au-key">Заведена</div>
+                      <div class="au-when">
+                        <span class="au-abs">{{ createdAtText }}</span>
+                        <span v-if="createdAgoText" class="au-ago">{{ createdAgoText }}</span>
+                      </div>
+                      <div class="au-who">{{ createdWhoText }}</div>
+                    </div>
                   </div>
-                  <div class="kv kv-full">
-                    <dt class="kv-key">Последнее изменение</dt>
-                    <dd class="kv-val"><span class="kv-text" :title="audit?.changeReason || ''">{{ changedLine }}</span></dd>
+
+                  <div class="au-row">
+                    <span class="au-ic" aria-hidden="true">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
+                    </span>
+                    <div class="au-body">
+                      <div class="au-key">Последнее изменение</div>
+                      <template v-if="wasChanged">
+                        <div class="au-when">
+                          <span class="au-abs">{{ changedAtText }}</span>
+                          <span v-if="changedAgoText" class="au-ago">{{ changedAgoText }}</span>
+                        </div>
+                        <div class="au-who">{{ changedWhoText }}</div>
+                        <div v-if="changedFieldsText" class="au-extra">Изменено: {{ changedFieldsText }}</div>
+                        <div v-if="audit?.changeReason" class="au-extra">Причина: {{ audit.changeReason }}</div>
+                      </template>
+                      <div v-else class="au-none">С момента создания карточку не редактировали</div>
+                    </div>
                   </div>
-                </dl>
+                </div>
+
+                <template v-if="auditHistory.length">
+                  <button type="button" class="au-toggle" :aria-expanded="auditHistoryOpen ? 'true' : 'false'"
+                          @click="auditHistoryOpen = !auditHistoryOpen">
+                    <span>{{ auditToggleText }}</span>
+                    <svg class="au-chev" :class="{ 'is-open': auditHistoryOpen }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  <ol v-if="auditHistoryOpen" class="hist au-hist">
+                    <li v-for="h in auditHistory" :key="h.id" class="hist-item">
+                      <div class="hist-head">
+                        <span class="hist-date">{{ formatDateTime(h.changedAt) }}</span>
+                        <span class="hist-author">{{ auditWho(h.changedByName, h.changedByRole) || 'Автор не записан' }}</span>
+                      </div>
+                      <div class="hist-reason">{{ h.reason || 'Причина не указана' }}</div>
+                      <div v-if="auditFieldsText(h.fields)" class="hist-fields">Изменено: {{ auditFieldsText(h.fields) }}</div>
+                    </li>
+                  </ol>
+                </template>
               </div>
             </section>
           </aside>
@@ -343,8 +409,20 @@
               <dl class="kv-grid">
                 <div class="kv kv-full"><dt class="kv-key">ФИО</dt><dd class="kv-val"><span class="kv-text">{{ fullName(recipient) || '—' }}</span></dd></div>
                 <div class="kv"><dt class="kv-key">Дата рождения</dt><dd class="kv-val"><span class="kv-text">{{ formatDate(recipient.birthDate) }}<template v-if="age != null"> · {{ age }} {{ yearsWord(age) }}</template></span></dd></div>
-                <div class="kv"><dt class="kv-key">Группа инвалидности</dt><dd class="kv-val"><span class="kv-text">{{ recipient.disableGroup || '—' }}</span></dd></div>
-                <div class="kv kv-full"><dt class="kv-key">Место обучения</dt><dd class="kv-val"><span class="kv-text">{{ doc?.educationPlace || '—' }}</span></dd></div>
+                <div class="kv">
+                  <dt class="kv-key">Группа инвалидности</dt>
+                  <dd class="kv-val">
+                    <span v-if="isLocked('medical')" class="kv-mask">•••</span>
+                    <span v-else class="kv-text">{{ recipient.disableGroup || '—' }}</span>
+                  </dd>
+                </div>
+                <div class="kv kv-full">
+                  <dt class="kv-key">Место обучения</dt>
+                  <dd class="kv-val">
+                    <span v-if="isLocked('contacts')" class="kv-mask">•••</span>
+                    <span v-else class="kv-text">{{ doc?.educationPlace || '—' }}</span>
+                  </dd>
+                </div>
               </dl>
 
               <p class="subtitle" style="margin-top:1.25rem;">Документ, удостоверяющий личность</p>
@@ -469,8 +547,20 @@
                   </dd>
                 </div>
 
-                <div class="kv"><dt class="kv-key">Округ проживания</dt><dd class="kv-val"><span class="kv-text"><span v-if="district?.code" class="code">{{ district.code }}</span>{{ district?.name || '—' }}</span></dd></div>
-                <div class="kv"><dt class="kv-key">Район</dt><dd class="kv-val"><span class="kv-text">{{ doc?.area || '—' }}</span></dd></div>
+                <div class="kv">
+                  <dt class="kv-key">Округ проживания</dt>
+                  <dd class="kv-val">
+                    <span v-if="isLocked('contacts')" class="kv-mask">•••</span>
+                    <span v-else class="kv-text"><span v-if="district?.code" class="code">{{ district.code }}</span>{{ district?.name || '—' }}</span>
+                  </dd>
+                </div>
+                <div class="kv">
+                  <dt class="kv-key">Район</dt>
+                  <dd class="kv-val">
+                    <span v-if="isLocked('contacts')" class="kv-mask">•••</span>
+                    <span v-else class="kv-text">{{ doc?.area || '—' }}</span>
+                  </dd>
+                </div>
               </dl>
             </div>
           </section>
@@ -1742,7 +1832,7 @@
           <div class="modal-body">
             <label class="field">
               <span class="field-key">Тип документа <span class="req">— обязательно</span></span>
-              <select v-model="uploadCode" class="input" :disabled="uploadIsReplace || uploadSaving">
+              <select v-model="uploadCode" class="input" :disabled="uploadSaving">
                 <option value="">— выберите тип —</option>
                 <option v-for="t in uploadTypes" :key="t.code" :value="t.code">{{ t.name }}</option>
               </select>
@@ -1754,7 +1844,9 @@
                      :disabled="uploadSaving" @change="pickUploadFile" />
             </label>
             <p class="modal-note" style="margin-bottom:.875rem;">
-              Изображение или PDF, не больше {{ MAX_SCAN_MB }} МБ. Прежняя версия не удаляется — останется в истории с автором, датой и причиной замены.
+              Изображение или PDF, не больше {{ MAX_SCAN_MB }} МБ.
+              <template v-if="uploadIsReplace">Прежняя версия не удаляется — останется в истории с автором, датой и причиной замены.</template>
+              <template v-else>По этому типу документов файлов ещё нет — он будет загружен как первая версия.</template>
             </p>
 
             <div v-if="uploadFile" class="rs-picked">
@@ -1837,7 +1929,7 @@
           <div class="modal-foot">
             <button type="button" class="btn btn-secondary" @click="closeScanHistory">Закрыть</button>
             <button v-if="canUploadScans" type="button" class="btn btn-primary"
-                    @click="openUpload({ code: historyScan.docTypeRef?.code, scan: historyScan }); closeScanHistory()">
+                    @click="openUpload({ code: historyScan.docTypeRef?.code }); closeScanHistory()">
               Загрузить новую версию
             </button>
           </div>
@@ -2467,31 +2559,108 @@ const formatDateTime = (v) => {
 
 const audit = computed(() => recipient.value?.audit || null);
 
-const createdLine = computed(() => {
-  const a = audit.value;
-  if (!a?.createdAt) return 'Заведена до того, как система начала вести учёт автора';
-  return formatDateTime(a.createdAt) + (a.createdByName ? ` · ${a.createdByName}` : '');
-});
-
-const changedLine = computed(() => {
-  const a = audit.value;
-  if (!a?.changedAt) return 'С момента создания карточку не редактировали';
-  return formatDateTime(a.changedAt) + (a.changedByName ? ` · ${a.changedByName}` : '');
-});
-
 const now = ref(Date.now());
 let nowTimer = null;
+
+const plural = (n, one, few, many) => {
+  if (n % 100 >= 11 && n % 100 <= 14) return many;
+  const last = n % 10;
+  if (last === 1) return one;
+  if (last >= 2 && last <= 4) return few;
+  return many;
+};
 
 const authorWindowLeft = computed(() => {
   const until = Number(recipient.value?.authorWindowUntil) || 0;
   const left = until - now.value;
   if (left <= 0) return '';
   const minutes = Math.ceil(left / 60000);
-  const last = minutes % 10;
-  const word = minutes % 100 >= 11 && minutes % 100 <= 14 ? 'минут'
-    : last === 1 ? 'минуту'
-      : last >= 2 && last <= 4 ? 'минуты' : 'минут';
-  return `${minutes} ${word}`;
+  return `${minutes} ${plural(minutes, 'минуту', 'минуты', 'минут')}`;
+});
+
+const timeAgo = (v) => {
+  if (!v) return '';
+  const t = new Date(v).getTime();
+  if (Number.isNaN(t)) return '';
+  const diff = now.value - t;
+  if (diff < 0) return '';
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return 'только что';
+  if (minutes < 60) return `${minutes} ${plural(minutes, 'минуту', 'минуты', 'минут')} назад`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} ${plural(hours, 'час', 'часа', 'часов')} назад`;
+  const days = Math.floor(hours / 24);
+  if (days === 1) return 'вчера';
+  if (days < 31) return `${days} ${plural(days, 'день', 'дня', 'дней')} назад`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${months} ${plural(months, 'месяц', 'месяца', 'месяцев')} назад`;
+  const years = Math.floor(days / 365);
+  return `${years} ${plural(years, 'год', 'года', 'лет')} назад`;
+};
+
+const AUDIT_FIELD_ALIASES = {
+  docs: 'документ',
+  deleted: 'документ удалён',
+  'recipient.deleted': 'карточка удалена'
+};
+
+const auditFieldLabel = (key) => {
+  const f = String(key || '').trim();
+  if (!f) return '';
+  if (AUDIT_FIELD_ALIASES[f]) return AUDIT_FIELD_ALIASES[f];
+  if (f.startsWith('representative.')) {
+    const base = f.slice('representative.'.length);
+    return `${CARD_LABELS[base] || FIELD_LABELS[base]?.toLowerCase() || base} представителя`;
+  }
+  return CARD_LABELS[f] || FIELD_LABELS[f]?.toLowerCase() || f;
+};
+
+const auditFieldsText = (fields) => {
+  const list = (Array.isArray(fields) ? fields : []).map(auditFieldLabel).filter(Boolean);
+  if (!list.length) return '';
+  if (list.length <= 4) return list.join(', ');
+  return `${list.slice(0, 4).join(', ')} и ещё ${list.length - 4}`;
+};
+
+const auditWho = (name, role) => {
+  if (!name) return '';
+  return role ? `${name} · ${role}` : name;
+};
+
+const createdAtText = computed(() =>
+  audit.value?.createdAt ? formatDateTime(audit.value.createdAt) : 'Дата не записана'
+);
+const createdAgoText = computed(() => timeAgo(audit.value?.createdAt));
+const createdWhoText = computed(() => {
+  const a = audit.value;
+  const who = auditWho(a?.createdByName, a?.createdByRole);
+  return who || 'Автор не записан — карточка заведена до перехода на журнал';
+});
+
+const wasChanged = computed(() => !!audit.value?.changedAt);
+const changedAtText = computed(() =>
+  audit.value?.changedAt ? formatDateTime(audit.value.changedAt) : ''
+);
+const changedAgoText = computed(() => timeAgo(audit.value?.changedAt));
+const changedWhoText = computed(() => {
+  const a = audit.value;
+  return auditWho(a?.changedByName, a?.changedByRole) || 'Автор правки не записан';
+});
+const changedFieldsText = computed(() => auditFieldsText(audit.value?.changedFields));
+
+const auditHistory = computed(() => {
+  const list = audit.value?.history;
+  return Array.isArray(list) ? list : [];
+});
+const auditEdits = computed(() => Number(audit.value?.editsCount) || 0);
+const auditHistoryOpen = ref(false);
+
+const auditToggleText = computed(() => {
+  if (auditHistoryOpen.value) return 'Свернуть историю правок';
+  const total = auditEdits.value;
+  const shown = auditHistory.value.length;
+  if (shown < total) return `Показать последние ${shown} правок из ${total}`;
+  return `Показать все правки (${total})`;
 });
 
 const loadRecipient = async () => {
@@ -2936,7 +3105,6 @@ const docJournal = computed(() => {
 
 const uploadOpen = ref(false);
 const uploadCode = ref('');
-const uploadScan = ref(null);
 const uploadFile = ref(null);
 const uploadPreview = ref('');
 const uploadIssuedAt = ref('');
@@ -2951,7 +3119,8 @@ const uploadInputRef = ref(null);
 const uploadTypes = computed(() =>
   docTypes.value.map((t) => ({ code: t.code, name: t.name }))
 );
-const uploadIsReplace = computed(() => !!uploadScan.value);
+const uploadTargetScan = computed(() => (uploadCode.value ? scanByCode(uploadCode.value) : null));
+const uploadIsReplace = computed(() => !!uploadTargetScan.value);
 const uploadTypeName = computed(
   () => docTypes.value.find((t) => t.code === uploadCode.value)?.name || 'Новый документ'
 );
@@ -2962,7 +3131,7 @@ const canSaveUpload = computed(
   () => !!uploadCode.value && !!uploadFile.value && uploadReasonValid.value && !uploadSaving.value
 );
 const uploadPrevTerm = computed(() => {
-  const s = uploadScan.value;
+  const s = uploadTargetScan.value;
   if (!s) return '';
   return docTerm(uploadCode.value, s);
 });
@@ -2978,20 +3147,32 @@ const revokeUploadPreview = () => {
   uploadPreview.value = '';
 };
 
-const openUpload = (row = null) => {
-  uploadCode.value = row?.code || '';
-  uploadScan.value = row?.scan || null;
-  uploadFile.value = null;
-  revokeUploadPreview();
-  const info = row ? docTermInfo(row.code, row.scan) : { perpetual: false, issued: null, until: null };
+const applyUploadTerm = () => {
+  const code = uploadCode.value;
+  const info = code
+    ? docTermInfo(code, scanByCode(code))
+    : { perpetual: false, issued: null, until: null };
   uploadIssuedAt.value = info.issued ? String(info.issued).slice(0, 10) : '';
   uploadValidUntil.value = info.until ? String(info.until).slice(0, 10) : '';
   uploadPerpetual.value = !!info.perpetual;
+};
+
+const openUpload = (row = null) => {
+  uploadCode.value = row?.code || '';
+  uploadFile.value = null;
+  revokeUploadPreview();
+  applyUploadTerm();
   uploadReason.value = '';
   uploadTouched.value = false;
   uploadError.value = '';
   uploadOpen.value = true;
 };
+
+watch(uploadCode, () => {
+  if (!uploadOpen.value) return;
+  applyUploadTerm();
+  uploadError.value = '';
+});
 
 const closeUpload = () => {
   if (uploadSaving.value) return;
@@ -5025,6 +5206,39 @@ textarea.input { min-height: 5rem; resize: vertical; }
 .hist-reason { font-size: 0.9375rem; color: var(--ink-strong); }
 .hist-fields { font-size: 0.8125rem; color: var(--ink-muted); margin-top: 0.1875rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .hist-head .pill { margin-left: auto; }
+
+.au { display: grid; gap: 0.875rem; }
+.au-row { display: flex; gap: 0.75rem; align-items: flex-start; }
+.au-ic {
+  flex: 0 0 2rem; width: 2rem; height: 2rem; border-radius: 0.625rem; margin-top: 0.125rem;
+  background: var(--paper-sunken); color: var(--ink-muted); display: grid; place-items: center;
+}
+.au-ic svg { width: 1.0625rem; height: 1.0625rem; }
+.au-body { flex: 1 1 auto; min-width: 0; }
+.au-key {
+  font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.06em;
+  font-weight: 600; color: var(--ink-muted); margin-bottom: 0.25rem;
+}
+.au-when { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0.375rem 0.5rem; }
+.au-abs { font-size: 0.9375rem; font-weight: 600; color: var(--ink-strong); }
+.au-ago {
+  font-size: 0.75rem; color: var(--ink-muted); background: var(--paper-sunken);
+  border-radius: 0.375rem; padding: 0.0625rem 0.375rem; white-space: nowrap;
+}
+.au-who { font-size: 0.875rem; color: var(--ink); margin-top: 0.1875rem; word-break: break-word; }
+.au-extra { font-size: 0.8125rem; color: var(--ink-muted); line-height: 1.4; margin-top: 0.1875rem; word-break: break-word; }
+.au-none { font-size: 0.875rem; color: var(--ink-muted); line-height: 1.4; }
+.au-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
+  width: 100%; min-height: 2.5rem; margin-top: 0.875rem;
+  padding: 0.5rem 0.75rem; border: 0.0625rem solid var(--line); border-radius: var(--radius-md);
+  background: var(--paper-soft); color: var(--ink-strong);
+  font-size: 0.8125rem; font-weight: 600; font-family: inherit; text-align: left; cursor: pointer;
+}
+.au-toggle:hover { background: var(--paper-sunken); }
+.au-chev { width: 1rem; height: 1rem; flex: 0 0 1rem; color: var(--ink-muted); transition: transform 0.15s ease; }
+.au-chev.is-open { transform: rotate(180deg); }
+.au-hist { margin-top: 0.25rem; }
 
 @media (max-width: 48rem) {
   .cyc-summary { gap: 0.625rem 1.25rem; }

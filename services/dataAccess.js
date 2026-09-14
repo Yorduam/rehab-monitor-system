@@ -107,19 +107,24 @@ export const logAccess = async (req, entry) => {
       userAgent: String(req.headers['user-agent'] || '').slice(0, 255),
       createdAt: new Date()
     });
+    return true;
   } catch (err) {
-    req.log?.error({ err }, 'не удалось записать обращение в журнал доступа');
+    req.log?.fatal(
+      { err, alert: 'AUDIT_WRITE_FAILED', entry: { ...entry, reasonText: undefined } },
+      'ЖУРНАЛ ДОСТУПА НЕ ПИШЕТСЯ — обращения к персональным данным не фиксируются'
+    );
+    return false;
   }
 };
 
 export const RECIPIENT_FIELDS = {
   contacts: ['telephone', 'email'],
-  medical: ['diagnosis', 'nozology']
+  medical: ['diagnosis', 'nozology', 'disableGroup']
 };
 
 export const DOC_FIELDS = {
   passport: ['docSeries', 'docNumber', 'docIssuer', 'docIssuerDate', 'snils'],
-  contacts: ['regAddress', 'factAddress'],
+  contacts: ['regAddress', 'factAddress', 'district', 'area', 'educationPlace'],
   medical: ['mseIssueDate', 'mseValidDate', 'mseIndefinite', 'specialNote']
 };
 
@@ -145,6 +150,18 @@ export const CATEGORY_OF = {
 const blankOut = (target, fields) => {
   if (!target) return;
   for (const f of fields) if (f in target) target[f] = null;
+};
+
+export const redactDocRow = (doc, req) => {
+  const plain = typeof doc.toJSON === 'function' ? doc.toJSON() : { ...doc };
+  const hidden = [];
+  for (const category of CATEGORIES) {
+    if (hasGrant(req, plain.recipientId, category)) continue;
+    hidden.push(category);
+    blankOut(plain, DOC_FIELDS[category] || []);
+  }
+  plain.hiddenCategories = hidden;
+  return plain;
 };
 
 export const redactRecipient = (recipient, req) => {

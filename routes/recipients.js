@@ -16,6 +16,7 @@ import { getRecipientReadiness } from '../services/recipientReadiness.js';
 import { getEnrollmentState, generateEnrollmentDocument } from '../services/enrollmentDocs.js';
 import { summarizeDraft } from '../src/utils/recipientDraft.js';
 import { buildScanFileName } from '../services/scanFileName.js';
+import { readScan, sendScanFile, MAX_SCANS_PER_REQUEST } from '../services/fileGuard.js';
 import {
   CATEGORIES, CATEGORY_LABELS, REASON_CODES, GRANT_MS, CATEGORY_OF,
   hasGrant, grantAccess, loadGrants, validateReason, logAccess, redactRecipient, isAdmin,
@@ -47,20 +48,6 @@ const detailInclude = [
   { model: RecipientDoc, as: 'docs' }
 ];
 
-const RECIPIENT_FIELDS = [
-  'userId', 'firstName', 'middleName', 'lastName', 'birthDate', 'email',
-  'telephone', 'photo', 'representativeId', 'status', 'disableGroup',
-  'diagnosis', 'nozology', 'groupId', 'CRGMain'
-];
-
-function pickFields(body) {
-  const out = {};
-  for (const key of RECIPIENT_FIELDS) {
-    if (body[key] !== undefined) out[key] = body[key];
-  }
-  return out;
-}
-
 const likeEscape = (v) => String(v).replace(/[\\%_]/g, (c) => '\\' + c);
 
 const diagnosisWhere = (value) => {
@@ -80,31 +67,69 @@ const fmtDate = (d) =>
 
 const personName = (u) => (u ? (u.fullName || u.email || null) : null);
 
+const ROLE_LABELS = {
+  admin: 'Администратор',
+  employee: 'Сотрудник',
+  teacher: 'Педагог',
+  recipient: 'Реабилитант'
+};
+
+const personRole = (u) => (u?.role ? (ROLE_LABELS[u.role] || null) : null);
+
+const AUDIT_AUTHOR = { model: User, as: 'author', attributes: ['id', 'firstName', 'lastName', 'email', 'role'] };
+const AUDIT_HISTORY_LIMIT = 10;
+
+const versionEntry = (v) => ({
+  id: v.id,
+  changedAt: v.changedAt,
+  changedBy: v.changedBy || null,
+  changedByName: personName(v.author),
+  changedByRole: personRole(v.author),
+  reason: v.reason || null,
+  fields: Array.isArray(v.changedFields) ? v.changedFields : []
+});
+
 async function buildCardAudit(recipient) {
-  const [creator, lastChange] = await Promise.all([
+  const [creator, history, editsCount] = await Promise.all([
     recipient.createdBy
-      ? User.findByPk(recipient.createdBy, { attributes: ['id', 'firstName', 'lastName', 'email'] })
+      ? User.findByPk(recipient.createdBy, { attributes: ['id', 'firstName', 'lastName', 'email', 'role'] })
       : null,
-    RecipientDocVersion.findOne({
+    RecipientDocVersion.findAll({
       where: { recipientId: recipient.id },
-      attributes: ['id', 'changedAt', 'changedBy', 'reason'],
-      include: [{ model: User, as: 'author', attributes: ['id', 'firstName', 'lastName', 'email'] }],
-      order: [['changedAt', 'DESC'], ['id', 'DESC']]
-    })
+      attributes: ['id', 'changedAt', 'changedBy', 'reason', 'changedFields'],
+      include: [AUDIT_AUTHOR],
+      order: [['changedAt', 'DESC'], ['id', 'DESC']],
+      limit: AUDIT_HISTORY_LIMIT
+    }),
+    RecipientDocVersion.count({ where: { recipientId: recipient.id } })
   ]);
+
+  const entries = history.map(versionEntry);
+  const last = entries[0] || null;
 
   return {
     createdAt: recipient.createdAt || null,
     createdBy: recipient.createdBy || null,
     createdByName: personName(creator),
-    changedAt: lastChange?.changedAt || null,
-    changedBy: lastChange?.changedBy || null,
-    changedByName: personName(lastChange?.author),
-    changeReason: lastChange?.reason || null
+    createdByRole: personRole(creator),
+    changedAt: last?.changedAt || null,
+    changedBy: last?.changedBy || null,
+    changedByName: last?.changedByName || null,
+    changedByRole: last?.changedByRole || null,
+    changeReason: last?.reason || null,
+    changedFields: last?.fields || [],
+    editsCount,
+    history: entries
   };
 }
 
-async function enrichRecipients(rows, teacherUserId = null) {
+const LIST_FIELDS = [
+  'id', 'firstName', 'middleName', 'lastName', 'birthDate', 'photo',
+  'status', 'diagnosis', 'nozology', 'groupId', 'CRGMain',
+  'attendanceStatus', 'attendanceDate', 'createdAt', 'createdBy', 'group'
+];
+
+async function enrichRecipients(rows, teacherUserId = null, req = null) {
   const ids = rows.map((r) => r.id);
   if (!ids.length) return [];
 
@@ -154,24 +179,32 @@ async function enrichRecipients(rows, teacherUserId = null) {
   }
 
   return rows.map((r) => {
-    const json = r.toJSON();
+    const full = r.toJSON();
+    const json = {};
+    for (const key of LIST_FIELDS) if (key in full) json[key] = full[key];
+
     const nextClassDate = nextByRecipient.get(r.id) || null;
     const doc = docByRecipient.get(r.id) || { mseValidDate: null, specialNote: '' };
     json.attendsToday = nextClassDate === todayStr;
     json.attendsTomorrow = nextClassDate === tomorrowStr;
     json.attendsThisWeek = !!nextClassDate;
     json.nextClassDate = nextClassDate;
+
+    const medical = req ? hasGrant(req, r.id, 'medical') : false;
     json.docExpiring = !!doc.mseValidDate && doc.mseValidDate <= soonStr;
-    json.docExpiryDate = doc.mseValidDate || null;
-    json.attentionNote = doc.specialNote || null;
+    json.docExpiryDate = medical ? (doc.mseValidDate || null) : null;
+    json.needsAttention = !!doc.specialNote;
+    json.attentionNote = medical ? (doc.specialNote || null) : null;
     return json;
   });
 }
 
-router.get('/', authMiddleware, async (req, res, next) => {
+const MAX_LIST_LIMIT = 200;
+
+router.get('/', authMiddleware, loadGrants, async (req, res, next) => {
   try {
-    const page = parseInt(req.query.page) || 1;
-    const limit = parseInt(req.query.limit) || 15;
+    const page = Math.max(1, parseInt(req.query.page) || 1);
+    const limit = Math.min(MAX_LIST_LIMIT, Math.max(1, parseInt(req.query.limit) || 15));
     const offset = (page - 1) * limit;
     const search = req.query.search;
     const diagnosis = req.query.diagnosis;
@@ -179,10 +212,11 @@ router.get('/', authMiddleware, async (req, res, next) => {
 
     const where = {};
     if (search) {
+      const like = `%${likeEscape(search)}%`;
       where[Op.or] = [
-        { lastName: { [Op.like]: `%${search}%` } },
-        { firstName: { [Op.like]: `%${search}%` } },
-        { middleName: { [Op.like]: `%${search}%` } }
+        { lastName: { [Op.like]: like } },
+        { firstName: { [Op.like]: like } },
+        { middleName: { [Op.like]: like } }
       ];
     }
     if (diagnosis && diagnosis !== 'all') where.diagnosis = diagnosisWhere(diagnosis);
@@ -211,7 +245,7 @@ router.get('/', authMiddleware, async (req, res, next) => {
       order: [['id', 'DESC']]
     });
 
-    const data = await enrichRecipients(rows, teacherUserId);
+    const data = await enrichRecipients(rows, teacherUserId, req);
 
     res.json({ data, total: count, page, limit, totalPages: Math.ceil(count / limit) });
   } catch (err) {
@@ -300,8 +334,8 @@ function draftBrief(d, fileCount) {
   };
 }
 
-const canTouchDraft = (user, draft) =>
-  DRAFT_LIST_ROLES.includes(user.role) || draft.createdBy === user.id;
+const canDeleteDraft = (user, draft) =>
+  user.role === 'admin' || draft.createdBy === user.id;
 
 router.get('/drafts', authMiddleware, roleMiddleware(...DRAFT_LIST_ROLES), async (req, res, next) => {
   try {
@@ -333,9 +367,6 @@ router.get('/drafts/:draftId', authMiddleware, roleMiddleware(...DRAFT_EDIT_ROLE
   try {
     const draft = await RecipientDraft.findByPk(req.params.draftId);
     if (!draft) return res.status(404).json({ message: 'Черновик не найден' });
-    if (!canTouchDraft(req.user, draft)) {
-      return res.status(403).json({ message: 'Это чужой черновик' });
-    }
 
     const scans = await RecipientDraftScan.findAll({
       where: { draftId: draft.id },
@@ -397,13 +428,25 @@ router.put('/drafts/:draftId', authMiddleware, roleMiddleware(...DRAFT_EDIT_ROLE
   try {
     const draft = await RecipientDraft.findByPk(req.params.draftId);
     if (!draft) return res.status(404).json({ message: 'Черновик не найден' });
-    if (!canTouchDraft(req.user, draft)) {
-      return res.status(403).json({ message: 'Это чужой черновик' });
-    }
 
     const payload = req.body?.payload;
     const problem = validateDraftPayload(payload);
     if (problem) return res.status(400).json({ message: problem });
+
+    const known = req.body?.knownUpdatedAt;
+    if (known) {
+      const stored = draft.updatedAt ? new Date(draft.updatedAt).getTime() : 0;
+      const sent = new Date(known).getTime();
+      if (Number.isFinite(sent) && stored && Math.abs(stored - sent) > 1000) {
+        return res.status(409).json({
+          message: `Черновик уже изменён — ${draft.updatedByName || 'другой сотрудник'}. ` +
+            'Откройте его заново, чтобы не затереть чужие правки.',
+          conflict: true,
+          updatedAt: draft.updatedAt,
+          updatedByName: draft.updatedByName
+        });
+      }
+    }
 
     await draft.update({
       ...draftColumns(payload),
@@ -422,10 +465,15 @@ router.put('/drafts/:draftId', authMiddleware, roleMiddleware(...DRAFT_EDIT_ROLE
 
 router.delete('/drafts/:draftId', authMiddleware, roleMiddleware(...DRAFT_EDIT_ROLES), async (req, res, next) => {
   try {
-    const draft = await RecipientDraft.findByPk(req.params.draftId, { attributes: ['id', 'createdBy'] });
+    const draft = await RecipientDraft.findByPk(req.params.draftId, {
+      attributes: ['id', 'createdBy', 'createdByName']
+    });
     if (!draft) return res.status(404).json({ message: 'Черновик не найден' });
-    if (!canTouchDraft(req.user, draft)) {
-      return res.status(403).json({ message: 'Это чужой черновик' });
+
+    if (!canDeleteDraft(req.user, draft)) {
+      return res.status(403).json({
+        message: `Этот черновик начал ${draft.createdByName || 'другой сотрудник'} — удалить его может автор или администратор`
+      });
     }
 
     await draft.destroy();
@@ -439,24 +487,21 @@ router.post('/drafts/:draftId/scans', authMiddleware, roleMiddleware(...DRAFT_ED
   try {
     const draft = await RecipientDraft.findByPk(req.params.draftId, { attributes: ['id', 'createdBy'] });
     if (!draft) return res.status(404).json({ message: 'Черновик не найден' });
-    if (!canTouchDraft(req.user, draft)) {
-      return res.status(403).json({ message: 'Это чужой черновик' });
+
+    const { docKey, originalName } = req.body || {};
+    if (!trimStr(docKey)) {
+      return res.status(400).json({ message: 'Не передан тип документа' });
     }
 
-    const { docKey, originalName, mimeType, base64 } = req.body || {};
-    if (!trimStr(docKey) || !base64) {
-      return res.status(400).json({ message: 'Не передан файл или его тип' });
-    }
-
-    const buffer = Buffer.from(base64, 'base64');
-    if (!buffer.length) return res.status(400).json({ message: 'Файл пустой' });
+    const { buffer, mimeType, error } = readScan(req.body, 'Скан для черновика');
+    if (error) return res.status(400).json({ message: error });
 
     await RecipientDraftScan.destroy({ where: { draftId: draft.id, docKey: trimStr(docKey) } });
     const row = await RecipientDraftScan.create({
       draftId: draft.id,
       docKey: trimStr(docKey).slice(0, 50),
       originalName: String(originalName || 'файл').slice(0, 255),
-      mimeType: String(mimeType || 'application/octet-stream').slice(0, 100),
+      mimeType,
       sizeBytes: buffer.length,
       fileData: buffer,
       uploadedBy: req.user.id,
@@ -473,9 +518,6 @@ router.delete('/drafts/:draftId/scans/:docKey', authMiddleware, roleMiddleware(.
   try {
     const draft = await RecipientDraft.findByPk(req.params.draftId, { attributes: ['id', 'createdBy'] });
     if (!draft) return res.status(404).json({ message: 'Черновик не найден' });
-    if (!canTouchDraft(req.user, draft)) {
-      return res.status(403).json({ message: 'Это чужой черновик' });
-    }
 
     const removed = await RecipientDraftScan.destroy({
       where: { draftId: draft.id, docKey: String(req.params.docKey).slice(0, 50) }
@@ -490,9 +532,6 @@ router.get('/drafts/:draftId/scans/:scanId/file', authMiddleware, roleMiddleware
   try {
     const draft = await RecipientDraft.findByPk(req.params.draftId, { attributes: ['id', 'createdBy'] });
     if (!draft) return res.status(404).json({ message: 'Черновик не найден' });
-    if (!canTouchDraft(req.user, draft)) {
-      return res.status(403).json({ message: 'Это чужой черновик' });
-    }
 
     const scan = await RecipientDraftScan.findOne({
       where: { id: req.params.scanId, draftId: draft.id }
@@ -509,9 +548,11 @@ router.get('/drafts/:draftId/scans/:scanId/file', authMiddleware, roleMiddleware
       });
     }
 
-    res.setHeader('Content-Type', scan.mimeType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(scan.originalName)}"`);
-    res.send(scan.fileData);
+    sendScanFile(res, {
+      mimeType: scan.mimeType,
+      originalName: scan.originalName,
+      data: scan.fileData
+    });
   } catch (err) {
     next(err);
   }
@@ -533,9 +574,7 @@ router.get('/:id', authMiddleware, loadGrants, async (req, res, next) => {
     payload.audit = await buildCardAudit(recipient);
     payload.authorWindowUntil = authorWindowUntil(req, recipient.id);
 
-    if (isAdmin(req.user)) {
-      await logAccess(req, { recipientId: recipient.id, category: 'passport', action: 'view' });
-    }
+    await logAccess(req, { recipientId: recipient.id, category: 'passport', action: 'view' });
 
     res.json(payload);
   } catch (err) {
@@ -606,6 +645,18 @@ router.get('/:id/enrollment/:docKey/file', authMiddleware, roleMiddleware('admin
 
 const onlyDigits = (s) => (s || '').replace(/\D/g, '');
 
+const blankToNull = (v) => {
+  const s = typeof v === 'string' ? v.trim() : v;
+  return s === '' || s == null ? null : s;
+};
+
+const dateOrNull = (v) => {
+  const s = String(v ?? '').slice(0, 10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
+};
+
+const SNILS_RE = /^\d{3}-\d{3}-\d{3} \d{2}$/;
+
 class IntakeError extends Error {}
 
 const normName = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
@@ -642,15 +693,22 @@ async function findDocMatch({ docSeries, docNumber }, excludeId) {
   const ser = normDoc(docSeries);
   if (!num || !ser) return null;
 
-  const rows = await RecipientDoc.findAll({
-    where: { docNumber: num },
-    include: [{ model: Recipient, as: 'recipient', include: [groupInclude] }],
-    limit: 50
+  const candidates = await RecipientDoc.findAll({
+    attributes: ['id', 'recipientId', 'docType', 'docSeries', 'docNumber'],
+    where: { docNumber: { [Op.ne]: null } },
+    raw: true
   });
 
-  const hit = rows.find((d) =>
-    normDoc(d.docSeries) === ser && (!excludeId || d.recipientId !== excludeId)
+  const found = candidates.find((d) =>
+    normDoc(d.docNumber) === num &&
+    normDoc(d.docSeries) === ser &&
+    (!excludeId || d.recipientId !== excludeId)
   );
+  if (!found) return null;
+
+  const hit = await RecipientDoc.findByPk(found.id, {
+    include: [{ model: Recipient, as: 'recipient', include: [groupInclude] }]
+  });
   if (!hit) return null;
 
   return {
@@ -749,10 +807,17 @@ router.post('/intake', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (r
   }
 
   try {
-    if (doc.snils) {
-      const dup = await RecipientDoc.findOne({ where: { snils: doc.snils } });
+    const snils = blankToNull(doc.snils);
+    if (snils && !SNILS_RE.test(snils)) {
+      return res.status(400).json({
+        message: 'СНИЛС записывается как 000-000-000 00',
+        field: 'snils'
+      });
+    }
+    if (snils) {
+      const dup = await RecipientDoc.findOne({ where: { snils } });
       if (dup) {
-        return res.status(409).json({ message: `Реабилитант с таким СНИЛС (${doc.snils}) уже зарегистрирован в системе` });
+        return res.status(409).json({ message: `Реабилитант с таким СНИЛС (${snils}) уже зарегистрирован в системе` });
       }
     }
 
@@ -771,12 +836,16 @@ router.post('/intake', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (r
       if (!nozologyClasses.length) {
         throw new IntakeError('Не выбран класс нозологии (шаг 2)');
       }
-      const noz = await Nozology.findOne({
-        where: { class: { [Op.in]: nozologyClasses } }, transaction: t
+      const nozRows = await Nozology.findAll({
+        where: { class: { [Op.in]: nozologyClasses } },
+        order: [['id', 'ASC']],
+        transaction: t
       });
-      if (!noz) {
+      if (!nozRows.length) {
         throw new IntakeError(`Класс нозологии не найден в справочнике: ${nozologyClasses.join(', ')}`);
       }
+      const firstChosen = String(nozologyClasses[0]);
+      const noz = nozRows.find((n) => String(n.class) === firstChosen) || nozRows[0];
       const nozId = noz.id;
 
       if (!crg.code) {
@@ -848,6 +917,11 @@ router.post('/intake', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (r
       const tempHash = await bcrypt.hash(crypto.randomBytes(16).toString('hex'), 10);
       const user = await User.create({ email: recEmail, passwordHash: tempHash, role: 'recipient' }, { transaction: t });
 
+      const DISABLE_GROUPS = ['Ребенок-инвалид', 'I группа', 'II группа', 'III группа', 'Нет'];
+      const disableGroup = DISABLE_GROUPS.includes(recipient.disableGroup)
+        ? recipient.disableGroup
+        : 'Нет';
+
       const created = await Recipient.create({
         userId: user.id,
         representativeId: rep ? rep.id : null,
@@ -859,6 +933,7 @@ router.post('/intake', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (r
         telephone: contactPhone,
         photo: '',
         status: recipient.status || 'draft',
+        disableGroup,
         diagnosis: recipient.diagnosis || '',
         nozology: nozId,
         groupId: groupId || null,
@@ -867,30 +942,51 @@ router.post('/intake', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (r
         createdBy: req.user?.id ?? null
       }, { transaction: t });
 
+      const subRaw = String(crg.subCode || '').trim();
+      if (subRaw) {
+        const subNum = subRaw.replace(/^ЦРГ\s*/i, '').trim();
+        const sub = await CRGDesc.findOne({
+          where: { code: { [Op.in]: [subRaw, `ЦРГ ${subNum}`] }, categoryId: crgId },
+          transaction: t
+        });
+        if (sub) {
+          await CRGRecipientSec.create(
+            { idRecipient: created.id, idCRGDesc: sub.id },
+            { transaction: t }
+          );
+        }
+      }
+
       const mseIndefinite = doc.mseIndefinite === true || doc.mseIndefinite === 'true';
-      const docReady = doc.snils && doc.docSeries && doc.docNumber && doc.docIssuer &&
-        doc.docIssuerDate && doc.mseIssueDate && (doc.mseValidDate || mseIndefinite) &&
-        doc.regAddress && doc.educationPlace;
-      if (docReady) {
-        await RecipientDoc.create({
-          recipientId: created.id,
-          docType: doc.docType === 'passport' ? 'Паспорт' : 'Свидетельство',
-          docSeries: doc.docSeries,
-          docNumber: doc.docNumber,
-          docIssuer: doc.docIssuer,
-          docIssuerDate: doc.docIssuerDate,
-          snils: doc.snils,
-          mseIssueDate: doc.mseIssueDate,
-          mseValidDate: mseIndefinite ? null : doc.mseValidDate,
-          mseIndefinite,
-          regAddress: doc.regAddress,
-          factAddress: doc.factSameReg ? doc.regAddress : (doc.factAddress || doc.regAddress),
-          factSameReg: !!doc.factSameReg,
-          district: doc.district || null,
-          area: doc.area || null,
-          educationPlace: doc.educationPlace,
-          specialNote: doc.specialNote || ''
-        }, { transaction: t });
+
+      const docRow = {
+        recipientId: created.id,
+        docType: doc.docType === 'passport' ? 'Паспорт' : 'Свидетельство',
+        docSeries: blankToNull(doc.docSeries),
+        docNumber: blankToNull(doc.docNumber),
+        docIssuer: blankToNull(doc.docIssuer),
+        docIssuerDate: dateOrNull(doc.docIssuerDate),
+        snils: blankToNull(doc.snils),
+        mseIssueDate: dateOrNull(doc.mseIssueDate),
+        mseValidDate: mseIndefinite ? null : dateOrNull(doc.mseValidDate),
+        mseIndefinite,
+        regAddress: blankToNull(doc.regAddress),
+        factAddress: blankToNull(
+          doc.factSameReg ? doc.regAddress : (doc.factAddress || doc.regAddress)
+        ),
+        factSameReg: !!doc.factSameReg,
+        district: blankToNull(doc.district),
+        area: blankToNull(doc.area),
+        educationPlace: blankToNull(doc.educationPlace),
+        specialNote: blankToNull(doc.specialNote)
+      };
+
+      const anythingFilled = Object.entries(docRow).some(
+        ([key, value]) =>
+          !['recipientId', 'docType', 'factSameReg', 'mseIndefinite'].includes(key) && value != null
+      );
+      if (anythingFilled) {
+        await RecipientDoc.create(docRow, { transaction: t });
       }
 
       return created.id;
@@ -928,32 +1024,57 @@ router.post('/intake', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (r
   }
 });
 
-router.post('/', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (req, res, next) => {
-  try {
-    const data = pickFields(req.body);
-    const recipient = await Recipient.create({
-      ...data,
-      createdAt: new Date(),
-      createdBy: req.user?.id ?? null
-    });
-
-    if (Array.isArray(req.body.secondaryCRG) && req.body.secondaryCRG.length) {
-      await recipient.setSecondaryCRG(req.body.secondaryCRG);
-    }
-
-    const fullRecipient = await Recipient.findByPk(recipient.id, { include: detailInclude });
-    res.status(201).json(fullRecipient);
-  } catch (err) {
-    next(err);
-  }
-});
+const PUT_ALLOWED_FIELDS = ['groupId', 'status'];
+const PUT_STATUS_ROLES = ['admin', 'employee'];
 
 router.put('/:id', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
   try {
     const recipient = await Recipient.findByPk(req.params.id);
     if (!recipient) return res.status(404).json({ message: 'Реабилитант не найден' });
 
-    await recipient.update(pickFields(req.body));
+    const givenKeys = Object.keys(req.body || {}).filter((k) => req.body[k] !== undefined);
+    const forbidden = givenKeys.filter(
+      (k) => !PUT_ALLOWED_FIELDS.includes(k) && k !== 'secondaryCRG'
+    );
+    if (forbidden.length) {
+      return res.status(400).json({
+        message: 'Личные данные правятся в карточке реабилитанта — там фиксируются причина и автор изменения. ' +
+          'Здесь можно менять только группу и статус карточки.',
+        forbiddenFields: forbidden
+      });
+    }
+
+    const patch = {};
+    if (req.body.groupId !== undefined) {
+      const gid = parseInt(req.body.groupId, 10);
+      patch.groupId = Number.isInteger(gid) && gid > 0 ? gid : null;
+    }
+    if (req.body.status !== undefined) {
+      if (!PUT_STATUS_ROLES.includes(req.user.role)) {
+        return res.status(403).json({ message: 'Менять статус карточки может сотрудник или администратор' });
+      }
+      if (!ENUM_VALUES.status.includes(req.body.status)) {
+        return res.status(400).json({ message: 'Неизвестный статус карточки' });
+      }
+      patch.status = req.body.status;
+    }
+
+    const statusChanged = 'status' in patch && patch.status !== recipient.status;
+    const groupChanged = 'groupId' in patch && (patch.groupId ?? null) !== (recipient.groupId ?? null);
+
+    if (statusChanged) {
+      await RecipientDocVersion.create({
+        docId: null,
+        recipientId: recipient.id,
+        snapshot: { status: recipient.status, groupId: recipient.groupId },
+        changedFields: ['status'],
+        reason: String(req.body.reason ?? '').trim() || `Статус карточки: ${recipient.status} → ${patch.status}`,
+        changedBy: req.user.id,
+        changedAt: new Date()
+      });
+    }
+
+    if (statusChanged || groupChanged) await recipient.update(patch);
 
     if (Array.isArray(req.body.secondaryCRG)) {
       await recipient.setSecondaryCRG(req.body.secondaryCRG);
@@ -984,7 +1105,7 @@ const CARD_REP_FIELDS = [
 
 const DOC_REQUIRED = [
   'docSeries', 'docNumber', 'docIssuer', 'docIssuerDate',
-  'snils', 'mseIssueDate', 'regAddress', 'educationPlace'
+  'snils', 'mseIssueDate', 'regAddress'
 ];
 
 const DOC_FIELD_LABELS = {
@@ -1023,16 +1144,23 @@ const normalizeField = (field, raw) => {
   return String(raw ?? '').trim();
 };
 
+const isBadDate = (field, raw) => {
+  if (!DATE_FIELDS.has(field)) return false;
+  const s = String(raw ?? '').trim();
+  if (s === '') return false;
+  return !/^\d{4}-\d{2}-\d{2}$/.test(s.slice(0, 10));
+};
+
 const sameValue = (prev, next) => {
   if (typeof next === 'boolean') return !!prev === next;
   if (prev == null && next == null) return true;
-  return String(prev ?? '').slice(0, 500) === String(next ?? '').slice(0, 500);
+  return String(prev ?? '') === String(next ?? '');
 };
 
 const NEVER_EMPTY = new Set([
   'firstName', 'lastName', 'telephone', 'email', 'nozology', 'CRGMain',
   'docSeries', 'docNumber', 'docIssuer', 'docIssuerDate', 'snils',
-  'mseIssueDate', 'regAddress', 'factAddress', 'educationPlace',
+  'mseIssueDate', 'regAddress', 'factAddress',
   'passportSeries', 'passportNumber', 'passportIssuer', 'passportDeptCode', 'passportReg'
 ]);
 
@@ -1073,8 +1201,17 @@ const collectPatch = (req, recipientId, target, allowed, categoryOf, body, scope
       continue;
     }
 
+    if (isBadDate(field, body[field])) {
+      rejected.push(`${name(field)} — дата записывается как ДД.ММ.ГГГГ`);
+      continue;
+    }
+
     const next = normalizeField(field, body[field]);
-    if (ENUM_VALUES[field] && !ENUM_VALUES[field].includes(next)) continue;
+
+    if (ENUM_VALUES[field] && !ENUM_VALUES[field].includes(next)) {
+      rejected.push(`${name(field)}: допустимые значения — ${ENUM_VALUES[field].join(', ')}`);
+      continue;
+    }
 
     if (NEVER_EMPTY.has(field) && (next == null || next === '')) {
       rejected.push(`${name(field)} — это поле нельзя оставить пустым`);
@@ -1178,6 +1315,23 @@ router.patch('/:id/card', authMiddleware, roleMiddleware('admin', 'employee'), l
       }
     }
 
+    const nextSeries = 'docSeries' in d.patch ? d.patch.docSeries : (createdDoc?.docSeries ?? doc?.docSeries);
+    const nextNumber = 'docNumber' in d.patch ? d.patch.docNumber : (createdDoc?.docNumber ?? doc?.docNumber);
+    if ('docSeries' in d.patch || 'docNumber' in d.patch || createdDoc) {
+      const clash = await findDocMatch(
+        { docSeries: nextSeries, docNumber: nextNumber },
+        recipient.id
+      );
+      if (clash) {
+        const fio = [clash.lastName, clash.firstName, clash.middleName].filter(Boolean).join(' ');
+        return res.status(409).json({
+          message: `Документ ${nextSeries} ${nextNumber} уже зарегистрирован` +
+            (fio ? ` за реабилитантом ${fio}` : '') +
+            '. Один документ не может принадлежать двум людям.'
+        });
+      }
+    }
+
     const changedFields = [
       ...Object.keys(r.patch),
       ...Object.keys(d.patch),
@@ -1278,15 +1432,41 @@ router.put('/:id/attendance', authMiddleware, roleMiddleware('admin', 'teacher')
   }
 });
 
-router.delete('/:id', authMiddleware, roleMiddleware('admin', 'teacher'), async (req, res, next) => {
+router.delete('/:id', authMiddleware, roleMiddleware('admin', 'employee'), async (req, res, next) => {
   try {
     const recipient = await Recipient.findByPk(req.params.id);
     if (!recipient) return res.status(404).json({ message: 'Реабилитант не найден' });
+
+    const reason = String(req.body?.reason ?? '').trim();
+    if (reason.length < 3) {
+      return res.status(400).json({
+        message: 'Удаление карточки записывается в журнал. Укажите причину (не менее 3 символов).',
+        field: 'reason'
+      });
+    }
 
     const id = recipient.id;
     const sessionIds = (await DiagnosticSession.findAll({
       where: { recipientId: id }, attributes: ['id'], raw: true
     })).map((s) => s.id);
+
+    const docsSnapshot = await RecipientDoc.findAll({ where: { recipientId: id }, raw: true });
+    await RecipientDocVersion.create({
+      docId: null,
+      recipientId: id,
+      snapshot: {
+        deletedAt: new Date().toISOString(),
+        recipient: recipient.toJSON(),
+        docs: docsSnapshot
+      },
+      changedFields: ['recipient.deleted'],
+      reason,
+      changedBy: req.user.id,
+      changedAt: new Date()
+    });
+
+    const orphanUserId = recipient.userId;
+    const repId = recipient.representativeId;
 
     await sequelize.transaction(async (t) => {
       await DiagnosticConclusion.destroy({
@@ -1305,11 +1485,34 @@ router.delete('/:id', authMiddleware, roleMiddleware('admin', 'teacher'), async 
       await ScheduleEvent.destroy({ where: { recipientId: id }, transaction: t });
       await AccessGrant.destroy({ where: { recipientId: id }, transaction: t });
       await CRGRecipientSec.destroy({ where: { idRecipient: id }, transaction: t });
-      await RecipientDocVersion.destroy({ where: { recipientId: id }, transaction: t });
       await RecipientDoc.destroy({ where: { recipientId: id }, transaction: t });
       await RecipientScanDoc.destroy({ where: { recipId: id }, transaction: t });
       await ReResult.destroy({ where: { idRecipient: id }, transaction: t });
       await recipient.destroy({ transaction: t });
+
+      if (orphanUserId) {
+        const stillUsed = await Recipient.count({ where: { userId: orphanUserId }, transaction: t });
+        if (!stillUsed) {
+          const u = await User.findByPk(orphanUserId, { transaction: t });
+          if (u && u.role === 'recipient') await u.destroy({ transaction: t });
+        }
+      }
+
+      if (repId) {
+        const otherKids = await Recipient.count({ where: { representativeId: repId }, transaction: t });
+        if (!otherKids) {
+          await LegalRepFamilyStatus.destroy({ where: { representativeId: repId }, transaction: t });
+          await LegalRepresentative.destroy({ where: { id: repId }, transaction: t });
+        }
+      }
+    });
+
+    await logAccess(req, {
+      recipientId: id,
+      category: 'passport',
+      action: 'view',
+      reasonCode: 'other',
+      reasonText: `Карточка удалена: ${reason}`.slice(0, 500)
     });
 
     res.json({ message: 'Реабилитант удалён' });
@@ -1320,30 +1523,29 @@ router.delete('/:id', authMiddleware, roleMiddleware('admin', 'teacher'), async 
 
 const ENTITY_TYPES = ['rehabilitant', 'representative'];
 
-router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
+router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), loadGrants, async (req, res, next) => {
   try {
     const recipient = await Recipient.findByPk(req.params.id);
     if (!recipient) return res.status(404).json({ message: 'Реабилитант не найден' });
 
+    if (!hasGrant(req, recipient.id, 'scans')) {
+      await logAccess(req, { recipientId: recipient.id, category: 'scans', action: 'denied' });
+      return res.status(403).json({
+        message: 'Нет доступа к сканам этой карточки. Запросите доступ с указанием причины.',
+        category: 'scans'
+      });
+    }
+
     const scans = Array.isArray(req.body.scans) ? req.body.scans : [];
     if (!scans.length) return res.status(400).json({ message: 'Нет файлов для сохранения' });
-
-    const isUpdate = req.body.mode === 'update' || req.body.replace === true;
+    if (scans.length > MAX_SCANS_PER_REQUEST) {
+      return res.status(400).json({
+        message: `За один раз можно загрузить не больше ${MAX_SCANS_PER_REQUEST} файлов`
+      });
+    }
 
     const canReplace = req.user.role === 'admin' || req.user.role === 'employee';
-    if (isUpdate && !canReplace) {
-      return res.status(403).json({
-        message: 'Заменять приложенные документы могут только сотрудник и администратор'
-      });
-    }
-
     const reason = String(req.body.reason ?? '').trim();
-    if (isUpdate && reason.length < 3) {
-      return res.status(400).json({
-        message: 'Укажите причину обновления документов (обязательное поле, не менее 3 символов)',
-        field: 'reason'
-      });
-    }
 
     const docTypes = await DocType.findAll();
     const codeToId = new Map(docTypes.map((d) => [d.code, d.id]));
@@ -1379,24 +1581,54 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
       return /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : null;
     };
 
+    const prepared = [];
     for (const scan of scans) {
-      const { docKey, entityType, originalName, mimeType, base64 } = scan;
-      if (!docKey || !base64) continue;
-
-      const perpetual = scan.perpetual === true || scan.perpetual === 'true';
+      const { docKey, entityType } = scan || {};
+      if (!docKey) continue;
 
       const docTypeId = codeToId.get(docKey);
       if (!docTypeId) continue;
 
-      const buffer = Buffer.from(base64, 'base64');
-      const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
-      const et = ENTITY_TYPES.includes(entityType) ? entityType : 'rehabilitant';
+      const label = codeToName.get(docKey) || 'Файл';
+      const { buffer, mimeType, error } = readScan(scan, label);
+      if (error) return res.status(400).json({ message: error, docKey });
 
       const prev = await RecipientScanDoc.findOne({
         where: { recipId: recipient.id, docType: docTypeId, isCurrent: true },
         attributes: { exclude: ['fileData'] },
         order: [['id', 'DESC']]
       });
+
+      prepared.push({
+        scan, docKey, docTypeId, buffer, mimeType, prev,
+        entityType: ENTITY_TYPES.includes(entityType) ? entityType : 'rehabilitant'
+      });
+    }
+
+    if (!prepared.length) {
+      return res.status(400).json({ message: 'Ни один файл не подошёл: неизвестный тип документа' });
+    }
+
+    const replacing = prepared.filter((p) => p.prev);
+    if (replacing.length && !canReplace) {
+      return res.status(403).json({
+        message: 'Заменять приложенные документы могут только сотрудник и администратор'
+      });
+    }
+    if (replacing.length && reason.length < 3) {
+      return res.status(400).json({
+        message: 'Этот документ уже приложен — замена требует причины (не менее 3 символов). ' +
+          'Прежняя версия останется в истории.',
+        field: 'reason',
+        replacing: replacing.map((p) => codeToName.get(p.docKey) || p.docKey)
+      });
+    }
+
+    for (const item of prepared) {
+      const { scan, docKey, docTypeId, buffer, mimeType, prev, entityType: et } = item;
+      const { originalName } = scan;
+      const perpetual = scan.perpetual === true || scan.perpetual === 'true';
+      const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
 
       const row = await RecipientScanDoc.create({
         entityType: et,
@@ -1413,7 +1645,7 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
           originalName,
           uploadedAt: now
         }),
-        mimeType: mimeType || 'application/octet-stream',
+        mimeType,
         sizeBytes: buffer.length,
         checksum_sha256: checksum,
         fileData: buffer,
@@ -1422,7 +1654,7 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
         perpetual,
         uploadedBy: req.user.id,
         uploadedAt: now,
-        updateReason: prev ? (reason || null) : null,
+        updateReason: prev ? reason : null,
         replacesScanId: prev ? prev.id : null,
         isCurrent: true
       });
@@ -1432,6 +1664,14 @@ router.post('/:id/scans', authMiddleware, roleMiddleware('admin', 'teacher', 'em
         await prev.update({ isCurrent: false });
         superseded.push(prev.id);
       }
+
+      await logAccess(req, {
+        recipientId: recipient.id,
+        category: 'scans',
+        action: 'download',
+        scanId: row.id,
+        reasonText: prev ? `Замена скана «${codeToName.get(docKey) || docKey}»: ${reason}` : `Загружен скан «${codeToName.get(docKey) || docKey}»`
+      });
     }
 
     res.status(201).json({ saved: created.length, ids: created, superseded });
@@ -1460,9 +1700,7 @@ router.get('/:id/scans', authMiddleware, loadGrants, async (req, res, next) => {
       ],
       order: [['docType', 'ASC'], ['id', 'DESC']]
     });
-    if (isAdmin(req.user)) {
-      await logAccess(req, { recipientId: Number(req.params.id), category: 'scans', action: 'view' });
-    }
+    await logAccess(req, { recipientId: Number(req.params.id), category: 'scans', action: 'view' });
     res.json({ locked: false, category: 'scans', scans });
   } catch (err) {
     next(err);
@@ -1484,14 +1722,21 @@ router.get('/:id/scans/:scanId/file', authMiddleware, loadGrants, async (req, re
     });
     if (!scan || !scan.fileData) return res.status(404).json({ message: 'Файл не найден' });
 
-    await logAccess(req, {
+    const logged = await logAccess(req, {
       recipientId: Number(req.params.id), category: 'scans',
       action: 'download', scanId: scan.id
     });
+    if (!logged) {
+      return res.status(503).json({
+        message: 'Журнал доступа временно недоступен. Выдача сканов приостановлена — сообщите администратору.'
+      });
+    }
 
-    res.setHeader('Content-Type', scan.mimeType || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(scan.originalName)}"`);
-    res.send(scan.fileData);
+    sendScanFile(res, {
+      mimeType: scan.mimeType,
+      originalName: scan.originalName,
+      data: scan.fileData
+    });
   } catch (err) {
     next(err);
   }
