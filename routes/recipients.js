@@ -16,7 +16,7 @@ import { getRecipientReadiness } from '../services/recipientReadiness.js';
 import { getEnrollmentState, generateEnrollmentDocument } from '../services/enrollmentDocs.js';
 import { summarizeDraft } from '../src/utils/recipientDraft.js';
 import { buildScanFileName } from '../services/scanFileName.js';
-import { readScan, sendScanFile, MAX_SCANS_PER_REQUEST } from '../services/fileGuard.js';
+import { readScan, sendScanFile, sniffMime, ALLOWED_SCAN_MIME, MAX_SCANS_PER_REQUEST } from '../services/fileGuard.js';
 import {
   CATEGORIES, CATEGORY_LABELS, REASON_CODES, GRANT_MS, CATEGORY_OF,
   hasGrant, grantAccess, loadGrants, validateReason, logAccess, redactRecipient, isAdmin,
@@ -496,16 +496,19 @@ router.post('/drafts/:draftId/scans', authMiddleware, roleMiddleware(...DRAFT_ED
     const { buffer, mimeType, error } = readScan(req.body, 'Скан для черновика');
     if (error) return res.status(400).json({ message: error });
 
-    await RecipientDraftScan.destroy({ where: { draftId: draft.id, docKey: trimStr(docKey) } });
+    const key = trimStr(docKey).slice(0, 50);
     const row = await RecipientDraftScan.create({
       draftId: draft.id,
-      docKey: trimStr(docKey).slice(0, 50),
+      docKey: key,
       originalName: String(originalName || 'файл').slice(0, 255),
       mimeType,
       sizeBytes: buffer.length,
       fileData: buffer,
       uploadedBy: req.user.id,
       uploadedAt: new Date()
+    });
+    await RecipientDraftScan.destroy({
+      where: { draftId: draft.id, docKey: key, id: { [Op.lt]: row.id } }
     });
 
     res.status(201).json({ id: row.id, docKey: row.docKey, sizeBytes: buffer.length });
@@ -657,7 +660,13 @@ const dateOrNull = (v) => {
 
 const SNILS_RE = /^\d{3}-\d{3}-\d{3} \d{2}$/;
 
-class IntakeError extends Error {}
+class IntakeError extends Error {
+  constructor(message, status = 400, extra = null) {
+    super(message);
+    this.status = status;
+    this.extra = extra;
+  }
+}
 
 const normName = (s) => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
 const normDoc  = (s) => String(s || '').trim().replace(/[\s-]/g, '').toUpperCase();
@@ -790,6 +799,30 @@ async function applyFamilyStatuses(repId, codes, userId, t) {
   );
 }
 
+const scansMissing = (docKeys) => new IntakeError(
+  'Часть сканов не дошла до сервера. Нажмите «Сохранить» ещё раз — файлы загрузятся заново.',
+  409,
+  { code: 'draft-scans-missing', docKeys }
+);
+
+function readIntakeScans(raw, codeToId) {
+  if (raw == null) return { list: [] };
+  const invalid = { error: 'Список сканов передан в неверном формате' };
+  if (!Array.isArray(raw) || raw.length > codeToId.size) return invalid;
+
+  const list = [];
+  const seen = new Set();
+  for (const item of raw) {
+    const docKey = trimStr(item?.docKey);
+    const draftScanId = Number(item?.draftScanId);
+    if (!docKey || !Number.isInteger(draftScanId) || draftScanId <= 0 || seen.has(docKey)) return invalid;
+    if (!codeToId.has(docKey)) return { error: `Неизвестный тип документа: ${docKey}` };
+    seen.add(docKey);
+    list.push({ docKey, draftScanId });
+  }
+  return { list };
+}
+
 router.post('/intake', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (req, res, next) => {
   const {
     recipient = {}, doc = {},
@@ -831,7 +864,45 @@ router.post('/intake', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (r
       });
     }
 
+    const draftId = req.body.draftId == null ? null : Number(req.body.draftId);
+    if (draftId !== null && (!Number.isInteger(draftId) || draftId <= 0)) {
+      return res.status(400).json({ message: 'Черновик карточки указан неверно' });
+    }
+
+    const docTypes = await DocType.findAll({ attributes: ['id', 'code', 'name'] });
+    const codeToId = new Map(docTypes.map((d) => [d.code, d.id]));
+    const codeToName = new Map(docTypes.map((d) => [d.code, d.name]));
+
+    const { list: scanItems, error: scanError } = readIntakeScans(req.body.scans, codeToId);
+    if (scanError) return res.status(400).json({ message: scanError });
+    if (scanItems.length && !draftId) {
+      return res.status(400).json({ message: 'Сканы прикладываются к карточке только из её черновика' });
+    }
+
     const result = await sequelize.transaction(async (t) => {
+
+      let draft = null;
+      if (draftId) {
+        draft = await RecipientDraft.findByPk(draftId, { attributes: ['id'], transaction: t, lock: true });
+        if (!draft) {
+          throw new IntakeError(
+            'Черновик этой карточки уже оформлен или удалён. ' +
+            'Проверьте список реабилитантов: если карточки там нет, нажмите «Сохранить» ещё раз.',
+            409,
+            { code: 'draft-gone' }
+          );
+        }
+        if (scanItems.length) {
+          const rows = await RecipientDraftScan.findAll({
+            where: { draftId, id: { [Op.in]: scanItems.map((s) => s.draftScanId) } },
+            attributes: ['id', 'docKey'],
+            transaction: t
+          });
+          const keyOf = new Map(rows.map((r) => [r.id, r.docKey]));
+          const missing = scanItems.filter((s) => keyOf.get(s.draftScanId) !== s.docKey);
+          if (missing.length) throw scansMissing(missing.map((s) => s.docKey));
+        }
+      }
 
       if (!nozologyClasses.length) {
         throw new IntakeError('Не выбран класс нозологии (шаг 2)');
@@ -989,24 +1060,101 @@ router.post('/intake', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (r
         await RecipientDoc.create(docRow, { transaction: t });
       }
 
-      return created.id;
+      const attached = [];
+      const uploadedAt = new Date();
+      for (const item of scanItems) {
+        const source = await RecipientDraftScan.findOne({
+          where: { id: item.draftScanId, draftId },
+          transaction: t
+        });
+        const buffer = source?.fileData;
+        if (!Buffer.isBuffer(buffer) || !buffer.length) throw scansMissing([item.docKey]);
+
+        const docTypeName = codeToName.get(item.docKey) || item.docKey;
+        const mimeType = sniffMime(buffer);
+        if (!ALLOWED_SCAN_MIME.includes(mimeType)) {
+          throw new IntakeError(`${docTypeName}: это не PDF, JPG, PNG или WEBP — замените файл на шаге 3`);
+        }
+
+        const checksum = crypto.createHash('sha256').update(buffer).digest('hex');
+        const row = await RecipientScanDoc.create({
+          entityType: rep && (item.docKey === 'rep-pass' || item.docKey.startsWith('signed-'))
+            ? 'representative'
+            : 'rehabilitant',
+          recipId: created.id,
+          represId: rep ? rep.id : null,
+          docType: codeToId.get(item.docKey),
+          storageKey: `db://${checksum}`,
+          originalName: buildScanFileName({
+            recipientId: created.id,
+            lastName: created.lastName,
+            firstName: created.firstName,
+            middleName: created.middleName,
+            docTypeName,
+            originalName: source.originalName,
+            uploadedAt
+          }),
+          mimeType,
+          sizeBytes: buffer.length,
+          checksum_sha256: checksum,
+          fileData: buffer,
+          issuedAt: null,
+          validUntil: null,
+          perpetual: false,
+          uploadedBy: req.user.id,
+          uploadedAt,
+          updateReason: null,
+          replacesScanId: null,
+          isCurrent: true
+        }, { transaction: t });
+        attached.push({ id: row.id, name: docTypeName });
+      }
+
+      if (draft) await draft.destroy({ transaction: t });
+
+      return {
+        id: created.id,
+        lastName: created.lastName,
+        firstName: created.firstName,
+        middleName: created.middleName,
+        attached
+      };
     });
 
     for (const category of CATEGORIES) {
       await logAccess(req, {
-        recipientId: result,
+        recipientId: result.id,
         category,
         action: 'view',
         reasonCode: 'author',
         reasonText: 'Карточка только что заведена этим сотрудником — полный доступ на 30 минут'
       });
     }
+    for (const scan of result.attached) {
+      await logAccess(req, {
+        recipientId: result.id,
+        category: 'scans',
+        action: 'download',
+        scanId: scan.id,
+        reasonText: `Загружен скан «${scan.name}»`
+      });
+    }
 
-    const full = await Recipient.findByPk(result, { include: detailInclude });
-    res.status(201).json(full);
+    let full = null;
+    try {
+      full = await Recipient.findByPk(result.id, { include: detailInclude });
+    } catch (readErr) {
+      req.log?.error({ err: readErr, recipientId: result.id }, 'карточка создана, но не прочитана для ответа');
+    }
+    res.status(201).json(full || {
+      id: result.id,
+      lastName: result.lastName,
+      firstName: result.firstName,
+      middleName: result.middleName
+    });
   } catch (err) {
     if (err instanceof IntakeError) {
-      return res.status(400).json({ message: err.message });
+      return res.status(err.status).json({ message: err.message, ...(err.extra || {}) });
     }
     if (err?.name === 'SequelizeUniqueConstraintError') {
       const path = err?.errors?.[0]?.path || '';

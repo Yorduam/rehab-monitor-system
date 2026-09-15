@@ -1696,8 +1696,10 @@ const draftStateWarn = computed(() => draftState.value === 'local' || draftState
 
 let draftStateTimer = null;
 let skipNextDraftSave = false;
+let savedToDb = false;
 
 const saveDraft = () => {
+  if (savedToDb) return;
   if (skipNextDraftSave) { skipNextDraftSave = false; return; }
   let ok = false;
   try {
@@ -1720,6 +1722,7 @@ const resetWizardState = async () => {
   await withoutWatchers(() => { f.value = makeEmptyForm(); });
   uploads.value = {};
   signedUploads.value = {};
+  draftSynced.clear();
   stepScroll.clear();
   step.value = 1;
   try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
@@ -1762,8 +1765,9 @@ const serverDraftId = ref(readDraftServerId());
 const serverDraftUpdatedAt = ref(null);
 const serverDraftFailed = ref(false);
 let serverSyncTimer = null;
-let serverSyncBusy = false;
+let serverSyncRun = null;
 let serverSyncAgain = false;
+let serverDraftError = '';
 
 const attachedFileCount = () =>
   Object.keys(uploads.value).length + Object.keys(signedUploads.value).length;
@@ -1771,8 +1775,10 @@ const attachedFileCount = () =>
 const worthSyncing = () => !!summarizeDraft(f.value, attachedFileCount());
 
 const pushDraftToServer = async () => {
-  if (serverSyncBusy) { serverSyncAgain = true; return; }
-  serverSyncBusy = true;
+  if (savedToDb) return;
+  if (serverSyncRun) { serverSyncAgain = true; return serverSyncRun; }
+  let finishRun;
+  serverSyncRun = new Promise((resolve) => { finishRun = resolve; });
   try {
     const payload = JSON.parse(JSON.stringify(f.value));
     if (serverDraftId.value) {
@@ -1790,9 +1796,11 @@ const pushDraftToServer = async () => {
       }
     }
     serverDraftFailed.value = false;
+    serverDraftError = '';
   } catch (err) {
     console.error('черновик не ушёл на сервер:', err);
     serverDraftFailed.value = true;
+    serverDraftError = err?.response?.data?.message || err?.message || '';
     if (err?.response?.status === 409) {
       draftState.value = 'conflict';
       notifySaved(
@@ -1804,18 +1812,20 @@ const pushDraftToServer = async () => {
       draftState.value = 'local';
     }
   } finally {
-    serverSyncBusy = false;
+    serverSyncRun = null;
+    finishRun();
     if (serverSyncAgain) { serverSyncAgain = false; pushDraftToServer(); }
   }
 };
 
 const scheduleServerSync = () => {
-  if (!worthSyncing()) return;
+  if (savedToDb || !worthSyncing()) return;
   if (serverSyncTimer) clearTimeout(serverSyncTimer);
   serverSyncTimer = setTimeout(pushDraftToServer, SERVER_SYNC_DELAY);
 };
 
 const ensureServerDraft = async () => {
+  if (serverSyncRun) await serverSyncRun;
   if (serverDraftId.value) return serverDraftId.value;
   if (serverSyncTimer) { clearTimeout(serverSyncTimer); serverSyncTimer = null; }
   await pushDraftToServer();
@@ -1834,26 +1844,52 @@ const dropServerDraft = async () => {
 
 const SIGNED_KEYS = new Set(signedTiles.map((t) => t.k));
 
-const uploadDraftScan = async (docKey, file) => {
+const draftScanQueue = new Map();
+const draftSynced = new Map();
+
+const enqueueDraftScan = (docKey, task) => {
+  const run = (draftScanQueue.get(docKey) || Promise.resolve()).catch(() => null).then(task);
+  draftScanQueue.set(docKey, run);
+  run.catch(() => null).finally(() => {
+    if (draftScanQueue.get(docKey) === run) draftScanQueue.delete(docKey);
+  });
+  return run;
+};
+
+const uploadDraftScan = (docKey, file) => enqueueDraftScan(docKey, async () => {
+  if (savedToDb) return null;
   try {
     const id = await ensureServerDraft();
-    if (!id) return;
-    await api.post(`/recipients/drafts/${id}/scans`, {
+    if (!id) throw new Error(serverDraftError || 'черновик не сохранился на сервере');
+    const { data } = await api.post(`/recipients/drafts/${id}/scans`, {
       docKey,
       originalName: file.name,
       mimeType: file.type || 'application/octet-stream',
       base64: await fileToBase64(file)
     });
+    if (!data?.id) throw new Error('сервер не подтвердил загрузку файла');
+    draftSynced.set(docKey, { file, scanId: data.id, draftId: id });
+    return data.id;
   } catch (err) {
     console.error('скан не ушёл в черновик на сервере:', err);
+    throw err;
   }
-};
+});
 
-const deleteDraftScan = async (docKey) => {
+const deleteDraftScan = (docKey) => enqueueDraftScan(docKey, async () => {
+  draftSynced.delete(docKey);
   const id = serverDraftId.value;
-  if (!id) return;
+  if (!id) return null;
   try { await api.delete(`/recipients/drafts/${id}/scans/${docKey}`); }
   catch (err) { console.error('скан не удалён из черновика на сервере:', err); }
+  return null;
+});
+
+const draftScanIdFor = async (docKey, file) => {
+  await (draftScanQueue.get(docKey) || Promise.resolve()).catch(() => null);
+  const known = draftSynced.get(docKey);
+  if (known && known.file === file && known.draftId === serverDraftId.value) return known.scanId;
+  return uploadDraftScan(docKey, file);
 };
 
 const syncLocalScans = async () => {
@@ -1872,7 +1908,7 @@ const syncLocalScans = async () => {
   }
   for (const [docKey, file] of local) {
     if (known.has(docKey)) continue;
-    await uploadDraftScan(docKey, file);
+    await uploadDraftScan(docKey, file).catch(() => null);
   }
 };
 
@@ -1895,6 +1931,7 @@ const openServerDraft = async (id) => {
     const { data } = await api.get(`/recipients/drafts/${id}`);
     serverDraftId.value = id;
     rememberDraftServerId(id);
+    draftSynced.clear();
     await dropDraftFiles();
     uploads.value = {};
     signedUploads.value = {};
@@ -1906,6 +1943,7 @@ const openServerDraft = async (id) => {
     for (const s of data.scans || []) {
       const file = await draftScanToFile(id, s);
       if (!file) continue;
+      draftSynced.set(s.docKey, { file, scanId: s.id, draftId: id });
       const kind = SIGNED_KEYS.has(s.docKey) ? 'signed' : 'main';
       (kind === 'signed' ? signed : main)[s.docKey] = file;
       try { await withDraftFiles('readwrite', (store) => store.put(file, draftFileKey(kind, s.docKey))); }
@@ -1921,8 +1959,6 @@ const openServerDraft = async (id) => {
     openingServerDraft.value = false;
   }
 };
-
-let savedToDb = false;
 
 const draftKept = () => {
   if (savedToDb) return;
@@ -2410,7 +2446,109 @@ const dupStatusLabel = (s) => (
   s === 'archived' ? 'в архиве' : s === 'draft' ? 'черновик' : 'активен'
 );
 
+const collectScanFiles = () => [
+  ...Object.entries(uploads.value)
+    .filter(([docKey, file]) => file && tiles.value.some((t) => t.k === docKey)),
+  ...Object.entries(signedUploads.value).filter(([, file]) => file)
+].map(([docKey, file]) => ({ docKey, file }));
+
+const beforeIntake = (message) => Object.assign(new Error(message), { beforeIntake: true });
+
+const sendIntake = async () => {
+  const files = collectScanFiles();
+  const scans = [];
+  let draftId = null;
+
+  if (files.length) {
+    draftId = await ensureServerDraft();
+    if (!draftId) {
+      throw beforeIntake(
+        'черновик не сохранился на сервере' + (serverDraftError ? ` (${serverDraftError})` : '') +
+        '. Проверьте связь и нажмите «Сохранить» ещё раз.'
+      );
+    }
+    for (const { docKey, file } of files) {
+      try {
+        scans.push({ docKey, draftScanId: await draftScanIdFor(docKey, file) });
+      } catch (err) {
+        const reason = err?.response?.data?.message || err?.message || 'неизвестная ошибка';
+        throw beforeIntake(`не загрузился файл «${file.name}» — ${reason}`);
+      }
+    }
+  } else {
+    if (serverSyncRun) await serverSyncRun;
+    draftId = serverDraftId.value || null;
+  }
+
+  const crgNum = selectedCrgGroup.value?.num || '';
+  const crgChild = !!f.value.rCrg && f.value.rCrg.startsWith('child');
+
+  const { data } = await api.post('/recipients/intake', {
+    recipient: {
+      firstName:    f.value.rFirst,
+      middleName:   f.value.rMid,
+      lastName:     f.value.rLast,
+      birthDate:    f.value.rBirth || null,
+      diagnosis:    joinDiagnoses(f.value.rDiagnosisList),
+      disableGroup: disableGroupValue(),
+      status:       'active',
+    },
+    representative: noRep.value ? null : {
+      firstName:          f.value.lrFirst,
+      middleName:         f.value.lrMid,
+      lastName:           f.value.lrLast,
+      relation:           f.value.lrRelation,
+      telephone:          f.value.lrPhone,
+      passportSeries:     f.value.lrPassSeries,
+      passportNumber:     f.value.lrPassNum,
+      passportIssuer:     f.value.lrPassIssuer,
+      passportIssuerDate: f.value.lrPassDate || null,
+      passportDeptCode:   f.value.lrPassCode,
+      passportReg:        f.value.lrAddress,
+    },
+    telephone:       noRep.value ? f.value.rPhone : f.value.lrPhone,
+    groupId:         f.value.groupId,
+    familyStatuses:  noRep.value ? [] : f.value.lrFamilyStatus,
+    nozologyClasses: f.value.rNosology,
+    crg:             { code: crgNum, child: crgChild, subCode: selectedCrgSub.value?.num || '' },
+    doc: {
+      docType:        f.value.rDocType === 'birth' ? 'birth' : 'passport',
+      docSeries:      f.value.rDocSeries,
+      docNumber:      f.value.rDocNum,
+      docIssuer:      f.value.rDocIssuer,
+      docIssuerDate:  f.value.rDocDate || null,
+      snils:          f.value.rSnils,
+      mseIssueDate:   f.value.rMseDate || null,
+      mseValidDate:   f.value.rMseIndefinite ? null : (f.value.rMseUntil || null),
+      mseIndefinite:  f.value.rMseIndefinite === true,
+      regAddress:     f.value.rAddrReg,
+      factAddress:    f.value.rAddrFact,
+      factSameReg:    f.value.rAddrSame,
+      district:       f.value.rAddrSame
+                        ? f.value.rRegOkrug
+                        : (f.value.rFactOkrug || f.value.rRegOkrug),
+      area:           f.value.rAddrSame
+                        ? f.value.rRegArea
+                        : (f.value.rFactArea || f.value.rRegArea),
+      educationPlace: f.value.rEduName,
+      specialNote:    f.value.rSpecial,
+    },
+    draftId,
+    scans,
+  });
+  return data;
+};
+
+const saveFailText = (err) => {
+  const status = err?.response?.status;
+  const reason = err?.response?.data?.message || err?.message || 'неизвестная ошибка';
+  if (err?.beforeIntake || (status >= 400 && status < 500)) return `Карточка не создана: ${reason}`;
+  return `Сервер не подтвердил сохранение: ${reason}\n\n` +
+    'Прежде чем сохранять ещё раз, проверьте список реабилитантов — карточка могла успеть создаться.';
+};
+
 const save = async () => {
+  if (saving.value) return;
   if (!f.value.rLast || !f.value.rFirst) {
     alert('Заполните ФИО реабилитанта (шаг 2)');
     return;
@@ -2434,146 +2572,64 @@ const save = async () => {
     }
   }
 
-  if (dupTimer) { clearTimeout(dupTimer); dupTimer = null; }
-  const dup = await runDupCheck();
-
-  if (dup?.docMatch) {
-    alert(
-      `Нельзя сохранить: документ ${f.value.rDocSeries} ${f.value.rDocNum} уже зарегистрирован за реабилитантом ` +
-      `${dupFio(dup.docMatch)}. Один документ не может принадлежать двум людям — проверьте серию и номер.`
-    );
-    gotoField({ step: 2, a: '#rd-ser' });
-    return;
-  }
-
-  if (dup?.nameMatches?.length) {
-    const list = dup.nameMatches.map((p) => `• ${dupFio(p)}, ${dupDate(p.birthDate)}`).join('\n');
-    const ok = confirm(
-      `В системе уже есть реабилитант с такими ФИО и датой рождения:\n\n${list}\n\n` +
-      'Если это другой человек (полный тёзка), продолжайте. Сохранить карточку?'
-    );
-    if (!ok) {
-      gotoField({ step: 2, a: '#r-last' });
-      return;
-    }
-  }
-
   saving.value = true;
   try {
+    if (dupTimer) { clearTimeout(dupTimer); dupTimer = null; }
+    const dup = await runDupCheck();
 
-    const crgNum = selectedCrgGroup.value?.num || '';
-    const crgChild = !!f.value.rCrg && f.value.rCrg.startsWith('child');
+    if (dup?.docMatch) {
+      alert(
+        `Нельзя сохранить: документ ${f.value.rDocSeries} ${f.value.rDocNum} уже зарегистрирован за реабилитантом ` +
+        `${dupFio(dup.docMatch)}. Один документ не может принадлежать двум людям — проверьте серию и номер.`
+      );
+      gotoField({ step: 2, a: '#rd-ser' });
+      return;
+    }
 
-    const { data: createdRecipient } = await api.post('/recipients/intake', {
-      recipient: {
-        firstName:    f.value.rFirst,
-        middleName:   f.value.rMid,
-        lastName:     f.value.rLast,
-        birthDate:    f.value.rBirth || null,
-        diagnosis:    joinDiagnoses(f.value.rDiagnosisList),
-        disableGroup: disableGroupValue(),
-        status:       'active',
-      },
-      representative: noRep.value ? null : {
-        firstName:          f.value.lrFirst,
-        middleName:         f.value.lrMid,
-        lastName:           f.value.lrLast,
-        relation:           f.value.lrRelation,
-        telephone:          f.value.lrPhone,
-        passportSeries:     f.value.lrPassSeries,
-        passportNumber:     f.value.lrPassNum,
-        passportIssuer:     f.value.lrPassIssuer,
-        passportIssuerDate: f.value.lrPassDate || null,
-        passportDeptCode:   f.value.lrPassCode,
-        passportReg:        f.value.lrAddress,
-      },
-      telephone:       noRep.value ? f.value.rPhone : f.value.lrPhone,
-      groupId:         f.value.groupId,
-      familyStatuses:  noRep.value ? [] : f.value.lrFamilyStatus,
-      nozologyClasses: f.value.rNosology,
-      crg:             { code: crgNum, child: crgChild, subCode: selectedCrgSub.value?.num || '' },
-      doc: {
-        docType:        f.value.rDocType === 'birth' ? 'birth' : 'passport',
-        docSeries:      f.value.rDocSeries,
-        docNumber:      f.value.rDocNum,
-        docIssuer:      f.value.rDocIssuer,
-        docIssuerDate:  f.value.rDocDate || null,
-        snils:          f.value.rSnils,
-        mseIssueDate:   f.value.rMseDate || null,
-        mseValidDate:   f.value.rMseIndefinite ? null : (f.value.rMseUntil || null),
-        mseIndefinite:  f.value.rMseIndefinite === true,
-        regAddress:     f.value.rAddrReg,
-        factAddress:    f.value.rAddrFact,
-        factSameReg:    f.value.rAddrSame,
-        district:       f.value.rAddrSame
-                          ? f.value.rRegOkrug
-                          : (f.value.rFactOkrug || f.value.rRegOkrug),
-        area:           f.value.rAddrSame
-                          ? f.value.rRegArea
-                          : (f.value.rFactArea || f.value.rRegArea),
-        educationPlace: f.value.rEduName,
-        specialNote:    f.value.rSpecial,
-      },
-    });
-
-    let scansFailed = null;
-
-    if (createdRecipient?.id) {
-      const scans = [];
-      for (const [docKey, file] of Object.entries(uploads.value)) {
-        if (!file) continue;
-        if (!tiles.value.some((t) => t.k === docKey)) continue;
-        scans.push({
-          docKey,
-          entityType: !noRep.value && docKey === 'rep-pass' ? 'representative' : 'rehabilitant',
-          originalName: file.name,
-          mimeType: file.type || 'application/octet-stream',
-          base64: await fileToBase64(file),
-        });
-      }
-      for (const [docKey, file] of Object.entries(signedUploads.value)) {
-        if (!file) continue;
-        scans.push({
-          docKey,
-          entityType: noRep.value ? 'rehabilitant' : 'representative',
-          originalName: file.name,
-          mimeType: file.type || 'application/octet-stream',
-          base64: await fileToBase64(file),
-        });
-      }
-      if (scans.length) {
-        try {
-          await api.post(`/recipients/${createdRecipient.id}/scans`, { scans });
-        } catch (scanErr) {
-          console.error(scanErr);
-          scansFailed = scanErr?.response?.data?.message || scanErr?.message || 'неизвестная ошибка';
-        }
+    if (dup?.nameMatches?.length) {
+      const list = dup.nameMatches.map((p) => `• ${dupFio(p)}, ${dupDate(p.birthDate)}`).join('\n');
+      const ok = confirm(
+        `В системе уже есть реабилитант с такими ФИО и датой рождения:\n\n${list}\n\n` +
+        'Если это другой человек (полный тёзка), продолжайте. Сохранить карточку?'
+      );
+      if (!ok) {
+        gotoField({ step: 2, a: '#r-last' });
+        return;
       }
     }
 
+    let createdRecipient;
+    try {
+      createdRecipient = await sendIntake();
+    } catch (err) {
+      if (err?.response?.data?.code !== 'draft-scans-missing') throw err;
+      for (const docKey of err.response.data.docKeys || []) draftSynced.delete(docKey);
+      createdRecipient = await sendIntake();
+    }
+
+    savedToDb = true;
+    if (serverSyncTimer) { clearTimeout(serverSyncTimer); serverSyncTimer = null; }
+    if (draftStateTimer) { clearTimeout(draftStateTimer); draftStateTimer = null; }
+    serverDraftId.value = null;
+    forgetDraftServerId();
     try { localStorage.removeItem(DRAFT_KEY); } catch (e) {}
     forgetDraftSavedAt();
     await dropDraftFiles();
-    await dropServerDraft();
-    savedToDb = true;
     draftState.value = '';
-    const fio = [f.value.rLast, f.value.rFirst].filter(Boolean).join(' ').trim();
 
-    if (scansFailed) {
-      alert(
-        `Карточка ${fio || 'реабилитанта'} создана, но сканы к ней не загрузились: ${scansFailed}\n\n` +
-        'Повторять создание карточки не нужно — она уже есть. ' +
-        'Приложите файлы в карточке реабилитанта, вкладка «Документы».'
-      );
-    } else {
-      notifySaved(fio ? `Реабилитант ${fio} сохранён` : 'Реабилитант сохранён');
-    }
+    const fio = [f.value.rLast, f.value.rFirst].filter(Boolean).join(' ').trim();
+    notifySaved(fio ? `Реабилитант ${fio} сохранён` : 'Реабилитант сохранён');
     emit('saved', createdRecipient);
     emit('close');
   } catch (err) {
     console.error(err);
-    const msg = err?.response?.data?.message || err?.message || 'неизвестная ошибка';
-    alert('Ошибка при сохранении: ' + msg);
+    if (err?.response?.data?.code === 'draft-gone') {
+      serverDraftId.value = null;
+      serverDraftUpdatedAt.value = null;
+      forgetDraftServerId();
+      draftSynced.clear();
+    }
+    alert(saveFailText(err));
   } finally {
     saving.value = false;
   }
