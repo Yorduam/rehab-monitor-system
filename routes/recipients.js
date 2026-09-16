@@ -1251,6 +1251,25 @@ const CARD_REP_FIELDS = [
   'passportDeptCode', 'passportReg'
 ];
 
+const PHOTO_MAX_BYTES = 1024 * 1024;
+const PHOTO_MIME = ['image/jpeg', 'image/png', 'image/webp'];
+
+const readCardPhoto = (raw) => {
+  const text = raw == null ? '' : String(raw).trim();
+  if (!text) return { value: '' };
+  if (text.length > Math.ceil((PHOTO_MAX_BYTES * 4) / 3) + 64) {
+    return { error: 'фото — больше 1 МБ, загрузите его заново кнопкой «Загрузить фото»' };
+  }
+  const match = /^data:image\/(?:jpeg|png|webp);base64,([A-Za-z0-9+/]+={0,2})$/.exec(text);
+  if (!match) return { error: 'фото — нужно изображение JPG, PNG или WEBP' };
+  const buffer = Buffer.from(match[1], 'base64');
+  const mime = sniffMime(buffer);
+  if (!buffer.length || !PHOTO_MIME.includes(mime)) {
+    return { error: 'фото — файл повреждён или это не изображение JPG, PNG или WEBP' };
+  }
+  return { value: `data:${mime};base64,${buffer.toString('base64')}` };
+};
+
 const DOC_REQUIRED = [
   'docSeries', 'docNumber', 'docIssuer', 'docIssuerDate',
   'snils', 'mseIssueDate', 'regAddress'
@@ -1403,6 +1422,12 @@ router.patch('/:id/card', authMiddleware, roleMiddleware('admin', 'employee'), l
     const d = collectPatch(req, recipient.id, doc, CARD_DOC_FIELDS, CATEGORY_OF.doc, req.body);
     const p = collectPatch(req, recipient.id, rep, CARD_REP_FIELDS, CATEGORY_OF.rep, req.body?.representative, 'у представителя ');
 
+    if (req.body?.photo !== undefined) {
+      const photo = readCardPhoto(req.body.photo);
+      if (photo.error) r.rejected.push(photo.error);
+      else if (photo.value !== (recipient.photo || '')) r.patch.photo = photo.value;
+    }
+
     if (doc) {
       const sameReg = 'factSameReg' in d.patch ? d.patch.factSameReg : !!doc.factSameReg;
       if (sameReg) {
@@ -1504,6 +1529,7 @@ router.patch('/:id/card', authMiddleware, roleMiddleware('admin', 'employee'), l
       nozology: recipient.nozology,
       groupId: recipient.groupId,
       CRGMain: recipient.CRGMain,
+      ...('photo' in r.patch ? { photo: recipient.photo || '' } : {}),
       representative: rep ? rep.toJSON() : null
     };
 
@@ -1904,7 +1930,7 @@ router.post('/:id/access', authMiddleware, async (req, res, next) => {
 
     if (isAdmin(req.user)) {
       await logAccess(req, { recipientId, category, action: 'view' });
-      return res.json({ ok: true, category, expiresAt: null, admin: true });
+      return res.json({ ok: true, category, categories: CATEGORIES, expiresAt: null, admin: true });
     }
 
     const problem = validateReason(reasonCode, reasonText);
@@ -1913,13 +1939,16 @@ router.post('/:id/access', authMiddleware, async (req, res, next) => {
       return res.status(400).json({ message: problem, field: 'reason' });
     }
 
-    const expiresAt = await grantAccess(req, recipientId, category, reasonCode);
-    await logAccess(req, {
-      recipientId, category, action: 'view',
-      reasonCode, reasonText: String(reasonText ?? '').trim() || null
-    });
+    const expiresAt = await grantAccess(req, recipientId, reasonCode);
+    const explanation = String(reasonText ?? '').trim() || null;
+    for (const opened of CATEGORIES) {
+      await logAccess(req, {
+        recipientId, category: opened, action: 'view',
+        reasonCode, reasonText: explanation
+      });
+    }
 
-    res.json({ ok: true, category, expiresAt: new Date(expiresAt).toISOString() });
+    res.json({ ok: true, category, categories: CATEGORIES, expiresAt: new Date(expiresAt).toISOString() });
   } catch (err) {
     next(err);
   }

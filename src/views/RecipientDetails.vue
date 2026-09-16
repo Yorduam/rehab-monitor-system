@@ -1529,6 +1529,36 @@
 
           <div class="du-body">
             <div v-show="cardSection === 'person'" class="du-grid">
+              <div class="ce-photo du-field-full">
+                <div class="ce-photo-frame">
+                  <img v-if="cardPhotoPreview" :src="cardPhotoPreview" alt="" class="ce-photo-img" />
+                  <span v-else class="ce-photo-initials" aria-hidden="true">{{ initials(recipient) }}</span>
+                </div>
+                <div class="ce-photo-body">
+                  <span class="du-key">Фото</span>
+                  <div class="ce-photo-actions">
+                    <label class="du-btn du-btn-ghost ce-photo-pick" :class="{ 'is-disabled': cardPhotoBusy || cardSaving }">
+                      <input
+                        type="file" accept="image/*" class="ce-photo-input"
+                        :disabled="cardPhotoBusy || cardSaving"
+                        :aria-label="cardForm.photo ? 'Заменить фото реабилитанта' : 'Загрузить фото реабилитанта'"
+                        @change="onCardPhotoPick"
+                      />
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                      {{ cardPhotoBusy ? 'Обработка…' : (cardForm.photo ? 'Заменить фото' : 'Загрузить фото') }}
+                    </label>
+                    <button
+                      type="button" class="du-btn du-btn-ghost"
+                      :disabled="!cardForm.photo || cardPhotoBusy || cardSaving"
+                      @click="clearCardPhoto"
+                    >Убрать</button>
+                  </div>
+                  <p class="ce-photo-note" :class="{ 'is-error': cardPhotoError }" aria-live="polite">
+                    {{ cardPhotoError || 'JPG, PNG или WEBP до 15 МБ. На телефоне можно сразу сфотографировать.' }}
+                  </p>
+                </div>
+              </div>
+
               <label class="du-field"><span class="du-key">Фамилия</span>
                 <input v-model="cardForm.lastName" class="du-input" :class="{ 'is-invalid': cardTouched && !cardForm.lastName.trim() }" />
               </label>
@@ -1987,6 +2017,7 @@ import { useAuthStore } from '../stores/auth';
 import { useUiStore } from '../stores/ui';
 import api from '../api';
 import { fullName, initials, recipientAge, statusLabel } from '../utils/recipient';
+import { preparePhoto } from '../utils/photo';
 import { splitDiagnoses, formatDiagnoses } from '../utils/diagnosisList';
 import { notify, notifySaved } from '../utils/toast';
 import { SCALE, getBlock, averageScore } from '../utils/diagnosticBlocks';
@@ -2432,6 +2463,7 @@ const DOC_FORM_FIELDS = [
 ];
 
 const FIELD_LABELS = {
+  photo: 'Фото',
   docType: 'Тип документа',
   docSeries: 'Серия',
   docNumber: 'Номер',
@@ -2677,9 +2709,9 @@ const loadRecipient = async () => {
   }
 };
 
-const onUnlocked = async (category) => {
+const onUnlocked = async () => {
   await loadRecipient();
-  if (category === 'scans') await loadScans(true);
+  await Promise.all([loadScans(true), loadDocHistory(true)]);
   cardRehydrate();
 };
 
@@ -3371,13 +3403,6 @@ const saveAttendance = async () => {
   }
 };
 
-const CATEGORY_LABELS = {
-  passport: 'Паспортные данные и СНИЛС',
-  scans: 'Сканы документов',
-  contacts: 'Адреса и телефоны',
-  medical: 'Диагноз и медицинские сведения'
-};
-
 const revealOpen = ref(false);
 const revealCategory = ref('');
 const revealReasonCode = ref('');
@@ -3391,7 +3416,7 @@ let accessOptionsPromise = null;
 let revealPending = null;
 
 const revealLabel = computed(
-  () => revealDocName.value || CATEGORY_LABELS[revealCategory.value] || 'Персональные данные'
+  () => revealDocName.value || 'Все данные реабилитанта — на всех вкладках карточки'
 );
 const revealTitle = computed(() =>
   revealDocName.value ? 'Открыть скан документа' : 'Для чего вы хотите получить информацию?'
@@ -3406,8 +3431,8 @@ const revealHint = computed(() =>
 );
 const revealNote = computed(() =>
   revealDocName.value
-    ? `Файл откроется после подтверждения. Доступ к сканам откроется на ${revealMinutes.value} минут, запись о просмотре сохранится в журнале.`
-    : `Доступ откроется на ${revealMinutes.value} минут и только по этому реабилитанту. Запись о том, кто, когда и зачем открыл данные, сохранится в журнале.`
+    ? `Файл откроется после подтверждения. Вместе с ним на ${revealMinutes.value} минут откроются все данные этого реабилитанта на всех вкладках. Запись о просмотре сохранится в журнале.`
+    : `На ${revealMinutes.value} минут откроются сразу все данные этого реабилитанта на всех вкладках: паспорт и СНИЛС, сканы, адреса и телефоны, медицинские сведения. Запись о том, кто, когда и зачем открыл данные, сохранится в журнале.`
 );
 const revealSubmitText = computed(() =>
   revealDocName.value ? 'Открыть документ' : 'Открыть данные'
@@ -3455,12 +3480,11 @@ const submitReveal = async () => {
       reasonCode: revealReasonCode.value,
       reasonText: revealReasonText.value.trim()
     });
-    const category = revealCategory.value;
     const then = revealPending;
     revealPending = null;
     revealOpen.value = false;
-    notifySaved(`Доступ открыт на ${revealMinutes.value} минут. Причина записана в журнал.`);
-    onUnlocked(category);
+    notifySaved(`Данные открыты на всех вкладках на ${revealMinutes.value} минут. Причина записана в журнал.`);
+    await onUnlocked();
     if (then) then();
   } catch (err) {
     revealError.value = err?.response?.data?.message || 'Не удалось открыть данные';
@@ -3700,7 +3724,7 @@ const CARD_SECTIONS = [
 ];
 
 const SECTION_FIELDS = {
-  person: ['lastName', 'firstName', 'middleName', 'birthDate', 'telephone', 'email',
+  person: ['photo', 'lastName', 'firstName', 'middleName', 'birthDate', 'telephone', 'email',
     'regAddress', 'factAddress', 'factSameReg', 'district', 'area', 'educationPlace'],
   doc: ['docType', 'snils', 'docSeries', 'docNumber', 'docIssuer', 'docIssuerDate',
     'mseIssueDate', 'mseValidDate', 'mseIndefinite', 'specialNote'],
@@ -3710,6 +3734,7 @@ const SECTION_OF = {};
 for (const [key, list] of Object.entries(SECTION_FIELDS)) for (const f of list) SECTION_OF[f] = key;
 
 const CARD_LABELS = {
+  photo: 'фото',
   lastName: 'фамилия', firstName: 'имя', middleName: 'отчество', birthDate: 'дата рождения',
   telephone: 'телефон', email: 'e-mail', regAddress: 'адрес регистрации',
   factAddress: 'адрес проживания', factSameReg: 'совпадение адресов',
@@ -3739,6 +3764,8 @@ const cardReason = ref('');
 const cardTouched = ref(false);
 const cardSaving = ref(false);
 const cardError = ref('');
+const cardPhotoBusy = ref(false);
+const cardPhotoError = ref('');
 const crgList = ref([]);
 const nozologyList = ref([]);
 
@@ -3754,6 +3781,7 @@ const cardSnapshot = () => {
   const d = doc.value || {};
   const p = r.representative || {};
   return {
+    photo: txt(r.photo),
     lastName: txt(r.lastName), firstName: txt(r.firstName), middleName: txt(r.middleName),
     birthDate: toInputDate(r.birthDate),
     telephone: txt(r.telephone), email: txt(r.email),
@@ -3803,8 +3831,35 @@ const cardFioValid = computed(() =>
   !!cardForm.value && !!cardForm.value.lastName.trim() && !!cardForm.value.firstName.trim()
 );
 const canSaveCard = computed(() =>
-  cardReasonValid.value && cardFioValid.value && cardDiff.value.length > 0 && !cardSaving.value
+  cardReasonValid.value && cardFioValid.value && cardDiff.value.length > 0 &&
+  !cardSaving.value && !cardPhotoBusy.value
 );
+
+const cardPhotoPreview = computed(() => {
+  const p = cardForm.value?.photo;
+  return p && /^(https?:|data:image\/)/.test(p) ? p : '';
+});
+
+const onCardPhotoPick = async (event) => {
+  const file = event.target.files?.[0];
+  event.target.value = '';
+  if (!file || !cardForm.value) return;
+  cardPhotoError.value = '';
+  cardPhotoBusy.value = true;
+  try {
+    cardForm.value.photo = await preparePhoto(file);
+  } catch (err) {
+    cardPhotoError.value = err?.message || 'Не удалось обработать фото';
+  } finally {
+    cardPhotoBusy.value = false;
+  }
+};
+
+const clearCardPhoto = () => {
+  if (!cardForm.value) return;
+  cardPhotoError.value = '';
+  cardForm.value.photo = '';
+};
 
 watch(
   () => [cardForm.value?.factSameReg, cardForm.value?.regAddress],
@@ -3842,6 +3897,7 @@ const openCardEdit = () => {
   cardReason.value = '';
   cardTouched.value = false;
   cardError.value = '';
+  cardPhotoError.value = '';
   cardEditOpen.value = true;
   loadCardRefs();
 };
@@ -4721,6 +4777,7 @@ onUnmounted(() => {
 @keyframes du-rise { from { opacity: 0; transform: translateY(1rem); } to { opacity: 1; transform: none; } }
 .du-modal-lg { width: min(56rem, 100%); }
 .ce-tabs {
+  flex: 0 0 auto;
   display: flex; gap: 0.25rem; padding: 0.5rem 1.375rem 0;
   border-bottom: 0.0625rem solid var(--line-soft); background: var(--paper-soft);
   overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
@@ -4765,6 +4822,41 @@ onUnmounted(() => {
 .du-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem 0.875rem; }
 .du-field { display: flex; flex-direction: column; gap: 0.3125rem; min-width: 0; }
 .du-field-full { grid-column: 1 / -1; }
+.ce-photo {
+  display: flex; align-items: center; gap: 1rem;
+  padding: 0.75rem 0.875rem;
+  border: 0.0625rem solid var(--line-soft); border-radius: var(--radius-md);
+  background: var(--paper-soft);
+}
+.ce-photo-frame {
+  flex: 0 0 5.5rem; width: 5.5rem; height: 5.5rem; border-radius: 50%; overflow: hidden;
+  display: grid; place-items: center;
+  background: var(--sage-100); color: var(--sage-700);
+  font-family: var(--font-serif); font-size: 2rem;
+  border: 0.1875rem solid var(--paper); box-shadow: var(--shadow-md);
+}
+.ce-photo-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.ce-photo-body { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+.ce-photo-actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.ce-photo-pick { position: relative; gap: 0.4375rem; min-width: 10.75rem; }
+.ce-photo-pick svg { width: 1rem; height: 1rem; flex: 0 0 auto; }
+.ce-photo-pick:focus-within {
+  border-color: var(--sage-500);
+  box-shadow: 0 0 0 0.1875rem rgba(95, 126, 69, 0.16);
+}
+.ce-photo-pick.is-disabled { opacity: 0.5; cursor: not-allowed; pointer-events: none; }
+.ce-photo-input {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  opacity: 0; cursor: pointer;
+}
+.ce-photo-note { margin: 0; min-height: 2.9em; font-size: 0.8125rem; line-height: 1.45; color: var(--ink-subtle); }
+.ce-photo-note.is-error { color: var(--rose-700); font-weight: 500; }
+@media (max-width: 40rem) {
+  .ce-photo { align-items: flex-start; }
+  .ce-photo-frame { flex-basis: 4.5rem; width: 4.5rem; height: 4.5rem; font-size: 1.625rem; }
+  .ce-photo-actions > * { flex: 1 1 auto; }
+  .ce-photo-note { min-height: 4.35em; }
+}
 .du-key {
   font-size: 0.71875rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em;
   color: var(--ink-muted);

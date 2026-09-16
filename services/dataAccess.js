@@ -64,21 +64,24 @@ export const hasGrant = (req, recipientId, category) => {
   return req?._grants?.has(keyOf(Number(recipientId), category)) === true;
 };
 
-export const grantAccess = async (req, recipientId, category, reasonCode = null) => {
-  const expiresAt = new Date(Date.now() + GRANT_MS);
-  await AccessGrant.destroy({ where: { expiresAt: { [Op.lte]: new Date() } } });
+export const grantAccess = async (req, recipientId, reasonCode = null) => {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + GRANT_MS);
+  await AccessGrant.destroy({ where: { expiresAt: { [Op.lte]: now } } });
 
-  const [row, created] = await AccessGrant.findOrCreate({
-    where: { userId: req.user.id, recipientId, category },
-    defaults: { expiresAt, reasonCode, createdAt: new Date() }
-  });
-  if (!created) {
-    row.expiresAt = expiresAt;
-    row.reasonCode = reasonCode;
-    await row.save();
+  for (const category of CATEGORIES) {
+    const [row, created] = await AccessGrant.findOrCreate({
+      where: { userId: req.user.id, recipientId, category },
+      defaults: { expiresAt, reasonCode, createdAt: now }
+    });
+    if (!created) {
+      row.expiresAt = expiresAt;
+      row.reasonCode = reasonCode;
+      await row.save();
+    }
+    req._grants?.add(keyOf(Number(recipientId), category));
   }
 
-  req._grants?.add(keyOf(Number(recipientId), category));
   return expiresAt.getTime();
 };
 
