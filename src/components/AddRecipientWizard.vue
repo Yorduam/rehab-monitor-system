@@ -189,6 +189,22 @@
                 </div>
               </div>
 
+              <label class="rw-switch-row" style="margin-top:1rem">
+                <div class="rw-sr-text">
+                  <div class="rw-sr-title">Реабилитант совершеннолетний и признан недееспособным</div>
+                </div>
+                <span class="rw-switch">
+                  <input type="checkbox" :checked="f.rCapacity === 'incapable'" @change="f.rCapacity = $event.target.checked ? 'incapable' : 'capable'" />
+                  <span class="rw-slider"></span>
+                </span>
+              </label>
+              <div v-if="f.rCapacity === 'incapable'" class="rw-fg">
+                <div class="rw-f rw-c12">
+                  <label class="rw-label" for="lr-basis">Основание полномочий представителя <span class="rw-req">*</span></label>
+                  <input id="lr-basis" class="rw-input" type="text" placeholder="Решение суда № … от …, акт органа опеки" :value="f.lrBasis" @input="onMask('lrBasis', $event, v => maskText(v, 500))" maxlength="500" />
+                </div>
+              </div>
+
               <div class="rw-divider"><span class="rw-dv-label">Паспорт</span><span class="rw-dv-line"></span></div>
               <div class="rw-fg">
                 <div class="rw-f rw-c3">
@@ -678,7 +694,7 @@
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v6m0 0l3-3m-3 3L9 5"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 11 12 16 17 11"/></svg>
                   </div>
                   <div class="rw-gen-body">
-                    <div class="rw-gen-title">Сформировать пакет из 3 документов</div>
+                    <div class="rw-gen-title">Сформировать пакет из {{ genDocsList.length }} {{ pluralDocs(genDocsList.length) }}</div>
                     <div class="rw-gen-sub">Заполнятся автоматически: ФИО представителя и реабилитанта, паспортные данные, адреса, дата рождения, особенности</div>
                   </div>
                   <button class="rw-btn rw-btn-primary" type="button" id="gen-docs-btn" @click="generateDocs">
@@ -714,7 +730,7 @@
                   </div>
                   <span class="rw-ssh-meta">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-                    {{ signedCount }} из 3 загружено
+                    {{ signedCount }} из {{ signedTiles.length }} загружено
                   </span>
                 </div>
                 <div class="rw-uploads-grid">
@@ -959,6 +975,7 @@ import {
 import { useScrollLock } from '../utils/scrollLock';
 import { joinDiagnoses, toDiagnosisFields } from '../utils/diagnosisList';
 import { recognizePassport, recognizeSnils, isSupportedScan, disposeOcr } from '../utils/docOcr';
+import { categoryOf, packageDocs, CONSENT_DOCS } from '../utils/consentRules';
 
 useScrollLock();
 
@@ -1117,6 +1134,8 @@ const makeEmptyForm = () => ({
   lrPassSeries: '', lrPassNum: '', lrPassDate: '', lrPassCode: '', lrPassIssuer: '',
   lrAddress: '',
   lrFamilyStatus: [],
+  lrBasis: '',
+  rCapacity: 'capable',
 
   rLast: '', rFirst: '', rMid: '',
   rBirth: '',
@@ -1324,6 +1343,11 @@ const REP_FIELDS = [
 const toggleNoRep = () => {
   if (noRep.value) { f.value.lrNone = false; return; }
 
+  if (f.value.rCapacity === 'incapable') {
+    alert('Реабилитант признан недееспособным — законный представитель обязателен, пропустить шаг нельзя.');
+    return;
+  }
+
   if (crgAge.value != null && crgAge.value < 18) {
     const ok = confirm(
       `По дате рождения ${dmy(f.value.rBirth)} реабилитанту ${recipientAgeYears.value} — это меньше 18.\n\n`
@@ -1403,7 +1427,7 @@ const uploads = ref({});
 const uploadCount = computed(() => Object.keys(uploads.value).length);
 
 const signedUploads = ref({});
-const signedCount = computed(() => Object.keys(signedUploads.value).length);
+const signedCount = computed(() => signedTiles.value.filter((t) => signedUploads.value[t.k]).length);
 
 const ALL_TILES = [
   { k: 'birth',    req: true,  title: 'Свидетельство о рождении или паспорт', meta: 'Документ, удостоверяющий личность реабилитанта',
@@ -1432,20 +1456,47 @@ const tiles = computed(() => ALL_TILES.filter((t) => {
   return true;
 }));
 
-const signedTiles = [
-  { k: 'signed-pdn',   title: 'Подписанное согласие на ПДн',           meta: 'Скан или фото подписанного документа 1',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13l-4 4-2-2"/></svg>' },
-  { k: 'signed-photo', title: 'Подписанное согласие на фото/видео',    meta: 'Скан или фото подписанного документа 2',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>' },
-  { k: 'signed-diag',  title: 'Подписанное заявление на диагностику',  meta: 'Скан или фото подписанного документа 3',
-    icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>' },
-];
+const SIGNED_ICON_CONSENT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13l-4 4-2-2"/></svg>';
+const SIGNED_ICON_DIAG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>';
 
-const genDocsList = [
-  { k: 'pdn',   num: 'Документ 1', title: 'Согласие на обработку персональных данных', sub: 'ПДн представителя и ребёнка'          },
-  { k: 'photo', num: 'Документ 2', title: 'Согласие на фото- и видеосъёмку',            sub: 'Для документирования занятий и публикации' },
-  { k: 'diag',  num: 'Документ 3', title: 'Заявление на проведение диагностики',         sub: 'От законного представителя реабилитанта'   },
-];
+const SIGNER_SHORT = {
+  parent: 'законный представитель',
+  self: 'сам реабилитант',
+  ward: 'опекун недееспособного'
+};
+
+const consentCategory = computed(() =>
+  categoryOf(crgAge.value, f.value.rCapacity === 'incapable' ? 'incapable' : 'capable')
+);
+const diagConsents = computed(() => packageDocs('diag', consentCategory.value));
+
+const signedTiles = computed(() => [
+  ...diagConsents.value.map((d) => ({
+    k: d.code,
+    title: `Согласие на ПДн — ${SIGNER_SHORT[d.signer]}`,
+    meta: 'Скан или фото подписанного согласия',
+    icon: SIGNED_ICON_CONSENT
+  })),
+  {
+    k: 'signed-diag',
+    title: 'Подписанное заявление на диагностику',
+    meta: 'Скан или фото подписанного заявления',
+    icon: SIGNED_ICON_DIAG
+  }
+]);
+
+const genDocsList = computed(() => [
+  ...diagConsents.value.map((d) => ({
+    k: d.key,
+    title: 'Согласие на обработку персональных данных',
+    sub: `Подписывает ${SIGNER_SHORT[d.signer]}`
+  })),
+  {
+    k: 'diag',
+    title: 'Заявление на проведение диагностики',
+    sub: consentCategory.value === 'adult' ? 'От реабилитанта' : 'От законного представителя реабилитанта'
+  }
+].map((d, i) => ({ ...d, num: `Документ ${i + 1}` })));
 
 const displayName = computed(() =>
   [f.value.rLast, f.value.rFirst, f.value.rMid].filter(Boolean).join(' ')
@@ -1460,8 +1511,8 @@ const requiredFields = computed(() => {
     ...tiles.value.filter(t => t.req).map(t => (
       { g: 'Сканы готовых документов', l: t.title, ok: !!uploads.value[t.k], a: '#tile-' + t.k }
     )),
-    { g: 'Документы на подпись', l: 'Сформировать пакет из 3 документов', ok: f.value.docsGenerated === true, a: '#gen-docs-btn' },
-    ...signedTiles.map(t => (
+    { g: 'Документы на подпись', l: `Сформировать пакет из ${genDocsList.value.length} ${pluralDocs(genDocsList.value.length)}`, ok: f.value.docsGenerated === true, a: '#gen-docs-btn' },
+    ...signedTiles.value.map(t => (
       { g: 'Подписанные документы', l: t.title, ok: !!signedUploads.value[t.k], a: '#tile-' + t.k }
     )),
   ];
@@ -1842,7 +1893,7 @@ const dropServerDraft = async () => {
   catch (err) { console.error('черновик не удалён с сервера:', err); }
 };
 
-const SIGNED_KEYS = new Set(signedTiles.map((t) => t.k));
+const SIGNED_KEYS = new Set([...CONSENT_DOCS.map((d) => d.code), 'signed-diag', 'signed-pdn', 'signed-photo']);
 
 const draftScanQueue = new Map();
 const draftSynced = new Map();
@@ -2449,7 +2500,8 @@ const dupStatusLabel = (s) => (
 const collectScanFiles = () => [
   ...Object.entries(uploads.value)
     .filter(([docKey, file]) => file && tiles.value.some((t) => t.k === docKey)),
-  ...Object.entries(signedUploads.value).filter(([, file]) => file)
+  ...Object.entries(signedUploads.value)
+    .filter(([docKey, file]) => file && signedTiles.value.some((t) => t.k === docKey))
 ].map(([docKey, file]) => ({ docKey, file }));
 
 const beforeIntake = (message) => Object.assign(new Error(message), { beforeIntake: true });
@@ -2492,6 +2544,8 @@ const sendIntake = async () => {
       diagnosis:    joinDiagnoses(f.value.rDiagnosisList),
       disableGroup: disableGroupValue(),
       status:       'active',
+      legalCapacity: f.value.rCapacity === 'incapable' ? 'incapable' : 'capable',
+      guardianBasis: f.value.rCapacity === 'incapable' ? f.value.lrBasis : '',
     },
     representative: noRep.value ? null : {
       firstName:          f.value.lrFirst,

@@ -1,4 +1,5 @@
 import { Op } from '@sequelize/core';
+import { buildConsentState, CONSENT_SCAN_CODES } from '../src/utils/consentRules.js';
 import {
   Recipient, RecipientDoc, RecipientScanDoc, DocType, ReGroup,
   DiagnosticAssignment, DiagnosticSession, DiagnosticConclusion,
@@ -76,7 +77,7 @@ const personName = (p) =>
 
 export function buildLifecycle({
   recipient, steps, docTypes, currentScanTypeIds, missingScans,
-  assignments, sessions, conclusions, group, lessons, today
+  assignments, sessions, conclusions, group, lessons, today, consents
 }) {
   const concBySession = new Map((conclusions || []).map((c) => [c.sessionId, c]));
   const stepBy = Object.fromEntries((steps || []).map((s) => [s.key, s]));
@@ -99,6 +100,9 @@ export function buildLifecycle({
   if (!stepBy.scans?.done) paperMissing.push(`сканы (${(missingScans || []).length})`);
   if (!stepBy.docsValid?.done) paperMissing.push('просроченные документы');
   if (!signedDiagOk) paperMissing.push('подписанное заявление');
+  if (consents && consents.stage === 'diag' && !consents.complete) {
+    paperMissing.push(`согласия (${consents.total - consents.done})`);
+  }
   const paperDone = paperMissing.length === 0;
   const paperHint = paperDone
     ? 'Пакет документов собран · заявление подписано'
@@ -220,7 +224,7 @@ export async function getRecipientReadiness(recipientId) {
     scans.filter((s) => s.isCurrent !== false).map((s) => s.docType)
   );
   const age = yearsOld(recipient.birthDate);
-  const selfRepresented = !recipient.representativeId && (age ?? 0) >= 18;
+  const selfRepresented = !recipient.representativeId && (age ?? 0) >= 18 && recipient.legalCapacity !== 'incapable';
 
   const skipCodes = new Set();
   if (selfRepresented) skipCodes.add('rep-pass');
@@ -265,7 +269,9 @@ export async function getRecipientReadiness(recipientId) {
       done: !!recipient.representativeId || selfRepresented,
       hint: selfRepresented
         ? 'Совершеннолетний — представляет себя сам'
-        : 'Законный представитель привязан к карточке'
+        : (!recipient.representativeId && (age ?? 0) >= 18
+          ? 'Реабилитант признан недееспособным — нужен законный представитель'
+          : 'Законный представитель привязан к карточке')
     },
     {
       key: 'documents',
@@ -371,9 +377,24 @@ export async function getRecipientReadiness(recipientId) {
     order: [['issuedAt', 'ASC']]
   });
 
+  const codeOfType = new Map(docTypes.map((t) => [t.id, t.code]));
+  const consentScans = scans
+    .filter((s) => s.isCurrent !== false && CONSENT_SCAN_CODES.includes(codeOfType.get(s.docType)))
+    .map((s) => ({ id: s.id, code: codeOfType.get(s.docType), uploadedAt: s.uploadedAt }));
+  const primarySessionIds = new Set(
+    allSessions.filter((s) => sessionKind(s) === 'primary').map((s) => s.id)
+  );
+  const firstPrimaryConclusion = conclusions.find((c) => primarySessionIds.has(c.sessionId)) || null;
+  const consents = buildConsentState({
+    birthDate: recipient.birthDate,
+    legalCapacity: recipient.legalCapacity,
+    verdict: firstPrimaryConclusion?.verdict || null,
+    scans: consentScans
+  });
+
   const lifecycle = buildLifecycle({
     recipient, steps, docTypes, currentScanTypeIds, missingScans,
-    assignments, sessions: allSessions, conclusions, group, lessons, today
+    assignments, sessions: allSessions, conclusions, group, lessons, today, consents
   });
 
   const blockers = [];
@@ -467,6 +488,21 @@ export async function getRecipientReadiness(recipientId) {
       message: `${e.label} истекает ${e.date} — обновите документ`
     });
   }
+  if (!consents.complete) {
+    blockers.push({
+      code: 'consents-missing',
+      severity: 'warning',
+      message: (consents.notice ? `${consents.notice}. ` : '') +
+               `Не хватает подписанных документов: ${consents.missing.join('; ')}`
+    });
+  }
+  if (doc && doc.docType === 'Свидетельство' && (age ?? 0) >= 14) {
+    blockers.push({
+      code: 'passport-needed',
+      severity: 'warning',
+      message: 'Реабилитанту исполнилось 14 лет — замените свидетельство о рождении на паспорт в документах карточки'
+    });
+  }
 
   const errors = blockers.filter((b) => b.severity === 'error');
   const warnings = blockers.filter((b) => b.severity === 'warning');
@@ -488,6 +524,7 @@ export async function getRecipientReadiness(recipientId) {
       warnCount: expiringSoon.length
     },
     diagnostic: { inProgress, upcoming, legacyOpen, openSessions },
+    consents,
     blockers,
     errors,
     warnings,

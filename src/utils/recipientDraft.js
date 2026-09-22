@@ -25,6 +25,9 @@ export const draftPersonFields = (form) => {
     { g: 'Паспорт',           l: 'Код подразделения',               ok: str(v.lrPassCode).length === 7,   a: '#lp-code'  },
     { g: 'Паспорт',           l: 'Кем выдан',                       ok: isFilled(v.lrPassIssuer),         a: '#lp-iss'   },
     { g: 'Адрес регистрации', l: 'Адрес регистрации представителя', ok: isFilled(v.lrAddress),            a: '#lr-addr'  },
+    ...(v.rCapacity === 'incapable'
+      ? [{ g: 'Полномочия', l: 'Основание полномочий представителя', ok: isFilled(v.lrBasis), a: '#lr-basis' }]
+      : []),
   ];
 
   const step2 = [

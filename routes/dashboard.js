@@ -11,13 +11,11 @@ import { DIAGNOSTIC_BLOCKS } from '../src/utils/diagnosticBlocks.js';
 import { summarizeDraft } from '../src/utils/recipientDraft.js';
 import { hasGrant, loadGrants } from '../services/dataAccess.js';
 import {
-  ENROLL_DOCS, findPendingEnrollment,
-  signedEnrollCodesFor, hasAllRequiredEnrollDocs
+  ENROLL_RELATED_CODES, findPendingEnrollment,
+  enrollmentProgressFor, consentNeedsFor
 } from '../services/enrollmentDocs.js';
 
 const router = express.Router();
-
-const ENROLL_SCAN_CODES = ENROLL_DOCS.map((d) => d.scanCode);
 
 function recipientFullName(r) {
   return [r.lastName, r.firstName, r.middleName].filter(Boolean).join(' ') || 'Без имени';
@@ -479,7 +477,7 @@ router.get('/employee-alerts', authMiddleware, roleMiddleware('admin', 'employee
           attributes: [...nameAttrs, 'groupId']
         }),
         DocType.findAll({
-          where: { category: 'signed', code: { [Op.notIn]: ENROLL_SCAN_CODES } },
+          where: { category: 'signed', code: { [Op.notIn]: ENROLL_RELATED_CODES } },
           attributes: ['id', 'code', 'name']
         }),
         RecipientScanDoc.findAll({
@@ -524,16 +522,22 @@ router.get('/employee-alerts', authMiddleware, roleMiddleware('admin', 'employee
       if (s.uploadedAt && (!prev || s.uploadedAt > prev)) lastScanAt.set(s.recipId, s.uploadedAt);
     });
 
+    const consentNeeds = await consentNeedsFor(activeRecipients.map((r) => r.id));
     const signedItems = [];
     activeRecipients.forEach((r) => {
       const have = scansOf.get(r.id) || new Set();
-      const missing = signedTypes.filter((t) => !have.has(t.id));
+      const consent = consentNeeds.get(r.id);
+      const missing = [
+        ...signedTypes.filter((t) => !have.has(t.id)).map((t) => t.name),
+        ...(consent && !consent.complete ? consent.missing : [])
+      ];
       if (!missing.length) return;
       signedItems.push({
         recipientId: r.id,
         name: recipientFullName(r),
         days: daysSince(lastScanAt.get(r.id), today),
-        note: `Не загружено: ${missing.map((t) => t.name).join(', ')}`
+        note: (consent && !consent.complete && consent.notice ? `${consent.notice}. ` : '') +
+              `Не загружено: ${missing.join(', ')}`
       });
     });
 
@@ -747,12 +751,12 @@ const sessionStartTime = (session, assignments) => {
   return times[0] || session.reservedFrom || null;
 };
 
-function resolveSessionStatus({ session, assignments, conclusion, signedCodes, date, today, nowMin }) {
+function resolveSessionStatus({ session, assignments, conclusion, progress, date, today, nowMin }) {
   if (conclusion) {
     if (conclusion.verdict === 'rejected') return 'rejected';
     if (conclusion.verdict === 'trial') return 'trial';
     if (conclusion.verdict === 'recommended') {
-      return hasAllRequiredEnrollDocs(signedCodes) ? 'enrolled' : 'recommended';
+      return progress?.complete ? 'enrolled' : 'recommended';
     }
     return 'recommended';
   }
@@ -766,7 +770,7 @@ function resolveSessionStatus({ session, assignments, conclusion, signedCodes, d
   return nowMin > start + NO_SHOW_GRACE_MIN ? 'noshow' : 'waiting';
 }
 
-function sessionNote({ status, session, assignments, conclusion, signed, date, today, startTime }) {
+function sessionNote({ status, session, assignments, conclusion, signed, total, date, today, startTime }) {
   const done = assignments.filter((a) => a.blockStatus === 'completed').length;
   const kind = KIND_LABELS[session.kind] || 'Диагностика';
 
@@ -775,7 +779,7 @@ function sessionNote({ status, session, assignments, conclusion, signed, date, t
   }
   if (status === 'recommended') {
     return signed
-      ? `Заключение ${fmtRuFull(conclusion.issuedAt)} · подписано ${signed} из ${ENROLL_DOCS.length} документов`
+      ? `Заключение ${fmtRuFull(conclusion.issuedAt)} · подписано ${signed} из ${total} документов`
       : `Заключение ${fmtRuFull(conclusion.issuedAt)} · документы не готовились`;
   }
   if (status === 'trial') {
@@ -816,23 +820,23 @@ async function loadDayRows(date, today, nowMin) {
   });
   if (!sessions.length) return [];
 
-  const [conclusions, signedMap] = await Promise.all([
+  const [conclusions, progressMap] = await Promise.all([
     DiagnosticConclusion.findAll({
       where: { sessionId: { [Op.in]: sessions.map((s) => s.id) } },
       attributes: ['id', 'sessionId', 'verdict', 'summary', 'issuedAt']
     }),
-    signedEnrollCodesFor(sessions.map((s) => s.recipientId))
+    enrollmentProgressFor(sessions.map((s) => s.recipientId))
   ]);
   const conclusionOf = new Map(conclusions.map((c) => [c.sessionId, c]));
 
   return sessions.map((s) => {
     const assignments = s.assignments || [];
     const conclusion = conclusionOf.get(s.id) || null;
-    const signedCodes = signedMap.get(s.recipientId) || new Set();
+    const progress = progressMap.get(s.recipientId) || { signed: 0, total: 0, complete: false };
     const startTime = sessionStartTime(s, assignments);
     const startMin = minutesOf(startTime);
     const status = resolveSessionStatus({
-      session: s, assignments, conclusion, signedCodes, date, today, nowMin
+      session: s, assignments, conclusion, progress, date, today, nowMin
     });
     const meta = STATUS_META[status];
     const past = date < today
@@ -849,12 +853,12 @@ async function loadDayRows(date, today, nowMin) {
       pill: meta.pill,
       verdict: meta.verdict,
       done: meta.done,
-      signedCount: signedCodes.size,
-      totalDocs: ENROLL_DOCS.length,
+      signedCount: progress.signed,
+      totalDocs: progress.total,
       isPast: past && status !== 'running' && status !== 'waiting',
       note: sessionNote({
         status, session: s, assignments, conclusion,
-        signed: signedCodes.size, date, today, startTime
+        signed: progress.signed, total: progress.total, date, today, startTime
       })
     };
   });

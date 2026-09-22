@@ -839,6 +839,16 @@
       @saved="onRecipientSaved"
     />
 
+    <ReasonDialog
+      v-if="deleteTarget"
+      :title="deleteDialogTitle"
+      :text="deleteDialogText"
+      :busy="deleteBusy"
+      :error="deleteError"
+      @close="closeDeleteDialog"
+      @confirm="confirmDelete"
+    />
+
     <AssignDiagnosticModal
       v-if="assignTarget"
       :recipient-id="assignTarget.id"
@@ -881,6 +891,7 @@ import Modal from '../components/Modal.vue';
 import RecipientsPager from '../components/RecipientsPager.vue';
 import AddRecipientWizard from '../components/AddRecipientWizard.vue';
 import AssignDiagnosticModal from '../components/AssignDiagnosticModal.vue';
+import ReasonDialog from '../components/ReasonDialog.vue';
 
 const authStore = useAuthStore();
 const pageStore = usePageStore();
@@ -1219,34 +1230,66 @@ const toggleSelectAll = () => {
   else selectedIds.value = visibleRecipients.value.map(r => r.id);
 };
 const clearSelection = () => { selectedIds.value = []; };
-const askDeleteReason = (what) => {
-  const reason = prompt(
-    `${what}\n\nЭто действие нельзя отменить. Оно записывается в журнал изменений.\n` +
-    'Укажите причину (не менее 3 символов):'
-  );
-  if (reason === null) return null;
-  const text = String(reason).trim();
-  if (text.length < 3) {
-    alert('Причина обязательна — не менее 3 символов.');
-    return null;
-  }
-  return text;
+const deleteTarget = ref(null);
+const deleteBusy = ref(false);
+const deleteError = ref('');
+
+const recipientTitle = (id) => {
+  const r = recipients.value.find((x) => x.id === id);
+  return r ? fullName(r) : `карточка #${id}`;
 };
 
-const deleteSelected = async () => {
-  const reason = askDeleteReason(`Удалить ${selectedIds.value.length} реабилитантов?`);
-  if (!reason) return;
+const deleteDialogTitle = computed(() => {
+  const count = deleteTarget.value?.ids.length || 0;
+  return count === 1 ? 'Удалить карточку реабилитанта' : `Удалить выбранных (${count})`;
+});
+
+const deleteDialogText = computed(() => {
+  const ids = deleteTarget.value?.ids || [];
+  if (ids.length === 1) return `${recipientTitle(ids[0])} — карточка будет удалена вместе с документами и сканами.`;
+  return `Выбрано ${ids.length} ${pluralRecipients(ids.length)}. Их карточки будут удалены вместе с документами и сканами.`;
+});
+
+const openDeleteDialog = (ids) => {
+  if (!ids.length) return;
+  deleteError.value = '';
+  deleteTarget.value = { ids: [...ids] };
+};
+
+const closeDeleteDialog = () => {
+  if (!deleteBusy.value) deleteTarget.value = null;
+};
+
+const confirmDelete = async (reason) => {
+  const target = deleteTarget.value;
+  if (!target || deleteBusy.value) return;
+  deleteBusy.value = true;
+  deleteError.value = '';
+  const removed = [];
   try {
-    for (const id of selectedIds.value) {
+    for (const id of target.ids) {
       await api.delete(`/recipients/${id}`, { data: { reason } });
+      removed.push(id);
     }
-    clearSelection();
-    await loadRecipients();
+    deleteTarget.value = null;
+    notifySaved(removed.length === 1
+      ? `Карточка удалена: ${recipientTitle(removed[0])}`
+      : `Удалено карточек: ${removed.length}`);
   } catch (err) {
     console.error(err);
-    alert(err?.response?.data?.message || 'Ошибка при удалении');
+    const message = err?.response?.data?.message || 'Не удалось удалить реабилитанта. Попробуйте ещё раз.';
+    target.ids = target.ids.filter((id) => !removed.includes(id));
+    deleteError.value = removed.length ? `Удалено ${removed.length}, остальные не удалены: ${message}` : message;
+  } finally {
+    if (removed.length) {
+      selectedIds.value = selectedIds.value.filter((id) => !removed.includes(id));
+      await loadRecipients();
+    }
+    deleteBusy.value = false;
   }
 };
+
+const deleteSelected = () => openDeleteDialog(selectedIds.value);
 const clearSearch = () => { search.value = ''; page.value = 1; loadRecipients(); };
 
 const toggleDropdown = (id) => { activeDropdown.value = activeDropdown.value === id ? null : id; openTip.value = null; sortMenuOpen.value = false; openFilterMenu.value = null; };
@@ -1451,17 +1494,7 @@ const saveRecipient = async () => {
     alert(err?.response?.data?.message || 'Ошибка сохранения');
   }
 };
-const deleteRecipient = async (id) => {
-  const reason = askDeleteReason('Удалить карточку реабилитанта вместе с документами и сканами?');
-  if (!reason) return;
-  try {
-    await api.delete(`/recipients/${id}`, { data: { reason } });
-    await loadRecipients();
-  } catch (err) {
-    console.error(err);
-    alert(err?.response?.data?.message || 'Не удалось удалить реабилитанта. Попробуйте ещё раз.');
-  }
-};
+const deleteRecipient = (id) => openDeleteDialog([id]);
 const closeModal = () => { showModal.value = false; };
 
 const handleClickOutside = (event) => {

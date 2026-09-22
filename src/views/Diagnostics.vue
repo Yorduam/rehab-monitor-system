@@ -2065,19 +2065,21 @@ async function loadSpecialists() {
 async function openBlockFor(profile) {
   const sessionId = selectedSessionId.value
   const teacherId = Number(delegatePick.value[profile])
-  if (!sessionId || !teacherId || delegateBusyProfile.value) return
+  if (!sessionId || !teacherId || delegateBusyProfile.value) return false
   delegateBusyProfile.value = profile
   delegateNotes.value[profile] = ''
   try {
     await api.post(`/schedule/sessions/${sessionId}/delegate`, { specialistUserId: teacherId })
     delegatePick.value[profile] = ''
-    if (typeof window.__reloadDiagnosticSession === 'function') {
-      await window.__reloadDiagnosticSession()
+    if (typeof window.__refreshSessionBlocks === 'function') {
+      await window.__refreshSessionBlocks()
     }
     delegateNotes.value[profile] = 'Блок открыт — заполняйте бланк и сдавайте этап.'
+    return true
   } catch (err) {
     delegateNotes.value[profile] =
       err?.response?.data?.message || 'Не удалось открыть блок за преподавателя.'
+    return false
   } finally {
     delegateBusyProfile.value = ''
   }
@@ -2133,8 +2135,8 @@ async function saveBlockOwner(profile, blockId) {
     await api.patch(`/schedule/assignments/${blockId}/specialist`, { specialistUserId: teacherId })
     delegateEditId.value = 0
     delegateEditPick.value = ''
-    if (typeof window.__reloadDiagnosticSession === 'function') {
-      await window.__reloadDiagnosticSession()
+    if (typeof window.__refreshSessionBlocks === 'function') {
+      await window.__refreshSessionBlocks()
     }
     delegateNotes.value[profile] = 'Преподаватель изменён — всё заполненное в бланке сохранилось.'
   } catch (err) {
@@ -2411,6 +2413,15 @@ onMounted(() => {
       await hydrateResultsForRecipient();
     };
 
+    window.__refreshSessionBlocks = async () => {
+      await loadAssignmentsForRecipient();
+      const target = sessionList.value.find((s) => s.id === selectedSessionId.value);
+      diagnosticsRuntime.blocks = target ? (target.blocks || []) : [];
+      if (typeof window.__updateConclusionGate === 'function') window.__updateConclusionGate();
+      if (typeof window.__renderBlockAuthors === 'function') window.__renderBlockAuthors();
+      if (typeof window.__renderPeers === 'function') window.__renderPeers();
+    };
+
     async function hydrateResultsForRecipient() {
       if (typeof window.__resetFormState === 'function') {
         window.__resetFormState(document.querySelector('.diagnostics-page .content'));
@@ -2642,6 +2653,21 @@ onMounted(() => {
       return inStage.length > 0 && inStage.every((b) => b.blockStatus === 'completed');
     }
 
+    async function openPickedBlocks(stageKey, subKey) {
+      const profiles = Object.keys(BLOCK_BY_PROFILE).filter((p) => {
+        const place = BLOCK_BY_PROFILE[p];
+        if (place.stage !== stageKey || (subKey && place.sub !== subKey)) return false;
+        return !!delegatePick.value[p] && !(delegateBlocks.value[p] || []).length;
+      });
+      for (const p of profiles) {
+        if (!(await openBlockFor(p))) {
+          showToast(delegateNotes.value[p] || 'Не удалось открыть блок за выбранного преподавателя.', 5600);
+          return false;
+        }
+      }
+      return true;
+    }
+
     async function persistStageBlocks(stageKey, subKey, btn) {
       if (!diagnosticsRuntime.currentRecipient?.id) {
         showToast('Сначала выберите реабилитанта.', 4200);
@@ -2650,6 +2676,12 @@ onMounted(() => {
       if (!diagnosticsRuntime.sessionId) {
         showToast('Не удалось определить заявку на диагностику — выберите реабилитанта заново.', 5200);
         return { ok: false, stageDone: false };
+      }
+      if (sharedAccess.value) {
+        if (btn) btn.disabled = true;
+        const opened = await openPickedBlocks(stageKey, subKey);
+        if (btn && btn.isConnected) btn.disabled = false;
+        if (!opened) return { ok: false, stageDone: false };
       }
       const mine = ownBlocksAt(stageKey, subKey);
       if (!mine.length) {
@@ -5542,6 +5574,7 @@ onUnmounted(() => {
   window.__openRecipientPicker = null;
   window.__renderPeers = null;
   window.__reloadDiagnosticSession = null;
+  window.__refreshSessionBlocks = null;
   if (peersPoller) {
     clearInterval(peersPoller);
     peersPoller = null;

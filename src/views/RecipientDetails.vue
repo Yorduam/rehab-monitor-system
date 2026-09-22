@@ -38,6 +38,32 @@
         </button>
       </div>
 
+      <div v-if="consentNotice" class="alert alert-note" role="status">
+        <span class="alert-ic" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+        </span>
+        <div class="alert-body">
+          <div class="alert-title">{{ consentNotice }}</div>
+          <div class="alert-text">
+            Нужно подписать: {{ consentMissingText }}. Подписанные раньше документы не удаляются и остаются в карточке.
+          </div>
+        </div>
+        <button type="button" class="btn btn-primary" @click="goConsents">К согласиям</button>
+      </div>
+
+      <div v-if="passportNeeded" class="alert alert-note" role="status">
+        <span class="alert-ic" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M15 8h2M15 12h2M7 16h10"/></svg>
+        </span>
+        <div class="alert-body">
+          <div class="alert-title">Реабилитанту исполнилось 14 лет</div>
+          <div class="alert-text">
+            Замените свидетельство о рождении на паспорт. Реквизиты свидетельства сохранятся в истории изменений карточки.
+          </div>
+        </div>
+        <button v-if="canEditCard" type="button" class="btn btn-primary" @click="startPassportUpdate">Указать паспорт</button>
+      </div>
+
       <section class="hero" aria-label="Сводка по реабилитанту">
         <div class="hero-body">
           <button
@@ -713,7 +739,86 @@
 
           <div v-else-if="!docGroups.length" class="empty">Список типов документов не загружен</div>
 
-          <div v-else class="split">
+          <template v-else>
+            <section v-if="consentState" class="card consent-card">
+              <div class="card-head">
+                <h2 class="card-title-sans">Согласия</h2>
+                <span class="pill" :class="consentState.complete ? 'pill-ok' : 'pill-wait'">{{ consentState.done }} из {{ consentState.total }}</span>
+              </div>
+              <div class="card-body">
+                <p v-if="consentNotice" class="consent-notice">{{ consentNotice }}</p>
+                <div class="consent-now">Нужно сейчас · {{ consentState.categoryLabel }} · {{ consentState.stageLabel }}</div>
+                <dl class="doc-table">
+                  <div v-for="c in consentState.items" :key="c.code" class="doc-tr" :class="{ 'is-missing': !c.done }">
+                    <dt class="doc-k">
+                      <span class="doc-name">{{ c.title }}</span>
+                      <span class="doc-req">{{ c.signerLabel }}</span>
+                    </dt>
+                    <dd class="doc-v">
+                      <div class="doc-state">
+                        <span class="pill" :class="c.done ? 'pill-ok' : 'pill-wait'">{{ c.done ? (c.legacy ? 'Подписано по прежней форме' : 'Подписано') : 'Ждём скан' }}</span>
+                        <div v-if="c.done && c.uploadedAt" class="doc-term">Загружено {{ formatDate(c.uploadedAt) }}<template v-if="c.legacy"> · действует до смены возраста</template></div>
+                      </div>
+                      <div class="doc-acts">
+                        <template v-if="consentScan(c.scanCode)">
+                          <button type="button" class="doc-act" :aria-label="'Открыть: ' + c.title" @click="openScanDoc(consentScan(c.scanCode))">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                            Открыть
+                          </button>
+                          <button type="button" class="doc-act" :aria-label="'История: ' + c.title" @click="openScanHistory(consentScan(c.scanCode))">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                            История
+                          </button>
+                        </template>
+                        <button v-if="c.blank" type="button" :class="c.done ? 'doc-act' : 'btn btn-secondary btn-sm'"
+                                :disabled="enrollBusy === c.blank" :aria-label="'Скачать бланк: ' + c.title"
+                                @click="downloadEnrollDoc({ key: c.blank, title: c.title })">
+                          {{ enrollBusy === c.blank ? 'Готовим…' : 'Скачать бланк' }}
+                        </button>
+                        <button v-if="canUploadRow({ code: c.code })" type="button" :class="c.done && !c.legacy ? 'doc-act' : 'btn btn-primary btn-sm'"
+                                :aria-label="(c.done && !c.legacy ? 'Новая версия: ' : 'Загрузить скан: ') + c.title"
+                                @click="openUpload({ code: c.code })">
+                          {{ c.done && !c.legacy ? 'Новая версия' : 'Загрузить скан' }}
+                        </button>
+                      </div>
+                    </dd>
+                  </div>
+                </dl>
+
+                <div v-if="consentState.previous.length" class="consent-prev">
+                  <button type="button" class="consent-prev-toggle" :aria-expanded="consentPrevOpen" @click="consentPrevOpen = !consentPrevOpen">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+                    Прежние согласия ({{ consentState.previous.length }})
+                  </button>
+                  <dl v-show="consentPrevOpen" class="doc-table">
+                    <div v-for="p in consentState.previous" :key="p.code" class="doc-tr">
+                      <dt class="doc-k">
+                        <span class="doc-name">{{ p.title }}</span>
+                        <span class="doc-req">{{ p.period }} · {{ p.signerLabel }}</span>
+                      </dt>
+                      <dd class="doc-v">
+                        <div class="doc-state">
+                          <span class="pill pill-mute">Хранится</span>
+                          <div v-if="p.uploadedAt" class="doc-term">Загружено {{ formatDate(p.uploadedAt) }}</div>
+                        </div>
+                        <div v-if="consentScan(p.code)" class="doc-acts">
+                          <button type="button" class="doc-act" :aria-label="'Открыть: ' + p.title" @click="openScanDoc(consentScan(p.code))">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7z"/><circle cx="12" cy="12" r="3"/></svg>
+                            Открыть
+                          </button>
+                          <button type="button" class="doc-act" :aria-label="'История: ' + p.title" @click="openScanHistory(consentScan(p.code))">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 14"/></svg>
+                            История
+                          </button>
+                        </div>
+                      </dd>
+                    </div>
+                  </dl>
+                </div>
+              </div>
+            </section>
+
+          <div class="split">
             <div class="col">
               <section v-for="g in docGroupsLeft" :key="g.key" class="card">
                 <div class="card-head">
@@ -832,6 +937,7 @@
               </section>
             </div>
           </div>
+          </template>
         </div>
 
         <section v-else class="card">
@@ -976,9 +1082,31 @@
       </div>
 
       <div v-else-if="activeTab === 'representative'" class="tabpanel">
+        <section v-if="formerReps.length" class="card rd-former">
+          <div class="card-head"><h2 class="card-title-sans">Бывший законный представитель</h2></div>
+          <div class="card-body">
+            <div v-for="fr in formerReps" :key="fr.id" class="rd-former-row">
+              <div class="rd-former-name">
+                {{ [fr.lastName, fr.firstName, fr.middleName].filter(Boolean).join(' ') || '—' }}<span v-if="fr.relation" class="rd-former-rel"> · {{ fr.relation }}</span>
+              </div>
+              <div class="rd-former-meta">
+                Снят {{ formatDate(fr.releasedAt) }}<template v-if="fr.releasedByName"> · {{ fr.releasedByName }}</template><template v-if="fr.telephone"> · тел. {{ fr.telephone }}</template>
+              </div>
+              <div class="rd-former-reason">Причина: {{ fr.reason }}</div>
+            </div>
+            <p class="rd-former-note">
+              Данные бывшего представителя не удаляются: они хранятся в базе и в истории карточки,
+              подписанные им документы остаются во вкладке «Документы».
+            </p>
+          </div>
+        </section>
+
         <div class="split">
           <section class="card">
-            <div class="card-head"><h2 class="card-title">Законный представитель</h2></div>
+            <div class="card-head">
+              <h2 class="card-title">Законный представитель</h2>
+              <button v-if="canReleaseRep" type="button" class="btn btn-secondary btn-sm" @click="openRelease">Снять представителя</button>
+            </div>
             <div class="card-body">
               <div v-if="selfRepresented" class="rd-self-rep">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
@@ -1274,7 +1402,7 @@
 
               <template v-else>
                 <dl class="doc-table">
-                  <div v-for="d in enroll.docs" :key="d.key" class="doc-tr" :class="{ 'is-missing': !d.uploaded && d.required }">
+                  <div v-for="d in enroll.docs" :key="d.scanCode" class="doc-tr" :class="{ 'is-missing': !d.uploaded && d.required }">
                     <dt class="doc-k">
                       <span class="doc-name">{{ d.title }}</span>
                       <span class="doc-req">{{ d.required ? 'обязательный' : 'по желанию' }}</span>
@@ -1282,7 +1410,7 @@
                     <dd class="doc-v">
                       <div class="doc-state">
                         <span class="pill" :class="d.uploaded ? 'pill-ok' : (d.required ? 'pill-wait' : 'pill-mute')">
-                          {{ d.uploaded ? 'Подписано' : (d.required ? 'Ждём скан' : 'Не загружено') }}
+                          {{ d.uploaded ? (d.legacy ? 'Подписано по прежней форме' : 'Подписано') : (d.required ? 'Ждём скан' : 'Не загружено') }}
                         </span>
                         <div v-if="d.uploaded && d.uploadedAt" class="doc-term">Загружено {{ formatDate(d.uploadedAt) }}</div>
                       </div>
@@ -1301,6 +1429,7 @@
                         </button>
 
                         <button
+                          v-if="d.key"
                           type="button"
                           :class="d.uploaded ? 'doc-act' : 'btn btn-secondary btn-sm'"
                           :disabled="enrollBusy === d.key"
@@ -1504,6 +1633,41 @@
         </div>
       </div>
 
+      <div v-if="releaseOpen" class="du-overlay" @click.self="closeRelease">
+        <div class="du-modal du-modal-sm" role="dialog" aria-modal="true" aria-labelledby="rr-title">
+          <header class="du-head">
+            <div>
+              <h3 class="du-title" id="rr-title">Снять законного представителя</h3>
+              <p class="du-sub">Данные представителя не удаляются — они останутся в базе и в истории карточки</p>
+            </div>
+            <button type="button" class="du-close" :disabled="releaseSaving" aria-label="Закрыть" @click="closeRelease">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </header>
+          <div class="du-body">
+            <p class="du-changes">
+              {{ fullName(recipient.representative) || 'Представитель' }}<template v-if="recipient.representative?.relation"> · {{ recipient.representative.relation }}</template>
+            </p>
+            <p class="du-changes du-changes-muted">
+              Реабилитант совершеннолетний и дееспособен — дальше документы он подписывает сам.
+              Согласия, которые подписал представитель, останутся в карточке.
+            </p>
+            <label class="du-field" style="margin-top:0.875rem;">
+              <span class="du-key">Причина <span class="du-req">— обязательно</span></span>
+              <textarea v-model="releaseReason" class="du-input du-textarea" rows="3" maxlength="500"
+                        placeholder="Например: реабилитанту исполнилось 18 лет, представитель больше не нужен"></textarea>
+            </label>
+            <p v-if="releaseError" class="du-error">{{ releaseError }}</p>
+          </div>
+          <footer class="du-foot">
+            <button type="button" class="du-btn du-btn-ghost" :disabled="releaseSaving" @click="closeRelease">Отмена</button>
+            <button type="button" class="du-btn du-btn-primary" :disabled="!canRelease" @click="submitRelease">
+              {{ releaseSaving ? 'Сохраняем…' : 'Снять представителя' }}
+            </button>
+          </footer>
+        </div>
+      </div>
+
       <div v-if="cardEditOpen" class="du-overlay" @click.self="closeCardEdit">
         <div class="du-modal du-modal-lg" role="dialog" aria-modal="true" aria-labelledby="ce-title">
           <header class="du-head">
@@ -1685,6 +1849,20 @@
             </div>
 
             <div v-show="cardSection === 'rep'" class="du-grid">
+              <label class="du-field"><span class="du-key">Дееспособность <span class="du-hint">— учитывается с 18 лет</span></span>
+                <select v-model="cardForm.legalCapacity" class="du-input">
+                  <option value="capable">Дееспособен</option>
+                  <option value="incapable">Признан недееспособным</option>
+                </select>
+              </label>
+              <label class="du-field"><span class="du-key">Основание полномочий представителя</span>
+                <input v-model="cardForm.guardianBasis" class="du-input" maxlength="500"
+                       :disabled="isLocked('passport') || cardForm.legalCapacity !== 'incapable'"
+                       :placeholder="isLocked('passport') ? '•••••••' : 'Решение суда № … от …, акт органа опеки'" />
+              </label>
+              <p v-if="cardForm.legalCapacity === 'incapable' && !hasRep" class="du-error du-field-full">
+                Недееспособному нужен законный представитель — без него согласия подписать некому.
+              </p>
               <p v-if="!hasRep" class="du-changes du-changes-muted du-field-full">
                 У этой карточки нет законного представителя — реабилитант совершеннолетний
                 и представляет себя сам. Завести представителя здесь нельзя.
@@ -2018,6 +2196,7 @@ import { useUiStore } from '../stores/ui';
 import api from '../api';
 import { fullName, initials, recipientAge, statusLabel } from '../utils/recipient';
 import { preparePhoto } from '../utils/photo';
+import { CONSENT_SCAN_CODES } from '../utils/consentRules';
 import { splitDiagnoses, formatDiagnoses } from '../utils/diagnosisList';
 import { notify, notifySaved } from '../utils/toast';
 import { SCALE, getBlock, averageScore } from '../utils/diagnosticBlocks';
@@ -2222,6 +2401,28 @@ const goFixDocs = () => {
   else openDocUpdate();
 };
 
+const consentState = computed(() => readiness.value?.consents || null);
+const consentNotice = computed(() => {
+  const c = consentState.value;
+  return c && !c.complete && c.notice ? c.notice : '';
+});
+const consentMissingText = computed(() => (consentState.value?.missing || []).join('; '));
+const passportNeeded = computed(() => (age.value ?? 0) >= 14 && doc.value?.docType === 'Свидетельство');
+const consentPrevOpen = ref(false);
+const consentScan = (code) => (code ? scanByCode(code) : null);
+
+const goConsents = () => {
+  docSub.value = 'files';
+  activeTab.value = 'documents';
+};
+
+const startPassportUpdate = () => {
+  openCardEdit();
+  if (!cardForm.value) return;
+  cardSection.value = 'doc';
+  cardForm.value.docType = 'Паспорт';
+};
+
 const enrollMissing = computed(() => {
   const e = enroll.value;
   if (!e || !e.positive) return [];
@@ -2272,7 +2473,7 @@ const recipientCode = computed(() =>
 const statusDotClass = computed(() => 'st-' + (recipient.value?.status || 'draft'));
 const crgShort = computed(() => recipient.value?.crgMain?.code || '');
 const selfRepresented = computed(() =>
-  !recipient.value?.representative && (age.value ?? 0) >= 18
+  !recipient.value?.representative && (age.value ?? 0) >= 18 && recipient.value?.legalCapacity !== 'incapable'
 );
 
 const needsHousing = computed(() => age.value == null || age.value < 14);
@@ -2464,6 +2665,8 @@ const DOC_FORM_FIELDS = [
 
 const FIELD_LABELS = {
   photo: 'Фото',
+  legalCapacity: 'Дееспособность',
+  guardianBasis: 'Основание полномочий представителя',
   docType: 'Тип документа',
   docSeries: 'Серия',
   docNumber: 'Номер',
@@ -2631,6 +2834,7 @@ const timeAgo = (v) => {
 };
 
 const AUDIT_FIELD_ALIASES = {
+  'representative.released': 'законный представитель снят',
   docs: 'документ',
   deleted: 'документ удалён',
   'recipient.deleted': 'карточка удалена'
@@ -2914,7 +3118,7 @@ const pickSignedScan = async (d, event) => {
     const payload = {
       scans: [{
         docKey: d.scanCode,
-        entityType: 'rehabilitant',
+        entityType: /-(parent|ward)$|^guardianship$/.test(d.scanCode) ? 'representative' : 'rehabilitant',
         originalName: file.name,
         mimeType: file.type || 'application/octet-stream',
         base64: await fileToBase64(file)
@@ -2965,14 +3169,11 @@ const loadDocTypes = async () => {
 
 const DOC_GROUPS = [
   { key: 'personal', title: 'Личные документы', codes: ['birth', 'rep-pass', 'snils', 'housing'] },
-  { key: 'consents', title: 'Согласия', codes: ['signed-pdn', 'signed-photo'] },
   { key: 'medical', title: 'Медицинские', codes: ['mse', 'ipra', 'med', 'cpmpk'] },
   { key: 'papers', title: 'Заявления и договоры', codes: ['signed-diag', 'signed-contract', 'signed-enroll', 'signed-plan'] }
 ];
 
 const ENROLL_BLANK = {
-  'signed-pdn': 'pdn',
-  'signed-photo': 'photo',
   'signed-contract': 'contract',
   'signed-enroll': 'enroll'
 };
@@ -3041,10 +3242,10 @@ const docGroups = computed(() => {
   if (!types.length) return [];
   const byCode = new Map(types.map((t) => [t.code, t]));
   const req = enrollRequired.value;
-  const used = new Set();
+  const used = new Set(CONSENT_SCAN_CODES);
 
   const skip = new Set();
-  if (selfRepresented.value) skip.add('rep-pass');
+  if (selfRepresented.value && !scanByCode('rep-pass')) skip.add('rep-pass');
   if (!needsHousing.value) skip.add('housing');
 
   const build = (code) => {
@@ -3728,13 +3929,15 @@ const SECTION_FIELDS = {
     'regAddress', 'factAddress', 'factSameReg', 'district', 'area', 'educationPlace'],
   doc: ['docType', 'snils', 'docSeries', 'docNumber', 'docIssuer', 'docIssuerDate',
     'mseIssueDate', 'mseValidDate', 'mseIndefinite', 'specialNote'],
-  med: ['status', 'disableGroup', 'groupId', 'CRGMain', 'nozology', 'diagnosis']
+  med: ['status', 'disableGroup', 'groupId', 'CRGMain', 'nozology', 'diagnosis'],
+  rep: ['legalCapacity', 'guardianBasis']
 };
 const SECTION_OF = {};
 for (const [key, list] of Object.entries(SECTION_FIELDS)) for (const f of list) SECTION_OF[f] = key;
 
 const CARD_LABELS = {
   photo: 'фото',
+  legalCapacity: 'дееспособность', guardianBasis: 'основание полномочий представителя',
   lastName: 'фамилия', firstName: 'имя', middleName: 'отчество', birthDate: 'дата рождения',
   telephone: 'телефон', email: 'e-mail', regAddress: 'адрес регистрации',
   factAddress: 'адрес проживания', factSameReg: 'совпадение адресов',
@@ -3782,6 +3985,8 @@ const cardSnapshot = () => {
   const p = r.representative || {};
   return {
     photo: txt(r.photo),
+    legalCapacity: r.legalCapacity || 'capable',
+    guardianBasis: txt(r.guardianBasis),
     lastName: txt(r.lastName), firstName: txt(r.firstName), middleName: txt(r.middleName),
     birthDate: toInputDate(r.birthDate),
     telephone: txt(r.telephone), email: txt(r.email),
@@ -3904,6 +4109,47 @@ const openCardEdit = () => {
 
 const closeCardEdit = () => { if (!cardSaving.value) cardEditOpen.value = false; };
 
+const formerReps = computed(() => recipient.value?.formerRepresentatives || []);
+const canReleaseRep = computed(() =>
+  canEditCard.value && !!recipient.value?.representative && (age.value ?? 0) >= 18 &&
+  recipient.value?.legalCapacity !== 'incapable'
+);
+const releaseOpen = ref(false);
+const releaseReason = ref('');
+const releaseSaving = ref(false);
+const releaseError = ref('');
+const canRelease = computed(() => releaseReason.value.trim().length >= 3 && !releaseSaving.value);
+
+const openRelease = () => {
+  releaseReason.value = '';
+  releaseError.value = '';
+  releaseOpen.value = true;
+};
+
+const closeRelease = () => { if (!releaseSaving.value) releaseOpen.value = false; };
+
+const submitRelease = async () => {
+  if (!canRelease.value) return;
+  releaseSaving.value = true;
+  releaseError.value = '';
+  try {
+    const { data } = await api.post(`/recipients/${recipientId}/representative/release`, {
+      reason: releaseReason.value.trim()
+    });
+    if (data?.recipient) {
+      recipient.value = data.recipient;
+      hiddenCategories.value = data.recipient.hiddenCategories || [];
+    }
+    releaseOpen.value = false;
+    notifySaved('Законный представитель снят. Его данные сохранены в истории карточки.');
+    loadReadiness();
+  } catch (err) {
+    releaseError.value = err?.response?.data?.message || 'Не удалось снять представителя';
+  } finally {
+    releaseSaving.value = false;
+  }
+};
+
 const cardRehydrate = () => {
   if (!cardEditOpen.value || !cardForm.value || !cardBase.value) return;
   const fresh = cardSnapshot();
@@ -3981,7 +4227,7 @@ watch(activeTab, (tab) => {
 
 const overlayOpen = computed(() => !!(
   docUpdateOpen.value || cancelTarget.value || cardEditOpen.value ||
-  revealOpen.value || uploadOpen.value || historyScan.value ||
+  revealOpen.value || uploadOpen.value || historyScan.value || releaseOpen.value ||
   scanView.value || heroPhotoOpen.value
 ));
 watch(overlayOpen, (open) => {
@@ -4130,6 +4376,9 @@ onUnmounted(() => {
 }
 .alert-text { font-size: 0.9375rem; color: var(--ink-strong); }
 .alert-action:focus-visible { outline: 0.125rem solid var(--rose-500); outline-offset: 0.125rem; }
+.alert-note { background: var(--amber-50); border-color: var(--amber-100); border-left-color: var(--amber-700); }
+.alert-note .alert-ic { background: var(--amber-100); color: var(--amber-700); }
+.alert-note .alert-title { color: var(--amber-700); }
 
 .hero {
   background: var(--paper); border: 0.0625rem solid var(--line); border-radius: var(--radius-xl);
@@ -5042,6 +5291,32 @@ textarea.input { min-height: 5rem; resize: vertical; }
 .rd-self-rep-sub {
   margin-top: 0.1875rem; font-size: 0.8125rem; line-height: 1.45; color: var(--ink-muted);
 }
+
+.consent-card { margin-bottom: 1rem; }
+.consent-notice {
+  margin: 0 0 0.75rem; padding: 0.625rem 0.75rem; border-radius: var(--radius-md);
+  background: var(--amber-50); border: 0.0625rem solid var(--amber-100);
+  font-size: 0.875rem; font-weight: 600; color: var(--amber-700);
+}
+.consent-now {
+  margin: 0 0 0.375rem; font-size: 0.71875rem; font-weight: 600; text-transform: uppercase;
+  letter-spacing: 0.06em; color: var(--ink-muted);
+}
+.consent-prev { margin-top: 0.875rem; padding-top: 0.625rem; border-top: 0.0625rem solid var(--line-soft); }
+.consent-prev-toggle {
+  display: inline-flex; align-items: center; gap: 0.375rem; min-height: 2.25rem;
+  padding: 0.25rem 0; border: none; background: none; cursor: pointer;
+  font-family: inherit; font-size: 0.875rem; font-weight: 600; color: var(--ink);
+}
+.consent-prev-toggle svg { width: 1rem; height: 1rem; transition: transform 0.15s ease; }
+.consent-prev-toggle[aria-expanded="true"] svg { transform: rotate(90deg); }
+
+.rd-former { margin-bottom: 1rem; }
+.rd-former-row + .rd-former-row { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 0.0625rem solid var(--line-soft); }
+.rd-former-name { font-size: 0.9375rem; font-weight: 600; color: var(--ink-strong); }
+.rd-former-rel { font-weight: 400; color: var(--ink-muted); }
+.rd-former-meta, .rd-former-reason { margin-top: 0.1875rem; font-size: 0.8125rem; line-height: 1.45; color: var(--ink-muted); }
+.rd-former-note { margin: 0.75rem 0 0; font-size: 0.8125rem; line-height: 1.45; color: var(--ink-subtle); }
 
 .event {
   display: flex; gap: 0.75rem; padding: 0.625rem 0;

@@ -26,6 +26,7 @@ import DiagnosticConclusion from './DiagnosticConclusion.js';
 import AccessLog from './AccessLog.js';
 import AdminAuditLog from './AdminAuditLog.js';
 import AccessGrant from './AccessGrant.js';
+import RepresentativeRelease from './RepresentativeRelease.js';
 
 Recipient.belongsTo(User, { as: 'user', foreignKey: 'userId' });
 User.hasOne(Recipient, { as: 'recipient', foreignKey: 'userId' });
@@ -113,6 +114,11 @@ RecipientDraftScan.belongsTo(RecipientDraft, { as: 'draft', foreignKey: 'draftId
 RecipientDraft.hasMany(RecipientDraftScan, { as: 'scans', foreignKey: 'draftId' });
 RecipientDraft.belongsTo(User, { as: 'author', foreignKey: 'createdBy', foreignKeyConstraints: false });
 
+RepresentativeRelease.belongsTo(Recipient, { as: 'recipient', foreignKey: 'recipientId' });
+Recipient.hasMany(RepresentativeRelease, { as: 'representativeReleases', foreignKey: 'recipientId' });
+RepresentativeRelease.belongsTo(LegalRepresentative, { as: 'representative', foreignKey: 'representativeId' });
+RepresentativeRelease.belongsTo(User, { as: 'author', foreignKey: 'releasedBy', foreignKeyConstraints: false });
+
 AccessLog.belongsTo(User, { as: 'user', foreignKey: 'userId', foreignKeyConstraints: false });
 AccessLog.belongsTo(Recipient, { as: 'recipient', foreignKey: 'recipientId', foreignKeyConstraints: false });
 AdminAuditLog.belongsTo(User, { as: 'actor', foreignKey: 'actorId', foreignKeyConstraints: false });
@@ -144,5 +150,6 @@ export {
   DiagnosticConclusion,
   AccessLog,
   AdminAuditLog,
-  AccessGrant
+  AccessGrant,
+  RepresentativeRelease
 };

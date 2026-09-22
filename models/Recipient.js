@@ -33,6 +33,9 @@ const Recipient = sequelize.define('Recipient', {
   attendanceStatus: { type: DataTypes.ENUM('present', 'absent', 'left'), allowNull: true, defaultValue: null },
   attendanceDate: { type: DataTypes.DATEONLY, allowNull: true, defaultValue: null },
 
+  legalCapacity: { type: DataTypes.ENUM('capable', 'incapable'), allowNull: false, defaultValue: 'capable' },
+  guardianBasis: { type: DataTypes.STRING(500), allowNull: true, defaultValue: null },
+
   createdAt: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
   createdBy: { type: DataTypes.INTEGER, allowNull: true, defaultValue: null }
 }, {

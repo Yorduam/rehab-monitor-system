@@ -10,10 +10,11 @@ import {
   RecipientDoc, RecipientDocVersion, RecipientScanDoc, ReResult, CRGRecipientSec, DocType,
   ScheduleEvent, Direction, RecipientDraft, RecipientDraftScan,
   FamilyStatus, LegalRepFamilyStatus,
-  DiagnosticSession, DiagnosticAssignment, DiagnosticConclusion, AccessGrant
+  DiagnosticSession, DiagnosticAssignment, DiagnosticConclusion, AccessGrant, RepresentativeRelease
 } from '../models/index.js';
 import { getRecipientReadiness } from '../services/recipientReadiness.js';
-import { getEnrollmentState, generateEnrollmentDocument } from '../services/enrollmentDocs.js';
+import { getEnrollmentState, generateEnrollmentDocument, getConsentState } from '../services/enrollmentDocs.js';
+import { ageAt } from '../src/utils/consentRules.js';
 import { summarizeDraft } from '../src/utils/recipientDraft.js';
 import { buildScanFileName } from '../services/scanFileName.js';
 import { readScan, sendScanFile, sniffMime, ALLOWED_SCAN_MIME, MAX_SCANS_PER_REQUEST } from '../services/fileGuard.js';
@@ -561,12 +562,42 @@ router.get('/drafts/:draftId/scans/:scanId/file', authMiddleware, roleMiddleware
   }
 });
 
+async function formerRepresentatives(recipientId, req) {
+  const releases = await RepresentativeRelease.findAll({
+    where: { recipientId },
+    include: [
+      { model: LegalRepresentative, as: 'representative' },
+      { model: User, as: 'author', attributes: ['id', 'firstName', 'lastName', 'email', 'fullName'] }
+    ],
+    order: [['releasedAt', 'DESC'], ['id', 'DESC']]
+  });
+  const contacts = hasGrant(req, recipientId, 'contacts');
+  const passport = hasGrant(req, recipientId, 'passport');
+  return releases.map((release) => {
+    const rep = release.representative || {};
+    return {
+      id: release.id,
+      representativeId: release.representativeId,
+      lastName: rep.lastName || '',
+      firstName: rep.firstName || '',
+      middleName: rep.middleName || '',
+      relation: release.relation || rep.relation || '',
+      telephone: contacts ? (rep.telephone || '') : null,
+      passport: passport ? [rep.passportSeries, rep.passportNumber].filter(Boolean).join(' ') : null,
+      releasedAt: release.releasedAt,
+      reason: release.reason,
+      releasedByName: release.author ? personLabel(release.author) : null
+    };
+  });
+}
+
 router.get('/:id', authMiddleware, loadGrants, async (req, res, next) => {
   try {
     const recipient = await Recipient.findByPk(req.params.id, { include: detailInclude });
     if (!recipient) return res.status(404).json({ message: 'Реабилитант не найден' });
 
     const payload = redactRecipient(recipient, req);
+    payload.formerRepresentatives = await formerRepresentatives(recipient.id, req);
 
     payload.repSharedWith = recipient.representativeId
       ? await Recipient.count({
@@ -621,6 +652,78 @@ router.get('/:id/enrollment', authMiddleware, async (req, res, next) => {
   }
 });
 
+router.get('/:id/consents', authMiddleware, async (req, res, next) => {
+  try {
+    const state = await getConsentState(req.params.id);
+    if (!state) return res.status(404).json({ message: 'Реабилитант не найден' });
+    res.json(state);
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/:id/representative/release', authMiddleware, roleMiddleware('admin', 'employee'), loadGrants, async (req, res, next) => {
+  try {
+    const recipient = await Recipient.findByPk(req.params.id);
+    if (!recipient) return res.status(404).json({ message: 'Реабилитант не найден' });
+
+    const reason = String(req.body?.reason ?? '').trim();
+    if (reason.length < 3) {
+      return res.status(400).json({
+        message: 'Укажите причину — не менее 3 символов. Она сохранится в истории карточки.',
+        field: 'reason'
+      });
+    }
+    if (reason.length > 500) {
+      return res.status(400).json({ message: 'Причина слишком длинная (максимум 500 символов)', field: 'reason' });
+    }
+    if (!recipient.representativeId) {
+      return res.status(409).json({ message: 'У реабилитанта нет законного представителя' });
+    }
+    const age = ageAt(recipient.birthDate);
+    if (age == null || age < 18) {
+      return res.status(409).json({ message: 'Снять законного представителя можно только после 18 лет реабилитанта' });
+    }
+    if (recipient.legalCapacity === 'incapable') {
+      return res.status(409).json({ message: 'Реабилитант признан недееспособным — законный представитель остаётся' });
+    }
+
+    const rep = await LegalRepresentative.findByPk(recipient.representativeId);
+    const releasedAt = new Date();
+
+    await sequelize.transaction(async (t) => {
+      await RecipientDocVersion.create({
+        docId: null,
+        recipientId: recipient.id,
+        snapshot: { representativeId: recipient.representativeId, representative: rep ? rep.toJSON() : null },
+        changedFields: ['representative.released'],
+        reason,
+        changedBy: req.user.id,
+        changedAt: releasedAt
+      }, { transaction: t });
+      await RepresentativeRelease.create({
+        recipientId: recipient.id,
+        representativeId: recipient.representativeId,
+        relation: rep?.relation || null,
+        releasedAt,
+        releasedBy: req.user.id,
+        reason
+      }, { transaction: t });
+      await recipient.update({ representativeId: null }, { transaction: t });
+    });
+
+    const updated = await Recipient.findByPk(recipient.id, { include: detailInclude });
+    const payload = redactRecipient(updated, req);
+    payload.repSharedWith = 0;
+    payload.formerRepresentatives = await formerRepresentatives(updated.id, req);
+    payload.audit = await buildCardAudit(updated);
+    payload.authorWindowUntil = authorWindowUntil(req, updated.id);
+    res.json({ recipient: payload });
+  } catch (err) {
+    next(err);
+  }
+});
+
 router.get('/:id/enrollment/:docKey/file', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'), async (req, res, next) => {
   try {
     const { buffer, filename, contentType } = await generateEnrollmentDocument(req.params.id, req.params.docKey);
@@ -630,7 +733,7 @@ router.get('/:id/enrollment/:docKey/file', authMiddleware, roleMiddleware('admin
       category: 'passport',
       action: 'download',
       reasonCode: 'contract',
-      reasonText: `Документ на зачисление: ${req.params.docKey}`
+      reasonText: `Бланк документа: ${req.params.docKey}`
     });
 
     const ext = filename.split('.').pop();
@@ -1009,6 +1112,8 @@ router.post('/intake', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (r
         nozology: nozId,
         groupId: groupId || null,
         CRGMain: crgId,
+        legalCapacity: recipient.legalCapacity === 'incapable' ? 'incapable' : 'capable',
+        guardianBasis: blankToNull(recipient.guardianBasis) ? String(recipient.guardianBasis).trim().slice(0, 500) : null,
         createdAt: new Date(),
         createdBy: req.user?.id ?? null
       }, { transaction: t });
@@ -1237,7 +1342,8 @@ router.put('/:id', authMiddleware, roleMiddleware('admin', 'teacher', 'employee'
 
 const CARD_RECIPIENT_FIELDS = [
   'firstName', 'middleName', 'lastName', 'birthDate', 'telephone', 'email',
-  'status', 'disableGroup', 'diagnosis', 'nozology', 'groupId', 'CRGMain'
+  'status', 'disableGroup', 'diagnosis', 'nozology', 'groupId', 'CRGMain',
+  'legalCapacity', 'guardianBasis'
 ];
 const CARD_DOC_FIELDS = [
   'docType', 'docSeries', 'docNumber', 'docIssuer', 'docIssuerDate', 'snils',
@@ -1295,6 +1401,7 @@ const INT_FIELDS = new Set(['nozology', 'groupId', 'CRGMain']);
 const ENUM_VALUES = {
   docType: ['Свидетельство', 'Паспорт'],
   status: ['draft', 'active', 'archived'],
+  legalCapacity: ['capable', 'incapable'],
   disableGroup: ['Ребенок-инвалид', 'I группа', 'II группа', 'III группа', 'Нет']
 };
 
@@ -1349,6 +1456,7 @@ const CARD_FIELD_LABELS = {
   passportReg: 'адрес регистрации по паспорту',
   district: 'округ проживания', area: 'район', factSameReg: 'совпадение адресов',
   mseIndefinite: 'бессрочность МСЭ',
+  legalCapacity: 'дееспособность', guardianBasis: 'основание полномочий представителя',
   ...DOC_FIELD_LABELS
 };
 
@@ -1388,6 +1496,11 @@ const collectPatch = (req, recipientId, target, allowed, categoryOf, body, scope
     const format = FIXED_FORMATS[field];
     if (format && next && !format[0].test(next)) {
       rejected.push(`${name(field)}: ${format[1]}`);
+      continue;
+    }
+
+    if (field === 'guardianBasis' && next && next.length > 500) {
+      rejected.push(`${name(field)} — не длиннее 500 символов`);
       continue;
     }
 
@@ -1529,6 +1642,8 @@ router.patch('/:id/card', authMiddleware, roleMiddleware('admin', 'employee'), l
       nozology: recipient.nozology,
       groupId: recipient.groupId,
       CRGMain: recipient.CRGMain,
+      legalCapacity: recipient.legalCapacity,
+      guardianBasis: recipient.guardianBasis,
       ...('photo' in r.patch ? { photo: recipient.photo || '' } : {}),
       representative: rep ? rep.toJSON() : null
     };
@@ -1559,6 +1674,7 @@ router.patch('/:id/card', authMiddleware, roleMiddleware('admin', 'employee'), l
 
     const updated = await Recipient.findByPk(recipient.id, { include: detailInclude });
     const payload = redactRecipient(updated, req);
+    payload.formerRepresentatives = await formerRepresentatives(updated.id, req);
     payload.audit = await buildCardAudit(updated);
     payload.authorWindowUntil = authorWindowUntil(req, updated.id);
     res.json({ recipient: payload, changedFields, reason, repSharedWith });
@@ -1640,7 +1756,12 @@ router.delete('/:id', authMiddleware, roleMiddleware('admin', 'employee'), async
     });
 
     const orphanUserId = recipient.userId;
-    const repId = recipient.representativeId;
+    const repIds = [...new Set([
+      recipient.representativeId,
+      ...(await RepresentativeRelease.findAll({
+        where: { recipientId: id }, attributes: ['representativeId'], raw: true
+      })).map((r) => r.representativeId)
+    ].filter(Boolean))];
 
     await sequelize.transaction(async (t) => {
       await DiagnosticConclusion.destroy({
@@ -1662,6 +1783,7 @@ router.delete('/:id', authMiddleware, roleMiddleware('admin', 'employee'), async
       await RecipientDoc.destroy({ where: { recipientId: id }, transaction: t });
       await RecipientScanDoc.destroy({ where: { recipId: id }, transaction: t });
       await ReResult.destroy({ where: { idRecipient: id }, transaction: t });
+      await RepresentativeRelease.destroy({ where: { recipientId: id }, transaction: t });
       await recipient.destroy({ transaction: t });
 
       if (orphanUserId) {
@@ -1672,9 +1794,10 @@ router.delete('/:id', authMiddleware, roleMiddleware('admin', 'employee'), async
         }
       }
 
-      if (repId) {
+      for (const repId of repIds) {
         const otherKids = await Recipient.count({ where: { representativeId: repId }, transaction: t });
-        if (!otherKids) {
+        const formerLinks = await RepresentativeRelease.count({ where: { representativeId: repId }, transaction: t });
+        if (!otherKids && !formerLinks) {
           await LegalRepFamilyStatus.destroy({ where: { representativeId: repId }, transaction: t });
           await LegalRepresentative.destroy({ where: { id: repId }, transaction: t });
         }

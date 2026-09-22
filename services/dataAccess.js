@@ -121,6 +121,7 @@ export const logAccess = async (req, entry) => {
 };
 
 export const RECIPIENT_FIELDS = {
+  passport: ['guardianBasis'],
   contacts: ['telephone', 'email'],
   medical: ['diagnosis', 'nozology', 'disableGroup']
 };

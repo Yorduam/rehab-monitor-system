@@ -4,8 +4,11 @@ import {
   LegalRepresentative, DiagnosticConclusion, DiagnosticSession
 } from '../models/index.js';
 import { generateDocument, ageFromBirth } from './documentGenerator.js';
+import {
+  POSITIVE_VERDICTS, CONSENT_BY_KEY, CONSENT_SCAN_CODES, buildConsentState
+} from '../src/utils/consentRules.js';
 
-export const POSITIVE_VERDICTS = ['recommended', 'trial'];
+export { POSITIVE_VERDICTS };
 
 export const VERDICT_LABELS = {
   recommended: 'рекомендован к зачислению',
@@ -14,15 +17,11 @@ export const VERDICT_LABELS = {
 };
 
 export const ENROLL_DOCS = [
-  { key: 'pdn',      scanCode: 'signed-pdn',      title: 'Согласие на обработку ПДн',      required: true },
-  { key: 'photo',    scanCode: 'signed-photo',    title: 'Согласие на фото/видео',         required: false },
-  { key: 'contract', scanCode: 'signed-contract', title: 'Договор оказания услуг',         required: true },
-  { key: 'enroll',   scanCode: 'signed-enroll',   title: 'Заявление на зачисление',        required: true }
+  { key: 'contract', scanCode: 'signed-contract', title: 'Договор оказания услуг',  required: true },
+  { key: 'enroll',   scanCode: 'signed-enroll',   title: 'Заявление на зачисление', required: true }
 ];
 
-const REQUIRED_CODES = new Set(ENROLL_DOCS.filter((d) => d.required).map((d) => d.scanCode));
-
-export const REQUIRED_ENROLL_CODES = REQUIRED_CODES;
+export const ENROLL_RELATED_CODES = [...ENROLL_DOCS.map((d) => d.scanCode), ...CONSENT_SCAN_CODES];
 
 const DISABILITY_TO_CODE = {
   'Ребенок-инвалид': 'child',
@@ -44,11 +43,12 @@ export function buildFormFromRecipient(recipient, rep, doc) {
     rPhone: recipient.telephone || '',
     rInvalidity: DISABILITY_TO_CODE[recipient.disableGroup] || 'none',
 
+    rDocType: doc?.docType === 'Паспорт' ? 'passport' : 'birth',
     rDocSeries: doc?.docSeries || '',
     rDocNum: doc?.docNumber || '',
     rDocIssuer: doc?.docIssuer || '',
     rDocDate: iso(doc?.docIssuerDate),
-    rDocRelation: doc?.docType === 'Свидетельство' ? 'Сын' : '',
+    rDocRelation: '',
     rSnils: doc?.snils || '',
     rAddrReg: doc?.regAddress || '',
     rAddrFact: doc?.factAddress || '',
@@ -57,13 +57,16 @@ export function buildFormFromRecipient(recipient, rep, doc) {
     lrLast: rep?.lastName || '',
     lrFirst: rep?.firstName || '',
     lrMid: rep?.middleName || '',
+    lrRelation: rep?.relation || '',
     lrPhone: rep?.telephone || '',
     lrPassSeries: rep?.passportSeries || '',
     lrPassNum: rep?.passportNumber || '',
     lrPassIssuer: rep?.passportIssuer || '',
     lrPassDate: iso(rep?.passportIssuerDate),
     lrPassCode: rep?.passportDeptCode || '',
-    lrAddress: rep?.passportReg || ''
+    lrAddress: rep?.passportReg || '',
+
+    guardianBasis: recipient.guardianBasis || ''
   };
 }
 
@@ -86,27 +89,100 @@ async function loadRecipientBundle(recipientId) {
   };
 }
 
-async function scanCodeMap() {
+async function typeMaps(codes) {
   const types = await DocType.findAll({
-    where: { code: { [Op.in]: ENROLL_DOCS.map((d) => d.scanCode) } }
+    where: { code: { [Op.in]: codes } },
+    attributes: ['id', 'code']
   });
-  const byCode = new Map(types.map((t) => [t.code, t]));
-  const byId = new Map(types.map((t) => [t.id, t.code]));
-  return { byCode, byId };
+  return {
+    byCode: new Map(types.map((t) => [t.code, t])),
+    byId: new Map(types.map((t) => [t.id, t.code]))
+  };
+}
+
+async function currentScans(recipientIds, byId) {
+  const out = new Map(recipientIds.map((id) => [id, []]));
+  if (!recipientIds.length || !byId.size) return out;
+
+  const rows = await RecipientScanDoc.findAll({
+    where: {
+      recipId: { [Op.in]: recipientIds },
+      docType: { [Op.in]: [...byId.keys()] },
+      isCurrent: true
+    },
+    attributes: ['id', 'recipId', 'docType', 'originalName', 'uploadedAt', 'issuedAt', 'validUntil', 'perpetual']
+  });
+
+  for (const row of rows) {
+    const code = byId.get(row.docType);
+    if (!code || !out.has(row.recipId)) continue;
+    out.get(row.recipId).push({
+      id: row.id,
+      code,
+      originalName: row.originalName,
+      uploadedAt: row.uploadedAt,
+      issuedAt: row.issuedAt,
+      validUntil: row.validUntil,
+      perpetual: !!row.perpetual
+    });
+  }
+  return out;
+}
+
+async function firstPrimaryConclusions(recipientIds) {
+  const out = new Map();
+  if (!recipientIds.length) return out;
+
+  const sessions = await DiagnosticSession.findAll({
+    where: { recipientId: { [Op.in]: recipientIds }, kind: 'primary' },
+    attributes: ['id']
+  });
+  if (!sessions.length) return out;
+
+  const conclusions = await DiagnosticConclusion.findAll({
+    where: {
+      recipientId: { [Op.in]: recipientIds },
+      sessionId: { [Op.in]: sessions.map((s) => s.id) }
+    },
+    order: [['issuedAt', 'ASC'], ['id', 'ASC']]
+  });
+  for (const c of conclusions) {
+    if (!out.has(c.recipientId)) out.set(c.recipientId, c);
+  }
+  return out;
 }
 
 export async function getPrimaryConclusion(recipientId) {
-  const primary = await DiagnosticSession.findAll({
-    where: { recipientId, kind: 'primary' },
-    attributes: ['id']
-  });
-  const ids = primary.map((s) => s.id);
-  if (!ids.length) return null;
+  const id = parseInt(recipientId, 10);
+  if (!id) return null;
+  const found = await firstPrimaryConclusions([id]);
+  return found.get(id) || null;
+}
 
-  return DiagnosticConclusion.findOne({
-    where: { recipientId, sessionId: { [Op.in]: ids } },
-    order: [['issuedAt', 'ASC'], ['id', 'ASC']]
-  });
+export async function getConsentState(recipientId) {
+  const id = parseInt(recipientId, 10);
+  if (!id) return null;
+
+  const recipient = await Recipient.findByPk(id, { attributes: ['id', 'birthDate', 'legalCapacity'] });
+  if (!recipient) return null;
+
+  const { byId } = await typeMaps(CONSENT_SCAN_CODES);
+  const [conclusions, scans] = await Promise.all([
+    firstPrimaryConclusions([id]),
+    currentScans([id], byId)
+  ]);
+  const conclusion = conclusions.get(id) || null;
+
+  return {
+    recipientId: id,
+    verdict: conclusion?.verdict || null,
+    ...buildConsentState({
+      birthDate: recipient.birthDate,
+      legalCapacity: recipient.legalCapacity,
+      verdict: conclusion?.verdict || null,
+      scans: scans.get(id) || []
+    })
+  };
 }
 
 export async function getEnrollmentState(recipientId) {
@@ -114,32 +190,43 @@ export async function getEnrollmentState(recipientId) {
   if (!bundle) return null;
 
   const { recipient } = bundle;
-  const conclusion = await getPrimaryConclusion(recipient.id);
-  const { byCode, byId } = await scanCodeMap();
-
-  const typeIds = ENROLL_DOCS
-    .map((d) => byCode.get(d.scanCode)?.id)
-    .filter((x) => x != null);
-
-  const scans = typeIds.length
-    ? await RecipientScanDoc.findAll({
-        where: { recipId: recipient.id, docType: { [Op.in]: typeIds } },
-        attributes: ['id', 'docType', 'isCurrent', 'originalName', 'uploadedAt', 'issuedAt', 'validUntil', 'perpetual']
-      })
-    : [];
-
-  const currentByCode = new Map();
-  for (const s of scans) {
-    if (s.isCurrent === false) continue;
-    const code = byId.get(s.docType);
-    if (code) currentByCode.set(code, s);
-  }
+  const { byCode, byId } = await typeMaps(ENROLL_RELATED_CODES);
+  const [conclusions, scanMap] = await Promise.all([
+    firstPrimaryConclusions([recipient.id]),
+    currentScans([recipient.id], byId)
+  ]);
+  const conclusion = conclusions.get(recipient.id) || null;
+  const scans = scanMap.get(recipient.id) || [];
+  const scanOf = new Map(scans.map((s) => [s.code, s]));
 
   const age = ageFromBirth(recipient.birthDate);
   const isMinor = age == null ? true : age < 18;
 
-  const docs = ENROLL_DOCS.map((d) => {
-    const scan = currentByCode.get(d.scanCode) || null;
+  const consents = buildConsentState({
+    birthDate: recipient.birthDate,
+    legalCapacity: recipient.legalCapacity,
+    verdict: POSITIVE_VERDICTS[0],
+    scans
+  });
+
+  const consentDocs = consents.items.map((item) => ({
+    key: item.blank,
+    title: `${item.title} · ${item.signerLabel}`,
+    required: true,
+    scanCode: item.code,
+    scanTypeId: byCode.get(item.code)?.id || null,
+    uploaded: item.done,
+    legacy: item.legacy,
+    scanId: item.scanId,
+    originalName: null,
+    uploadedAt: item.uploadedAt,
+    issuedAt: null,
+    validUntil: null,
+    perpetual: false
+  }));
+
+  const fixedDocs = ENROLL_DOCS.map((d) => {
+    const scan = scanOf.get(d.scanCode) || null;
     return {
       key: d.key,
       title: d.title,
@@ -147,6 +234,7 @@ export async function getEnrollmentState(recipientId) {
       scanCode: d.scanCode,
       scanTypeId: byCode.get(d.scanCode)?.id || null,
       uploaded: !!scan,
+      legacy: false,
       scanId: scan?.id || null,
       originalName: scan?.originalName || null,
       uploadedAt: scan?.uploadedAt || null,
@@ -156,12 +244,15 @@ export async function getEnrollmentState(recipientId) {
     };
   });
 
+  const docs = [...consentDocs, ...fixedDocs];
   const verdict = conclusion?.verdict || null;
 
   return {
     recipientId: recipient.id,
     age,
     isMinor,
+    consentCategory: consents.category,
+    consentCategoryLabel: consents.categoryLabel,
     verdict,
     verdictLabel: VERDICT_LABELS[verdict] || null,
     positive: POSITIVE_VERDICTS.includes(verdict),
@@ -176,8 +267,10 @@ export async function getEnrollmentState(recipientId) {
 }
 
 export async function generateEnrollmentDocument(recipientId, docKey) {
-  if (!ENROLL_DOCS.some((d) => d.key === docKey)) {
-    const err = new Error('Неизвестный документ на зачисление: ' + docKey);
+  const consent = CONSENT_BY_KEY.get(docKey);
+  const fixed = ENROLL_DOCS.some((d) => d.key === docKey);
+  if (!consent && !fixed) {
+    const err = new Error('Неизвестный документ: ' + docKey);
     err.status = 400;
     throw err;
   }
@@ -188,7 +281,7 @@ export async function generateEnrollmentDocument(recipientId, docKey) {
     err.status = 404;
     throw err;
   }
-  if (!bundle.doc) {
+  if (fixed && !bundle.doc) {
     const err = new Error('У реабилитанта не заполнены документы — нечем заполнять шаблон');
     err.status = 409;
     throw err;
@@ -198,30 +291,60 @@ export async function generateEnrollmentDocument(recipientId, docKey) {
   return generateDocument(docKey, form);
 }
 
-export async function signedEnrollCodesFor(recipientIds) {
+async function loadConsentInputs(recipientIds, codes) {
   const ids = [...new Set((recipientIds || []).filter((x) => x != null))];
-  const signed = new Map(ids.map((id) => [id, new Set()]));
-  if (!ids.length) return signed;
-
-  const { byCode, byId } = await scanCodeMap();
-  const typeIds = ENROLL_DOCS.map((d) => byCode.get(d.scanCode)?.id).filter((x) => x != null);
-  if (!typeIds.length) return signed;
-
-  const scans = await RecipientScanDoc.findAll({
-    where: { recipId: { [Op.in]: ids }, docType: { [Op.in]: typeIds } },
-    attributes: ['recipId', 'docType', 'isCurrent']
-  });
-
-  for (const s of scans) {
-    if (s.isCurrent === false) continue;
-    const code = byId.get(s.docType);
-    if (code && signed.has(s.recipId)) signed.get(s.recipId).add(code);
-  }
-  return signed;
+  if (!ids.length) return { ids, recipients: [], scanMap: new Map() };
+  const { byId } = await typeMaps(codes);
+  const [recipients, scanMap] = await Promise.all([
+    Recipient.findAll({
+      where: { id: { [Op.in]: ids } },
+      attributes: ['id', 'birthDate', 'legalCapacity']
+    }),
+    currentScans(ids, byId)
+  ]);
+  return { ids, recipients, scanMap };
 }
 
-export const hasAllRequiredEnrollDocs = (codes) =>
-  [...REQUIRED_CODES].every((code) => codes?.has(code));
+export async function enrollmentProgressFor(recipientIds) {
+  const out = new Map();
+  const { recipients, scanMap } = await loadConsentInputs(recipientIds, ENROLL_RELATED_CODES);
+
+  for (const r of recipients) {
+    const scans = scanMap.get(r.id) || [];
+    const codes = new Set(scans.map((s) => s.code));
+    const consents = buildConsentState({
+      birthDate: r.birthDate,
+      legalCapacity: r.legalCapacity,
+      verdict: POSITIVE_VERDICTS[0],
+      scans
+    });
+    const fixedSigned = ENROLL_DOCS.filter((d) => codes.has(d.scanCode)).length;
+    const fixedComplete = ENROLL_DOCS.every((d) => !d.required || codes.has(d.scanCode));
+    out.set(r.id, {
+      signed: consents.done + fixedSigned,
+      total: consents.total + ENROLL_DOCS.length,
+      complete: consents.complete && fixedComplete
+    });
+  }
+  return out;
+}
+
+export async function consentNeedsFor(recipientIds) {
+  const out = new Map();
+  const { ids, recipients, scanMap } = await loadConsentInputs(recipientIds, CONSENT_SCAN_CODES);
+  if (!recipients.length) return out;
+
+  const conclusions = await firstPrimaryConclusions(ids);
+  for (const r of recipients) {
+    out.set(r.id, buildConsentState({
+      birthDate: r.birthDate,
+      legalCapacity: r.legalCapacity,
+      verdict: conclusions.get(r.id)?.verdict || null,
+      scans: scanMap.get(r.id) || []
+    }));
+  }
+  return out;
+}
 
 export async function findPendingEnrollment(limit = 50) {
   const conclusions = await DiagnosticConclusion.findAll({
@@ -235,41 +358,18 @@ export async function findPendingEnrollment(limit = 50) {
     if (!firstByRecipient.has(c.recipientId)) firstByRecipient.set(c.recipientId, c);
   }
 
-  const recipientIds = [...firstByRecipient.keys()];
   const recipients = await Recipient.findAll({
-    where: { id: { [Op.in]: recipientIds }, status: 'active' },
+    where: { id: { [Op.in]: [...firstByRecipient.keys()] }, status: 'active' },
     attributes: ['id', 'firstName', 'middleName', 'lastName', 'birthDate', 'groupId']
   });
   if (!recipients.length) return [];
 
-  const { byCode, byId } = await scanCodeMap();
-  const typeIds = ENROLL_DOCS
-    .map((d) => byCode.get(d.scanCode)?.id)
-    .filter((x) => x != null);
-
-  const scans = typeIds.length
-    ? await RecipientScanDoc.findAll({
-        where: {
-          recipId: { [Op.in]: recipients.map((r) => r.id) },
-          docType: { [Op.in]: typeIds }
-        },
-        attributes: ['id', 'recipId', 'docType', 'isCurrent']
-      })
-    : [];
-
-  const signedByRecipient = new Map();
-  for (const s of scans) {
-    if (s.isCurrent === false) continue;
-    const code = byId.get(s.docType);
-    if (!code) continue;
-    if (!signedByRecipient.has(s.recipId)) signedByRecipient.set(s.recipId, new Set());
-    signedByRecipient.get(s.recipId).add(code);
-  }
+  const progress = await enrollmentProgressFor(recipients.map((r) => r.id));
 
   const rows = [];
   for (const r of recipients) {
-    const signed = signedByRecipient.get(r.id) || new Set();
-    if ([...REQUIRED_CODES].every((code) => signed.has(code))) continue;
+    const p = progress.get(r.id);
+    if (!p || p.complete) continue;
 
     const c = firstByRecipient.get(r.id);
     rows.push({
@@ -278,8 +378,8 @@ export async function findPendingEnrollment(limit = 50) {
       verdict: c.verdict,
       verdictLabel: VERDICT_LABELS[c.verdict] || '',
       issuedAt: c.issuedAt,
-      signedCount: signed.size,
-      totalDocs: ENROLL_DOCS.length,
+      signedCount: p.signed,
+      totalDocs: p.total,
       enrolled: !!r.groupId
     });
   }

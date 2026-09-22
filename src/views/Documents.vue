@@ -146,6 +146,16 @@
         </div>
       </form>
     </Modal>
+
+    <ReasonDialog
+      v-if="deleteTarget"
+      title="Удалить анкету документов"
+      :text="deleteTarget.recipient ? `${recipientName(deleteTarget)} — анкета документов будет удалена.` : 'Анкета документов будет удалена.'"
+      :busy="deleteBusy"
+      :error="deleteError"
+      @close="closeDeleteDialog"
+      @confirm="confirmDeleteDoc"
+    />
   </div>
 </template>
 
@@ -156,6 +166,7 @@ import { fullName } from '../utils/recipient';
 import { notifySaved } from '../utils/toast';
 import api from '../api';
 import Modal from '../components/Modal.vue';
+import ReasonDialog from '../components/ReasonDialog.vue';
 
 const authStore = useAuthStore();
 const isAdmin = computed(() => authStore.isAdmin);
@@ -272,24 +283,36 @@ const saveDoc = async () => {
   }
 };
 
-const deleteDoc = async (d) => {
+const deleteTarget = ref(null);
+const deleteBusy = ref(false);
+const deleteError = ref('');
+
+const deleteDoc = (d) => {
   const target = d || doc.value;
   if (!target) return;
-  const reason = prompt(
-    'Удаление анкеты документов записывается в журнал изменений.\n' +
-    'Укажите причину (не менее 3 символов):'
-  );
-  if (reason === null) return;
-  if (String(reason).trim().length < 3) {
-    alert('Причина обязательна — не менее 3 символов.');
-    return;
-  }
+  deleteError.value = '';
+  deleteTarget.value = target;
+};
+
+const closeDeleteDialog = () => {
+  if (!deleteBusy.value) deleteTarget.value = null;
+};
+
+const confirmDeleteDoc = async (reason) => {
+  const target = deleteTarget.value;
+  if (!target || deleteBusy.value) return;
+  deleteBusy.value = true;
+  deleteError.value = '';
   try {
-    await api.delete(`/documents/${target.id}`, { data: { reason: String(reason).trim() } });
+    await api.delete(`/documents/${target.id}`, { data: { reason } });
+    deleteTarget.value = null;
+    notifySaved('Анкета документов удалена');
     await reload();
   } catch (err) {
     console.error(err);
-    alert(err?.response?.data?.message || 'Не удалось удалить документ');
+    deleteError.value = err?.response?.data?.message || 'Не удалось удалить документ';
+  } finally {
+    deleteBusy.value = false;
   }
 };
 

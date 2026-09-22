@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import PizZip from 'pizzip';
+import { CONSENT_DOCS } from '../src/utils/consentRules.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TEMPLATES_DIR = path.join(__dirname, '..', 'templates', 'documents');
@@ -23,6 +24,17 @@ const OUT_BASENAME = {
   enroll:   'Заявление_о_зачислении_на_курс',
   plan:     'Индивидуальный_план',
 };
+
+const SIGNER_SUFFIX = { parent: 'представитель', self: 'реабилитант', ward: 'представитель_недееспособного' };
+
+for (const doc of CONSENT_DOCS) {
+  TEMPLATE_MAP[doc.key] = { file: `consent_${doc.key.replace(/-/g, '_')}.docx`, ext: 'docx' };
+  OUT_BASENAME[doc.key] = [
+    doc.kind === 'pd' ? 'Согласие_ПДн' : 'Согласие_фото_видео',
+    doc.kind === 'pd' ? (doc.stage === 'diag' ? 'диагностика' : 'курс') : null,
+    SIGNER_SUFFIX[doc.signer]
+  ].filter(Boolean).join('_');
+}
 
 const CONTENT_TYPE = {
   docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
@@ -67,6 +79,28 @@ function relationInstr(v) {
   return RELATION_INSTR[v] || (v || '');
 }
 
+function childRelation(repRelation, childMiddleName) {
+  const mid = String(childMiddleName || '').trim().toLowerCase();
+  const male = /(ич|оглы|улы|уулу)$/.test(mid);
+  const female = /(на|кызы|гызы)$/.test(mid);
+  if (male === female) return '';
+  const rel = String(repRelation || '').trim();
+  if (rel === 'Опекун' || rel === 'Попечитель') return male ? 'подопечным' : 'подопечной';
+  if (rel === 'Мать' || rel === 'Отец' || rel === 'Усыновитель') return male ? 'сыном' : 'дочерью';
+  return '';
+}
+
+function signName(last, first, middle) {
+  const initials = [first, middle]
+    .map((x) => String(x || '').trim())
+    .filter(Boolean)
+    .map((x) => `${x[0].toUpperCase()}.`)
+    .join('');
+  return [String(last || '').trim(), initials].filter(Boolean).join(' ');
+}
+
+const isPassportDoc = (v) => v === 'passport' || v === 'Паспорт';
+
 function composeDoc({ series, num, date, issuer, code }) {
   const parts = [];
   const sn = [series, num].map((x) => (x || '').trim()).filter(Boolean).join(' ');
@@ -104,18 +138,23 @@ export function buildTokens(form = {}, isMinor) {
     series: form.rDocSeries, num: form.rDocNum, date: form.rDocDate, issuer: form.rDocIssuer,
   });
 
+  const passportDoc = isPassportDoc(form.rDocType);
   const word = {
     repFullName,
     rehFullName,
     repPassport,
-    rehPassport: rehDoc,
+    rehPassport: passportDoc ? rehDoc : '',
     rehDoc,
+    rehDocTyped: rehDoc ? `${passportDoc ? 'паспорт' : 'свидетельство о рождении'} ${rehDoc}` : '',
     repAddress: form.lrAddress || '',
     repPhone,
     rehPhone: form.rPhone || repPhone,
     rehRegAddress,
     rehBirthDate: fmtDate(form.rBirth),
-    rehRelation: relationInstr(form.rDocRelation),
+    rehRelation: relationInstr(form.rDocRelation) || childRelation(form.lrRelation, form.rMid),
+    repSignName: signName(form.lrLast, form.lrFirst, form.lrMid),
+    rehSignName: signName(form.rLast, form.rFirst, form.rMid),
+    guardianBasis: form.guardianBasis || form.lrBasis || '',
   };
 
   const excel = isMinor
@@ -186,7 +225,7 @@ export function generateDocument(docType, form = {}) {
   const age = ageFromBirth(form.rBirth);
   const isMinor = age == null ? true : age < 18;
 
-  const templateName = isMinor ? entry.minor : entry.adult;
+  const templateName = entry.file || (isMinor ? entry.minor : entry.adult);
   const templatePath = path.join(TEMPLATES_DIR, templateName);
   if (!fs.existsSync(templatePath)) {
     const err = new Error('Шаблон не найден: ' + templateName);
