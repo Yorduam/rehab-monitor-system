@@ -43,6 +43,23 @@ const yearsOld = (birthDate) => {
   return age;
 };
 
+export function scanSkipCodes(recipient) {
+  const age = yearsOld(recipient?.birthDate);
+  const selfRepresented =
+    !recipient?.representativeId && (age ?? 0) >= 18 && recipient?.legalCapacity !== 'incapable';
+  const skip = new Set();
+  if (selfRepresented) skip.add('rep-pass');
+  if (age != null && age >= 14) skip.add('housing');
+  return skip;
+}
+
+export function missingRequiredScans(recipient, docTypes, currentScanTypeIds) {
+  const skip = scanSkipCodes(recipient);
+  return docTypes.filter(
+    (t) => t.isRequired && !skip.has(t.code) && !currentScanTypeIds.has(t.id)
+  );
+}
+
 const VERDICT_SHORT = {
   recommended: 'рекомендован к зачислению',
   trial: 'пробные занятия',
@@ -226,17 +243,13 @@ export async function getRecipientReadiness(recipientId) {
   const age = yearsOld(recipient.birthDate);
   const selfRepresented = !recipient.representativeId && (age ?? 0) >= 18 && recipient.legalCapacity !== 'incapable';
 
-  const skipCodes = new Set();
-  if (selfRepresented) skipCodes.add('rep-pass');
-  if (age != null && age >= 14) skipCodes.add('housing');
+  const skipCodes = scanSkipCodes(recipient);
 
   const applicableTypes = skipCodes.size
     ? docTypes.filter((t) => !skipCodes.has(t.code))
     : docTypes;
 
-  const requiredTypes = applicableTypes.filter((t) => t.isRequired);
-  const missingScans = requiredTypes
-    .filter((t) => !currentScanTypeIds.has(t.id))
+  const missingScans = missingRequiredScans(recipient, docTypes, currentScanTypeIds)
     .map((t) => ({ id: t.id, code: t.code, name: t.name }));
   const missingAll = applicableTypes.filter((t) => !currentScanTypeIds.has(t.id)).length;
 

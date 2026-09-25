@@ -1498,10 +1498,12 @@
           <div class="du-body">
             <div class="du-grid">
               <label class="du-field">
-                <span class="du-key">Тип документа</span>
+                <span class="du-key">Тип документа
+                  <span v-if="requiredDocType" class="du-hint">{{ docTypeHint(requiredDocType) }}</span>
+                </span>
                 <select v-model="docForm.docType" class="du-input">
-                  <option value="Свидетельство">Свидетельство</option>
-                  <option value="Паспорт">Паспорт</option>
+                  <option value="Свидетельство" :disabled="requiredDocType === 'Паспорт'">Свидетельство</option>
+                  <option value="Паспорт" :disabled="requiredDocType === 'Свидетельство'">Паспорт</option>
                 </select>
               </label>
               <label class="du-field">
@@ -1558,7 +1560,7 @@
               </label>
             </div>
 
-            <div class="du-reason">
+            <div class="du-reason" id="du-reason-doc">
               <label class="du-field du-field-full">
                 <span class="du-key">
                   Причина обновления <span class="du-req">— обязательно</span>
@@ -1587,10 +1589,15 @@
           </div>
 
           <footer class="du-foot">
+            <p v-if="docHasChanges && !reasonValid" class="du-foot-hint">
+              Осталось указать причину обновления
+            </p>
             <button type="button" class="du-btn du-btn-ghost" :disabled="docSaving" @click="closeDocUpdate">
               {{ docSaveOk ? 'Закрыть' : 'Отмена' }}
             </button>
-            <button type="button" class="du-btn du-btn-primary" :disabled="!canSaveDoc || docSaving" @click="saveDocUpdate">
+            <button type="button" class="du-btn du-btn-primary" :disabled="!docHasChanges || docSaving"
+                    :title="!docHasChanges ? 'Изменений пока нет' : (reasonValid ? '' : 'Сначала укажите причину обновления')"
+                    @click="saveDocUpdate">
               {{ docSaving ? 'Сохранение…' : 'Сохранить обновление' }}
             </button>
           </footer>
@@ -1691,7 +1698,7 @@
             </button>
           </nav>
 
-          <div class="du-body">
+          <div class="du-body" id="ce-body">
             <div v-show="cardSection === 'person'" class="du-grid">
               <div class="ce-photo du-field-full">
                 <div class="ce-photo-frame">
@@ -1800,10 +1807,13 @@
                 </button>
               </div>
 
-              <label class="du-field"><span class="du-key">Тип документа</span>
+              <label class="du-field">
+                <span class="du-key">Тип документа
+                  <span v-if="cardRequiredDocType" class="du-hint">{{ docTypeHint(cardRequiredDocType) }}</span>
+                </span>
                 <select v-model="cardForm.docType" class="du-input">
-                  <option value="Свидетельство">Свидетельство</option>
-                  <option value="Паспорт">Паспорт</option>
+                  <option value="Свидетельство" :disabled="cardRequiredDocType === 'Паспорт'">Свидетельство</option>
+                  <option value="Паспорт" :disabled="cardRequiredDocType === 'Свидетельство'">Паспорт</option>
                 </select>
               </label>
               <label class="du-field"><span class="du-key">СНИЛС</span>
@@ -1959,7 +1969,7 @@
               </label>
             </div>
 
-            <div class="du-reason">
+            <div class="du-reason" id="du-reason-card">
               <label class="du-field du-field-full">
                 <span class="du-key">Причина изменения <span class="du-req">— обязательно</span></span>
                 <textarea
@@ -1983,8 +1993,13 @@
           </div>
 
           <footer class="du-foot">
+            <p v-if="cardHasChanges && !cardReasonValid" class="du-foot-hint">
+              Осталось указать причину изменения
+            </p>
             <button type="button" class="du-btn du-btn-ghost" :disabled="cardSaving" @click="closeCardEdit">Отмена</button>
-            <button type="button" class="du-btn du-btn-primary" :disabled="!canSaveCard" @click="saveCardEdit">
+            <button type="button" class="du-btn du-btn-primary" :disabled="!cardHasChanges"
+                    :title="!cardHasChanges ? 'Изменений пока нет' : (cardReasonValid ? '' : 'Сначала укажите причину изменения')"
+                    @click="saveCardEdit">
               {{ cardSaving ? 'Сохранение…' : 'Сохранить' }}
             </button>
           </footer>
@@ -2189,7 +2204,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue';
 import { usePageStore } from '../stores/page';
 import { useAuthStore } from '../stores/auth';
 import { useUiStore } from '../stores/ui';
@@ -2408,6 +2423,10 @@ const consentNotice = computed(() => {
 });
 const consentMissingText = computed(() => (consentState.value?.missing || []).join('; '));
 const passportNeeded = computed(() => (age.value ?? 0) >= 14 && doc.value?.docType === 'Свидетельство');
+
+const docTypeForAge = (years) => (years == null ? null : (years >= 14 ? 'Паспорт' : 'Свидетельство'));
+const requiredDocType = computed(() => docTypeForAge(age.value));
+const docTypeHint = (type) => (type === 'Паспорт' ? '— с 14 лет только паспорт' : '— до 14 лет только свидетельство');
 const consentPrevOpen = ref(false);
 const consentScan = (code) => (code ? scanByCode(code) : null);
 
@@ -2696,6 +2715,31 @@ const historyLoading = ref(false);
 
 const toInputDate = (v) => (v ? String(v).slice(0, 10) : '');
 
+let flashEl = null;
+let flashTimer = null;
+
+const flashReason = async (id) => {
+  await nextTick();
+  const box = document.getElementById(id);
+  if (!box) return;
+  box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  const field = box.querySelector('textarea');
+  if (field) {
+    try { field.focus({ preventScroll: true }); } catch (e) { field.focus(); }
+  }
+  if (flashTimer) { clearTimeout(flashTimer); flashTimer = null; }
+  if (flashEl) flashEl.classList.remove('du-flash');
+  flashEl = box;
+  box.classList.remove('du-flash');
+  void box.offsetWidth;
+  box.classList.add('du-flash');
+  flashTimer = setTimeout(() => {
+    box.classList.remove('du-flash');
+    if (flashEl === box) flashEl = null;
+    flashTimer = null;
+  }, 1800);
+};
+
 const reasonValid = computed(() => docReason.value.trim().length >= 3);
 const mseExpired = computed(
   () => !docForm.value.mseIndefinite && !!docForm.value.mseValidDate && docForm.value.mseValidDate < todayStr
@@ -2714,9 +2758,10 @@ const docChangedFields = computed(() => {
   });
 });
 
-const canSaveDoc = computed(
-  () => !!doc.value && reasonValid.value && docChangedFields.value.length > 0 && !docSaveOk.value
+const docHasChanges = computed(
+  () => !!doc.value && docChangedFields.value.length > 0 && !docSaveOk.value
 );
+const canSaveDoc = computed(() => docHasChanges.value && reasonValid.value);
 
 const openDocUpdate = () => {
   const d = doc.value;
@@ -2742,7 +2787,12 @@ const closeDocUpdate = () => {
 };
 
 const saveDocUpdate = async () => {
-  if (!canSaveDoc.value || docSaving.value) return;
+  if (!docHasChanges.value || docSaving.value) return;
+  if (!reasonValid.value) {
+    reasonTouched.value = true;
+    flashReason('du-reason-doc');
+    return;
+  }
   docSaving.value = true;
   docSaveError.value = '';
   try {
@@ -3961,6 +4011,11 @@ const REP_FORM_FIELDS = ['lastName', 'firstName', 'middleName', 'relation', 'tel
 
 const cardEditOpen = ref(false);
 const cardSection = ref('person');
+watch(cardSection, async () => {
+  await nextTick();
+  const body = document.getElementById('ce-body');
+  if (body) body.scrollTop = 0;
+});
 const cardForm = ref(null);
 const cardBase = ref(null);
 const cardReason = ref('');
@@ -4035,9 +4090,16 @@ const cardReasonValid = computed(() => cardReason.value.trim().length >= 3);
 const cardFioValid = computed(() =>
   !!cardForm.value && !!cardForm.value.lastName.trim() && !!cardForm.value.firstName.trim()
 );
+const cardRequiredDocType = computed(() => {
+  const birth = cardForm.value?.birthDate;
+  return docTypeForAge(birth ? recipientAge({ birthDate: birth }) : age.value);
+});
+
+const cardHasChanges = computed(() =>
+  cardDiff.value.length > 0 && !cardSaving.value && !cardPhotoBusy.value
+);
 const canSaveCard = computed(() =>
-  cardReasonValid.value && cardFioValid.value && cardDiff.value.length > 0 &&
-  !cardSaving.value && !cardPhotoBusy.value
+  cardHasChanges.value && cardReasonValid.value && cardFioValid.value
 );
 
 const cardPhotoPreview = computed(() => {
@@ -4167,8 +4229,17 @@ const cardRehydrate = () => {
 };
 
 const saveCardEdit = async () => {
+  if (!cardHasChanges.value) return;
   cardTouched.value = true;
-  if (!canSaveCard.value) return;
+  if (!cardFioValid.value) {
+    cardSection.value = 'person';
+    cardError.value = 'Фамилия и имя обязательны — без них карточку не сохранить';
+    return;
+  }
+  if (!cardReasonValid.value) {
+    flashReason('du-reason-card');
+    return;
+  }
   cardSaving.value = true;
   cardError.value = '';
   try {
@@ -4255,6 +4326,7 @@ onMounted(async () => {
 onUnmounted(() => {
   if (overlayOpen.value) ui.unlockScroll();
   if (nowTimer) window.clearInterval(nowTimer);
+  if (flashTimer) clearTimeout(flashTimer);
 });
 </script>
 
@@ -5024,7 +5096,7 @@ onUnmounted(() => {
   animation: du-rise 0.2s cubic-bezier(0.2, 0.7, 0.2, 1);
 }
 @keyframes du-rise { from { opacity: 0; transform: translateY(1rem); } to { opacity: 1; transform: none; } }
-.du-modal-lg { width: min(56rem, 100%); }
+.du-modal-lg { width: min(56rem, 100%); height: min(90vh, 50rem); }
 .ce-tabs {
   flex: 0 0 auto;
   display: flex; gap: 0.25rem; padding: 0.5rem 1.375rem 0;
@@ -5136,6 +5208,15 @@ onUnmounted(() => {
   margin-top: 1rem; padding: 0.875rem 0.9375rem;
   background: var(--amber-50); border: 0.0625rem solid var(--amber-100); border-radius: var(--radius-md);
 }
+.du-flash { animation: duFlash 1.8s ease-out; }
+@keyframes duFlash {
+  0%   { box-shadow: 0 0 0 0     rgba(176, 114, 35, .60); }
+  16%  { box-shadow: 0 0 0 .4rem rgba(176, 114, 35, .26); }
+  36%  { box-shadow: 0 0 0 0     rgba(176, 114, 35, .60); }
+  52%  { box-shadow: 0 0 0 .4rem rgba(176, 114, 35, .26); }
+  72%  { box-shadow: 0 0 0 0     rgba(176, 114, 35, .60); }
+  100% { box-shadow: 0 0 0 .4rem rgba(176, 114, 35, 0);   }
+}
 .du-changes {
   margin: 0.875rem 0 0; font-size: 0.8125rem; line-height: 1.45;
   color: var(--sage-700); font-weight: 500;
@@ -5153,6 +5234,10 @@ onUnmounted(() => {
   display: flex; align-items: center; justify-content: flex-end; gap: 0.625rem;
   padding: 0.875rem 1.375rem; border-top: 0.0625rem solid var(--line-soft);
   background: var(--paper-soft);
+}
+.du-foot-hint {
+  margin: 0 auto 0 0; font-size: 0.8125rem; line-height: 1.35;
+  color: var(--amber-700); font-weight: 500;
 }
 .du-btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -5647,6 +5732,7 @@ textarea.input { min-height: 5rem; resize: vertical; }
 @media (max-width: 30rem) {
   .du-foot { flex-direction: column-reverse; }
   .du-foot .du-btn { width: 100%; }
+  .du-foot-hint { display: none; }
 }
 
 @media (max-width: 768px) {

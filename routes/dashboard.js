@@ -14,6 +14,7 @@ import {
   ENROLL_RELATED_CODES, findPendingEnrollment,
   enrollmentProgressFor, consentNeedsFor
 } from '../services/enrollmentDocs.js';
+import { missingRequiredScans } from '../services/recipientReadiness.js';
 
 const router = express.Router();
 
@@ -940,7 +941,10 @@ router.get('/employee-tiles', authMiddleware, roleMiddleware('admin', 'employee'
           },
           attributes: ['id', 'recipId', 'docType', 'validUntil']
         }),
-        Recipient.findAll({ where: { status: 'active' }, attributes: nameAttrs }),
+        Recipient.findAll({
+          where: { status: 'active' },
+          attributes: [...nameAttrs, 'birthDate', 'representativeId', 'legalCapacity']
+        }),
         DocType.findAll({ attributes: ['id', 'code', 'name', 'isRequired'] }),
         RecipientScanDoc.findAll({ where: { isCurrent: true }, attributes: ['recipId', 'docType'] }),
         RecipientDraft.findAll({
@@ -992,11 +996,10 @@ router.get('/employee-tiles', authMiddleware, roleMiddleware('admin', 'employee'
     const scanItems = [];
     for (const r of activeRecipients) {
       const have = haveScans.get(r.id) || new Set();
-      const missing = allDocTypes.filter((t) => !have.has(t.id));
+      const missing = missingRequiredScans(r, allDocTypes, have);
       if (!missing.length) continue;
-      const ordered = [...missing].sort((a, b) => Number(b.isRequired) - Number(a.isRequired));
-      const shown = ordered.slice(0, 3).map((t) => t.name).join(', ');
-      const restCount = ordered.length - 3;
+      const shown = missing.slice(0, 3).map((t) => t.name).join(', ');
+      const restCount = missing.length - 3;
       scanItems.push({
         recipientId: r.id,
         name: recipientFullName(r),

@@ -40,9 +40,12 @@
       </div>
     </div>
 
-    <section class="sec" ref="daySection">
+    <section class="sec sec-day" ref="daySection">
       <div class="sec-head is-sticky">
-        <h2 class="sec-t">{{ day.title }}</h2>
+        <h2 class="sec-t">
+          <span class="sec-t-full">{{ day.title }}</span>
+          <span class="sec-t-short">{{ day.isToday ? 'Записаны на сегодня' : 'Записаны на ' + day.label }}</span>
+        </h2>
         <span v-if="dayTodo" class="sec-badge" :title="dayTodoTitle">
           <span class="sr-only">Требуют действия:</span>{{ dayTodo }}
         </span>
@@ -565,6 +568,11 @@ onUnmounted(() => {
 .sec{margin-bottom:1.75rem;}
 .sec-head{display:flex;align-items:center;gap:.75rem;flex-wrap:wrap;margin-bottom:.875rem;}
 .sec-t{font-family:var(--font-serif);font-size:1.375rem;font-weight:600;color:var(--ink-strong);margin:0;line-height:1.2;}
+.sec-t-short{display:none;}
+.sec-day .sec-t{
+  flex-grow:1;flex-shrink:1;flex-basis:0%;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
 .sec-link{
   display:inline-flex;align-items:center;gap:.3125rem;
   background:none;border:none;padding:.375rem .5rem;border-radius:.5rem;
@@ -726,10 +734,14 @@ onUnmounted(() => {
   .res-end{grid-column:1/-1;justify-content:flex-start;}
   .res-end .btn{flex:1 1 auto;}
 }
-@media (max-width:37.5rem){
-  .tiles,.tiles-4{grid-template-columns:1fr;}
+@media (max-width:75rem){
   .datenav{margin-left:0;width:100%;}
   .dn-label{flex:1;min-width:0;}
+  .sec-day .sec-t-full{display:none;}
+  .sec-day .sec-t-short{display:inline;}
+}
+@media (max-width:37.5rem){
+  .tiles,.tiles-4{grid-template-columns:1fr;}
 }
 @media (max-width:30rem){
   .res .ava{display:none;}

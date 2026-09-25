@@ -202,6 +202,12 @@ async function enrichRecipients(rows, teacherUserId = null, req = null) {
 
 const MAX_LIST_LIMIT = 200;
 
+const LIST_ORDERS = {
+  'name-asc': [['lastName', 'ASC'], ['firstName', 'ASC'], ['middleName', 'ASC'], ['id', 'ASC']],
+  'name-desc': [['lastName', 'DESC'], ['firstName', 'DESC'], ['middleName', 'DESC'], ['id', 'DESC']],
+  recent: [['id', 'DESC']]
+};
+
 router.get('/', authMiddleware, loadGrants, async (req, res, next) => {
   try {
     const page = Math.max(1, parseInt(req.query.page) || 1);
@@ -243,7 +249,7 @@ router.get('/', authMiddleware, loadGrants, async (req, res, next) => {
       limit,
       offset,
       include: listInclude,
-      order: [['id', 'DESC']]
+      order: LIST_ORDERS[req.query.sort] || LIST_ORDERS.recent
     });
 
     const data = await enrichRecipients(rows, teacherUserId, req);

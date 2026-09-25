@@ -1000,12 +1000,13 @@ const filterCuratorName  = ref(null);
 
 const sortOptions = [
   { value: 'schedule',  label: 'По расписанию', hint: 'сегодня и завтра первыми', icon: '<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>' },
-  { value: 'name-asc',  label: 'По имени — А–Я', icon: '<path d="M11 5h10M11 9h7M11 13h4M3 17l3-3 3 3M6 14v6"/>' },
-  { value: 'name-desc', label: 'По имени — Я–А', icon: '<path d="M11 5h4M11 9h7M11 13h10M3 7l3 3 3-3M6 4v6"/>' },
+  { value: 'name-asc',  label: 'По фамилии — А–Я', icon: '<path d="M11 5h10M11 9h7M11 13h4M3 17l3-3 3 3M6 14v6"/>' },
+  { value: 'name-desc', label: 'По фамилии — Я–А', icon: '<path d="M11 5h4M11 9h7M11 13h10M3 7l3 3 3-3M6 4v6"/>' },
   { value: 'recent',    label: 'Сначала новые', icon: '<path d="M12 8v4l3 3M3 12a9 9 0 1018 0 9 9 0 00-18 0z"/>' },
   { value: 'group',     label: 'По группе', icon: '<path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/>' }
 ];
 const sortLabel = computed(() => (sortOptions.find(o => o.value === sortMode.value) || sortOptions[0]).label);
+const SERVER_SORTS = new Set(['name-asc', 'name-desc', 'recent']);
 
 const pad = (n) => String(n).padStart(2, '0');
 const isoOf = (dt) => `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}`;
@@ -1207,7 +1208,16 @@ const toggleFlagTip = (r, kind) => {
 const setFilter = (f) => { activeFilter.value = f; openFilterMenu.value = null; sortMenuOpen.value = false; };
 
 const toggleSortMenu = () => { sortMenuOpen.value = !sortMenuOpen.value; openFilterMenu.value = null; };
-const selectSort = (mode) => { sortMode.value = mode; sortMenuOpen.value = false; };
+const selectSort = (mode) => {
+  sortMenuOpen.value = false;
+  if (mode === sortMode.value) return;
+  const wasServerSide = SERVER_SORTS.has(sortMode.value);
+  sortMode.value = mode;
+  if (wasServerSide || SERVER_SORTS.has(mode)) {
+    page.value = 1;
+    loadRecipients();
+  }
+};
 
 const toggleFilterMenu = (type) => { openFilterMenu.value = openFilterMenu.value === type ? null : type; sortMenuOpen.value = false; };
 const selectGroupFilter     = (id)   => { filterGroupId.value = id; openFilterMenu.value = null; };
@@ -1445,6 +1455,7 @@ const loadRecipients = async () => {
       page:      page.value,
       limit:     limit.value,
       search:    search.value || undefined,
+      sort:      SERVER_SORTS.has(sortMode.value) ? sortMode.value : undefined,
       diagnosis: filterDiagnosis.value !== 'all' ? filterDiagnosis.value : undefined
     };
     const res = await api.get('/recipients', { params });

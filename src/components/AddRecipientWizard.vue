@@ -130,8 +130,8 @@
                   :title="noRep ? 'Вернуться к заполнению данных законного представителя' : 'У совершеннолетнего реабилитанта законного представителя нет — шаг можно пропустить'">
                   <svg v-if="noRep" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 21v-3.5L16.5 4a2.1 2.1 0 0 1 3 3L6 20.5z"/><path d="M14.5 6l3 3"/></svg>
                   <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="5 4 15 12 5 20"/><line x1="19" y1="5" x2="19" y2="19"/></svg>
-                  <span class="rw-scan-btn-long">{{ noRep ? 'Заполнить представителя' : 'Пропустить' }}</span>
-                  <span class="rw-scan-btn-short">{{ noRep ? 'Заполнить' : 'Пропустить' }}</span>
+                  <span class="rw-scan-btn-long">{{ noRep ? 'Заполнить представителя' : 'Реабилитант 18+' }}</span>
+                  <span class="rw-scan-btn-short">{{ noRep ? 'Заполнить' : '18+' }}</span>
                 </button>
               </div>
             </div>
@@ -338,9 +338,19 @@
                   <fieldset style="border:none;padding:0;margin:0">
                     <legend class="rw-label" style="margin-bottom:0.5rem">Тип документа <span class="rw-req">*</span></legend>
                     <div class="rw-seg">
-                      <button class="rw-seg-btn" :class="{ active: f.rDocType === 'birth' }" type="button" @click="f.rDocType = 'birth'">Свидетельство о рождении</button>
-                      <button class="rw-seg-btn" :class="{ active: f.rDocType === 'passport' }" type="button" @click="f.rDocType = 'passport'">Паспорт гражданина РФ</button>
+                      <button class="rw-seg-btn" :class="{ active: f.rDocType === 'birth' }" type="button"
+                              :disabled="requiredDocType === 'passport'"
+                              :title="requiredDocType === 'passport' ? 'С 14 лет личность подтверждается паспортом' : ''"
+                              @click="f.rDocType = 'birth'">Свидетельство о рождении</button>
+                      <button class="rw-seg-btn" :class="{ active: f.rDocType === 'passport' }" type="button"
+                              :disabled="requiredDocType === 'birth'"
+                              :title="requiredDocType === 'birth' ? 'До 14 лет личность подтверждается свидетельством о рождении' : ''"
+                              @click="f.rDocType = 'passport'">Паспорт гражданина РФ</button>
                     </div>
+                    <p v-if="requiredDocType" class="rw-field-help">
+                      Реабилитанту {{ crgAge }} {{ pluralYears(crgAge) }} —
+                      {{ requiredDocType === 'passport' ? 'документ только паспорт.' : 'документ только свидетельство о рождении.' }}
+                    </p>
                   </fieldset>
                 </div>
                 <div class="rw-f rw-c4">
@@ -562,11 +572,7 @@
                     <option v-for="o in moscowOkruga" :key="o" :value="o">{{ o }}</option>
                   </select>
                 </div>
-                <div class="rw-f rw-c4">
-                  <label class="rw-label" for="r-reg-area">Район</label>
-                  <input id="r-reg-area" class="rw-input" type="text" placeholder="Например: Тёплый Стан" :value="f.rRegArea" @input="onMask('rRegArea', $event, v => maskText(v, 120))" maxlength="120" />
-                </div>
-                <div class="rw-f rw-c4">
+                <div class="rw-f rw-c8">
                   <label class="rw-label" for="r-reg">Адрес регистрации <span class="rw-req">*</span></label>
                   <input id="r-reg" class="rw-input" type="text" placeholder="Город, улица, дом, квартира" :value="f.rAddrReg" @input="onMask('rAddrReg', $event, v => maskText(v, 500))" maxlength="500" />
                 </div>
@@ -1154,7 +1160,7 @@ const makeEmptyForm = () => ({
   rDocType: 'birth',
   rDocSeries: '', rDocNum: '', rDocDate: '', rDocIssuer: '',
 
-  rRegOkrug: '', rRegArea: '', rAddrReg: '',
+  rRegOkrug: '', rAddrReg: '',
 
   rAddrSame: false,
   rFactOkrug: '', rFactArea: '', rAddrFact: '',
@@ -1175,6 +1181,7 @@ const hydrateForm = (saved) => {
     src.rDiagnosisList != null ? src.rDiagnosisList : src.rDiagnosis
   );
   delete form.rDiagnosis;
+  delete form.rRegArea;
   delete form.consentConfirmed;
   form.lrNone = src.lrNone === true;
   return form;
@@ -1369,6 +1376,21 @@ const toggleNoRep = () => {
 };
 
 const crgGroupDisabled = computed(() => crgAge.value === null);
+const requiredDocType = computed(() => {
+  if (crgAge.value == null) return null;
+  return crgAge.value >= 14 ? 'passport' : 'birth';
+});
+
+const seriesFits = (type, value) => (
+  type === 'passport' ? /^\d{4}$/.test(value) : /^[IVXLCА-ЯЁ\- ]+$/.test(value)
+);
+
+watch(requiredDocType, (type) => {
+  if (!type || f.value.rDocType === type) return;
+  f.value.rDocType = type;
+  if (f.value.rDocSeries && !seriesFits(type, f.value.rDocSeries)) f.value.rDocSeries = '';
+}, { immediate: true });
+
 const crgAgeHint = computed(() => {
   if (crgAge.value === null) return '';
   const age = crgAge.value;
@@ -2581,9 +2603,7 @@ const sendIntake = async () => {
       district:       f.value.rAddrSame
                         ? f.value.rRegOkrug
                         : (f.value.rFactOkrug || f.value.rRegOkrug),
-      area:           f.value.rAddrSame
-                        ? f.value.rRegArea
-                        : (f.value.rFactArea || f.value.rRegArea),
+      area:           f.value.rAddrSame ? '' : f.value.rFactArea,
       educationPlace: f.value.rEduName,
       specialNote:    f.value.rSpecial,
     },
@@ -3310,7 +3330,12 @@ onUnmounted(() => {
   cursor: pointer; font-family: var(--rw-sans);
   transition: background 0.15s, border-color 0.15s, color 0.15s;
 }
-.rw-seg-btn:hover { background: var(--rw-paper-soft); color: var(--rw-ink); border-color: var(--rw-ink-subtle); }
+.rw-seg-btn:hover:not(:disabled) { background: var(--rw-paper-soft); color: var(--rw-ink); border-color: var(--rw-ink-subtle); }
+.rw-seg-btn:disabled {
+  background: var(--rw-paper-soft); color: var(--rw-ink-subtle);
+  border-color: var(--rw-line); cursor: not-allowed;
+  text-decoration: line-through; text-decoration-thickness: 1px;
+}
 .rw-seg-btn.active { background: var(--rw-sage-900); color: #F4F8EC; border-color: var(--rw-sage-900); }
 .rw-singleselect { position: relative; }
 .rw-ss-trigger {
@@ -3882,6 +3907,7 @@ onUnmounted(() => {
   }
   .rw-clear-btn svg { width: 1.125rem; height: 1.125rem; flex: 0 0 1.125rem; }
   .rw-c4 { grid-column: span 6; }
+  .rw-c8 { grid-column: span 6; }
   .rw-c3 { grid-column: span 6; }
   .rw-gen-docs { grid-template-columns: 1fr; }
 }
