@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import os, re, shutil
 from docx import Document
 from docx.oxml.ns import qn

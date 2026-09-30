@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 import os, re, shutil, zipfile, sys, io
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')

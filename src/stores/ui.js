@@ -15,6 +15,27 @@ const setVar = (name, value) => {
   document.documentElement.style.setProperty(name, value)
 }
 
+const NAV_COLLAPSED_KEY = 'navCollapsed'
+
+const readNavCollapsed = () => {
+  try {
+    return localStorage.getItem(NAV_COLLAPSED_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+const NON_TEXT_INPUTS = /^(button|checkbox|radio|range|color|file|submit|reset|image|hidden)$/i
+
+const isTyping = () => {
+  if (typeof document === 'undefined') return false
+  const el = document.activeElement
+  if (!el) return false
+  if (el.isContentEditable) return true
+  if (el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return true
+  return el.tagName === 'INPUT' && !NON_TEXT_INPUTS.test(el.type || '')
+}
+
 export const useUiStore = defineStore('ui', {
   state: () => ({
     drawerOpen: false,
@@ -22,6 +43,7 @@ export const useUiStore = defineStore('ui', {
       ? window.matchMedia(MOBILE_QUERY).matches
       : false,
     isIOS: detectIOS(),
+    navCollapsed: readNavCollapsed(),
     keyboard: 0,
     scrollLocks: 0,
     savedScroll: 0
@@ -44,6 +66,12 @@ export const useUiStore = defineStore('ui', {
     setMobile(value) {
       this.isMobile = !!value
       if (!this.isMobile) this.closeDrawer()
+    },
+    toggleNavCollapsed() {
+      this.navCollapsed = !this.navCollapsed
+      try {
+        localStorage.setItem(NAV_COLLAPSED_KEY, this.navCollapsed ? '1' : '0')
+      } catch {}
     },
 
     lockScroll() {
@@ -93,7 +121,9 @@ export const useUiStore = defineStore('ui', {
       const applyKeyboard = () => {
         const vv = window.visualViewport
         if (!vv) return
-        const raw = Math.round(window.innerHeight - vv.height - vv.offsetTop)
+        const raw = isTyping()
+          ? Math.round(window.innerHeight - vv.height - Math.max(0, vv.offsetTop))
+          : 0
         const kb = raw > KEYBOARD_THRESHOLD ? raw : 0
         if (kb !== this.keyboard) {
           this.keyboard = kb
@@ -107,9 +137,13 @@ export const useUiStore = defineStore('ui', {
         applyKeyboard()
       }
 
+      const onFocusChange = () => setTimeout(applyKeyboard, 0)
+
       onViewport()
       window.addEventListener('resize', onViewport)
       window.addEventListener('orientationchange', onViewport)
+      document.addEventListener('focusin', onFocusChange)
+      document.addEventListener('focusout', onFocusChange)
       const vv = window.visualViewport
       if (vv) {
         vv.addEventListener('resize', onViewport)
@@ -120,6 +154,8 @@ export const useUiStore = defineStore('ui', {
         mq.removeEventListener('change', apply)
         window.removeEventListener('resize', onViewport)
         window.removeEventListener('orientationchange', onViewport)
+        document.removeEventListener('focusin', onFocusChange)
+        document.removeEventListener('focusout', onFocusChange)
         if (vv) {
           vv.removeEventListener('resize', onViewport)
           vv.removeEventListener('scroll', applyKeyboard)

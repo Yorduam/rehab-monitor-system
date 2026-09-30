@@ -219,7 +219,7 @@
           <button v-if="activeFilter !== 'all'" class="t-btn t-btn-secondary" @click="setFilter('all')">Показать всех</button>
         </div>
 
-        <div v-else-if="viewMode === 'grid'" class="t-groups">
+        <div v-else-if="showGrid" class="t-groups">
           <section v-for="section in sections" :key="section.key" class="t-group">
             <div v-if="section.title" class="t-group-header">
               <h2 class="t-group-title">{{ section.title }}</h2>
@@ -883,6 +883,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { usePageStore } from '../stores/page';
+import { useUiStore } from '../stores/ui';
 import api from '../api';
 import { fullName, recipientAge, initials, statusLabel } from '../utils/recipient';
 import { splitDiagnoses, formatDiagnoses } from '../utils/diagnosisList';
@@ -895,6 +896,7 @@ import ReasonDialog from '../components/ReasonDialog.vue';
 
 const authStore = useAuthStore();
 const pageStore = usePageStore();
+const ui = useUiStore();
 
 const canManageRecipients = computed(() => authStore.isAdmin || authStore.isTeacher);
 const canDeleteRecipient = computed(() => authStore.isAdmin || authStore.isEmployee);
@@ -938,6 +940,7 @@ let searchTimeout  = null;
 const activeDropdown = ref(null);
 
 const viewMode    = ref('grid');
+const showGrid    = computed(() => viewMode.value === 'grid' || ui.isMobile);
 const activeFilter = ref('all');
 const selectedIds  = ref([]);
 const searchFocused = ref(false);
@@ -2373,7 +2376,34 @@ onUnmounted(() => {
 }
 @media (max-width: 48rem) {
   .t-list-table-wrap { display: none; }
-  .t-card-grid { grid-template-columns: 1fr; gap: 0.75rem; }
+  .t-view-toggle { display: none; }
+  .t-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.625rem; }
+  .t-rcard { grid-template-rows: 1fr auto auto; }
+  .t-rcard-body { padding: 1rem 0.625rem 0.75rem; gap: 0.5rem; }
+  .t-rcard-photo { width: 4rem; height: 4rem; flex: 0 0 4rem; }
+  .t-rcard-photo-fallback { font-size: 1.375rem; }
+  .t-rcard-name { font-size: 0.875rem; overflow-wrap: anywhere; }
+  .t-rcard-meta { font-size: 0.75rem; overflow-wrap: anywhere; }
+  .t-rcard-tags { gap: 0.25rem; margin-top: 0.375rem; }
+  .t-rcard-tags .t-tag {
+    font-size: 0.6875rem; padding: 0.125rem 0.4375rem;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .t-flag-tooltip { max-width: 9rem; }
+  .t-card-grid > .t-rcard:nth-child(odd) .t-flag-tooltip { left: -0.5rem; transform: translateY(0.25rem); }
+  .t-card-grid > .t-rcard:nth-child(even) .t-flag-tooltip { left: auto; right: -0.5rem; transform: translateY(0.25rem); }
+  .t-card-grid > .t-rcard .t-flag:hover .t-flag-tooltip,
+  .t-card-grid > .t-rcard .t-flag:focus-visible .t-flag-tooltip,
+  .t-card-grid > .t-rcard .t-flag.is-tapped .t-flag-tooltip { transform: translateY(0); }
+  .t-card-grid > .t-rcard:nth-child(odd) .t-flag-tooltip::after { left: 1.25rem; }
+  .t-card-grid > .t-rcard:nth-child(even) .t-flag-tooltip::after { left: auto; right: 1.25rem; transform: translateX(50%); }
+  .t-rcard-footer { padding: 0.5rem 0.25rem 0.5rem 0.625rem; gap: 0.25rem; }
+  .t-att-label { font-size: 0.625rem; letter-spacing: 0.04em; line-height: 1.25; }
+  .t-att-value { font-size: 0.8125rem; }
+  .t-rcard-actions > .t-action-btn { display: none; }
+  .t-card-grid > .t-rcard:nth-child(odd) .t-row-menu { right: auto; left: 0; }
+  .t-att-mark { grid-template-columns: 1fr; gap: 0.25rem; padding: 0.5rem; }
+  .t-att-btn { justify-content: flex-start; padding: 0.55rem 0.625rem; font-size: 0.75rem; }
 }
 .t-checkbox {
   width: 1.25rem; height: 1.25rem; border-radius: 0.25rem;
@@ -2447,7 +2477,7 @@ onUnmounted(() => {
 .t-sel-close svg { width: 1.0625rem; height: 1.0625rem; }
 @media (max-width: 64rem) {
   .t-page-title { font-size: 2rem; }
-  .t-controls { grid-template-columns: 1fr; }
+  .t-controls { grid-template-columns: minmax(0, 1fr); }
   .t-control-group { justify-content: flex-end; }
 }
 @media (max-width: 48rem) {

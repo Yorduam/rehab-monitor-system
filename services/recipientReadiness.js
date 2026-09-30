@@ -1,5 +1,6 @@
 import { Op } from '@sequelize/core';
 import { buildConsentState, CONSENT_SCAN_CODES } from '../src/utils/consentRules.js';
+import { ENROLL_DOCS } from './enrollmentDocs.js';
 import {
   Recipient, RecipientDoc, RecipientScanDoc, DocType, ReGroup,
   DiagnosticAssignment, DiagnosticSession, DiagnosticConclusion,
@@ -243,15 +244,8 @@ export async function getRecipientReadiness(recipientId) {
   const age = yearsOld(recipient.birthDate);
   const selfRepresented = !recipient.representativeId && (age ?? 0) >= 18 && recipient.legalCapacity !== 'incapable';
 
-  const skipCodes = scanSkipCodes(recipient);
-
-  const applicableTypes = skipCodes.size
-    ? docTypes.filter((t) => !skipCodes.has(t.code))
-    : docTypes;
-
   const missingScans = missingRequiredScans(recipient, docTypes, currentScanTypeIds)
     .map((t) => ({ id: t.id, code: t.code, name: t.name }));
-  const missingAll = applicableTypes.filter((t) => !currentScanTypeIds.has(t.id)).length;
 
   const expired = [];
   const expiringSoon = [];
@@ -405,6 +399,12 @@ export async function getRecipientReadiness(recipientId) {
     scans: consentScans
   });
 
+  const currentScanCodes = new Set([...currentScanTypeIds].map((typeId) => codeOfType.get(typeId)));
+  const enrollPapersMissing = consents.stage === 'rehab'
+    ? ENROLL_DOCS.filter((d) => d.required && !currentScanCodes.has(d.scanCode)).length
+    : 0;
+  const missingRequired = missingScans.length + enrollPapersMissing + (consents.total - consents.done);
+
   const lifecycle = buildLifecycle({
     recipient, steps, docTypes, currentScanTypeIds, missingScans,
     assignments, sessions: allSessions, conclusions, group, lessons, today, consents
@@ -532,7 +532,7 @@ export async function getRecipientReadiness(recipientId) {
       expired,
       expiringSoon,
       missingScans,
-      missingAll,
+      missingRequired,
       alertCount: expired.length + missingScans.length,
       warnCount: expiringSoon.length
     },

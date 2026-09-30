@@ -4,7 +4,7 @@
     v-if="authStore.isTeacher"
     ref="drawerEl"
     class="sidebar-teacher"
-    :class="{ open: ui.drawerOpen, dragging }"
+    :class="{ open: ui.drawerOpen, dragging, 'is-rail': rail }"
     aria-label="Основная навигация"
     @touchstart.passive="onDrawerTouchStart"
     @touchmove="onDrawerTouchMove"
@@ -18,6 +18,17 @@
         <div class="s-brand-name">ERP-Реабилитация</div>
         <div class="s-brand-sub">ЦСИ Дианы Гурцкая</div>
       </div>
+      <button
+        type="button"
+        class="s-collapse"
+        :aria-label="navToggleLabel"
+        :title="navToggleLabel"
+        @click="onNavToggle"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </button>
     </div>
 
     <span class="s-section-label">Работа</span>
@@ -120,7 +131,7 @@
     v-else-if="authStore.isAdmin"
     ref="drawerEl"
     class="sidebar-teacher"
-    :class="{ open: ui.drawerOpen, dragging }"
+    :class="{ open: ui.drawerOpen, dragging, 'is-rail': rail }"
     aria-label="Основная навигация"
     @touchstart.passive="onDrawerTouchStart"
     @touchmove="onDrawerTouchMove"
@@ -134,6 +145,17 @@
         <div class="s-brand-name">ERP-Реабилитация</div>
         <div class="s-brand-sub">ЦСИ Дианы Гурцкая</div>
       </div>
+      <button
+        type="button"
+        class="s-collapse"
+        :aria-label="navToggleLabel"
+        :title="navToggleLabel"
+        @click="onNavToggle"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </button>
     </div>
 
     <span class="s-section-label">Основное</span>
@@ -210,7 +232,7 @@
     v-else-if="authStore.isEmployee"
     ref="drawerEl"
     class="sidebar-teacher"
-    :class="{ open: ui.drawerOpen, dragging }"
+    :class="{ open: ui.drawerOpen, dragging, 'is-rail': rail }"
     aria-label="Основная навигация"
     @touchstart.passive="onDrawerTouchStart"
     @touchmove="onDrawerTouchMove"
@@ -224,6 +246,17 @@
         <div class="s-brand-name">ERP-Реабилитация</div>
         <div class="s-brand-sub">ЦСИ Дианы Гурцкая</div>
       </div>
+      <button
+        type="button"
+        class="s-collapse"
+        :aria-label="navToggleLabel"
+        :title="navToggleLabel"
+        @click="onNavToggle"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <polyline points="15 18 9 12 15 6"/>
+        </svg>
+      </button>
     </div>
 
     <span class="s-section-label">Работа</span>
@@ -385,7 +418,7 @@
 </template>
 
 <script setup>
-import { computed, ref, watch } from 'vue';
+import { computed, ref, watch, nextTick } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import { usePageStore } from '../stores/page';
 import { useUiStore } from '../stores/ui';
@@ -447,19 +480,43 @@ const go = (id, label) => {
 
 const usesTeacherStyle = computed(() => authStore.isTeacher || authStore.isAdmin || authStore.isEmployee);
 
-const updateSidebarWidth = (teacherStyle) => {
+const rail = computed(() => usesTeacherStyle.value && !ui.isMobile && ui.navCollapsed);
+
+const navToggleLabel = computed(() => {
+  if (ui.isMobile) return 'Свернуть меню';
+  return rail.value ? 'Развернуть меню' : 'Свернуть меню';
+});
+
+const onNavToggle = () => {
+  if (ui.isMobile) ui.closeDrawer();
+  else ui.toggleNavCollapsed();
+};
+
+const updateSidebarWidth = (teacherStyle, isRail) => {
   const root = document.documentElement;
-  root.style.setProperty('--sidebar-width', teacherStyle ? '240px' : '260px');
+  root.style.setProperty('--sidebar-width', teacherStyle ? (isRail ? '4.5rem' : '240px') : '260px');
   root.style.setProperty('--bottom-nav-h', teacherStyle ? '0px' : '4.375rem');
 };
 
 watch(
-  usesTeacherStyle,
-  (val) => {
-    updateSidebarWidth(val);
+  [usesTeacherStyle, rail],
+  ([teacherStyle, isRail]) => {
+    updateSidebarWidth(teacherStyle, isRail);
   },
   { immediate: true }
 );
+
+const applyRailTitles = async () => {
+  await nextTick();
+  const el = drawerEl.value;
+  if (!el) return;
+  for (const item of el.querySelectorAll('.s-item')) {
+    if (rail.value) item.setAttribute('title', item.textContent.trim());
+    else item.removeAttribute('title');
+  }
+};
+
+watch([rail, drawerEl], applyRailTitles, { immediate: true });
 
 const mainNav = [
   { id: 'dashboard',  label: 'Дашборд',      icon: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>' },
@@ -541,6 +598,26 @@ const logout = () => {
   color: #B8C6B2;
   margin-top: 0.125rem;
 }
+.s-collapse {
+  width: 2.75rem;
+  height: 2.75rem;
+  margin-left: auto;
+  margin-right: -0.5rem;
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  border-radius: 0.625rem;
+  background: none;
+  border: none;
+  color: #B8C6B2;
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+.s-collapse svg { width: 1.125rem; height: 1.125rem; transition: transform 200ms ease; }
+@media (hover: hover) {
+  .s-collapse:hover { background: rgba(255, 255, 255, 0.08); color: #F3F6EA; }
+}
+.s-collapse:focus-visible { outline: 3px solid #F3F6EA; outline-offset: 2px; }
 .s-section-label {
   display: block;
   font-size: 0.6875rem;
@@ -679,6 +756,23 @@ const logout = () => {
   outline-offset: 2px;
 }
 .s-logout svg { width: 1rem; height: 1rem; }
+@media (min-width: 769px) {
+  .sidebar-teacher { transition: width 200ms ease, padding 200ms ease; }
+  .sidebar-teacher.is-rail { width: 4.5rem; padding: 1.25rem 0.5rem 0.75rem; }
+  .is-rail .s-brand { flex-direction: column; gap: 0.5rem; padding: 0; margin-bottom: 1rem; }
+  .is-rail .s-brand-name,
+  .is-rail .s-brand-sub { display: none; }
+  .is-rail .s-collapse { margin: 0; }
+  .is-rail .s-collapse svg { transform: rotate(180deg); }
+  .is-rail .s-section-label {
+    font-size: 0; height: 1px; padding: 0;
+    margin: 0.75rem 0.5rem; background: rgba(255, 255, 255, 0.12);
+  }
+  .is-rail .s-item { justify-content: center; gap: 0; padding: 0.5rem; font-size: 0; }
+  .is-rail .s-footer { flex-direction: column; gap: 0.375rem; }
+  .is-rail .s-user { flex: none; padding: 0; justify-content: center; }
+  .is-rail .s-user-text { display: none; }
+}
 @media (max-width: 768px) {
   .sidebar-teacher {
     top: 0;

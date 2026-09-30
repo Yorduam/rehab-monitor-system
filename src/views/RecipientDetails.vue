@@ -84,8 +84,8 @@
               <span v-if="stageChip" class="stage-chip">{{ stageChip }}</span>
             </div>
 
-            <div class="hero-name-row">
-              <h1 class="hero-name">{{ fullName(recipient) }}</h1>
+            <div class="hero-name-row" :style="{ '--name-scale': heroNameScale }">
+              <h1 class="hero-name" lang="ru">{{ fullName(recipient) }}</h1>
               <button v-if="canEditCard" type="button" class="icon-btn" @click="openCardEdit"
                       aria-label="Редактировать карточку" title="Редактировать карточку">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4z"/></svg>
@@ -2480,6 +2480,15 @@ const onAssigned = () => {
 
 const doc = computed(() => recipient.value?.docs?.[0] || null);
 const age = computed(() => recipientAge(recipient.value));
+
+const heroNameScale = computed(() => {
+  const name = fullName(recipient.value);
+  const longestWord = Math.max(0, ...name.split(/[\s-]+/).map((w) => w.length));
+  if (name.length > 44 || longestWord > 17) return 0.66;
+  if (name.length > 34 || longestWord > 14) return 0.75;
+  if (name.length > 24) return 0.875;
+  return 1;
+});
 const groupName = computed(() => recipient.value?.group?.groupName || '');
 const curatorName = computed(() => recipient.value?.group?.curatorUser?.fullName || '');
 const photoUrl = computed(() => {
@@ -3228,11 +3237,7 @@ const ENROLL_BLANK = {
   'signed-enroll': 'enroll'
 };
 
-const enrollRequired = computed(() => {
-  const m = new Map();
-  for (const d of enroll.value?.docs || []) m.set(d.scanCode, !!d.required);
-  return m;
-});
+const ENROLL_PAPERS = new Set(['signed-contract', 'signed-enroll']);
 
 const DAY_MS = 86400000;
 const daysUntil = (d) => {
@@ -3272,10 +3277,11 @@ const docTerm = (code, scan) => {
   return '';
 };
 
-const docState = (code, scan, required) => {
+const docState = (code, scan, required, later = false) => {
   const signed = String(code).startsWith('signed-');
   if (!scan) {
-    if (!required) return { cls: 'pill-mute', text: 'Не загружено' };
+    if (later) return { cls: 'pill-mute', text: 'После заключения' };
+    if (!required) return { cls: 'pill-mute', text: 'По желанию' };
     return signed ? { cls: 'pill-wait', text: 'Ждём скан' } : { cls: 'pill-stop', text: 'Не загружен' };
   }
   const { perpetual, until } = docTermInfo(code, scan);
@@ -3291,7 +3297,7 @@ const docGroups = computed(() => {
   const types = docTypes.value;
   if (!types.length) return [];
   const byCode = new Map(types.map((t) => [t.code, t]));
-  const req = enrollRequired.value;
+  const enrollStage = consentState.value?.stage === 'rehab';
   const used = new Set(CONSENT_SCAN_CODES);
 
   const skip = new Set();
@@ -3304,7 +3310,7 @@ const docGroups = computed(() => {
     if (skip.has(code)) { used.add(code); return null; }
     used.add(code);
     const scan = scanByCode(code);
-    const required = req.has(code) ? req.get(code) : !!t.isRequired;
+    const required = ENROLL_PAPERS.has(code) ? enrollStage : !!t.isRequired;
     return {
       code,
       name: t.name,
@@ -3312,7 +3318,7 @@ const docGroups = computed(() => {
       entityType: t.appliesTo === 'representative' ? 'representative' : 'rehabilitant',
       scan,
       versions: scan ? versionsOf(scan).length : 0,
-      state: docState(code, scan, required),
+      state: docState(code, scan, required, ENROLL_PAPERS.has(code) && !enrollStage),
       term: docTerm(code, scan),
       blank: ENROLL_BLANK[code] || null
     };
@@ -3335,16 +3341,20 @@ const scansKnown = computed(
   () => scansLoaded.value && !scansLocked.value && !isLocked('scans')
 );
 
-const docsMissing = computed(() =>
-  scansKnown.value
-    ? docGroups.value.reduce((n, g) => n + g.rows.filter((r) => !r.scan).length, 0)
-    : (readiness.value?.docs?.missingAll ?? 0)
-);
+const requiredMissing = (rows) => rows.filter((r) => r.required && !r.scan).length;
+
+const docsMissing = computed(() => {
+  if (!scansKnown.value) return readiness.value?.docs?.missingRequired ?? 0;
+  const consentsLeft = consentState.value ? consentState.value.total - consentState.value.done : 0;
+  return docGroups.value.reduce((n, g) => n + requiredMissing(g.rows), 0) + consentsLeft;
+});
 
 const groupPill = (g) => {
-  const missing = g.rows.filter((r) => !r.scan).length;
+  const missing = requiredMissing(g.rows);
   const bad = g.rows.filter((r) => r.scan && r.state.cls !== 'pill-ok').length;
-  if (!missing && !bad) return { cls: 'pill-ok', text: 'Все загружены' };
+  if (!missing && !bad) {
+    return { cls: 'pill-ok', text: g.rows.every((r) => r.scan) ? 'Все загружены' : 'Обязательные загружены' };
+  }
   const parts = [];
   if (missing) parts.push(`не загружено: ${missing}`);
   if (bad) parts.push(`${bad} истекает`);
@@ -4453,12 +4463,18 @@ onUnmounted(() => {
 .alert-note .alert-title { color: var(--amber-700); }
 
 .hero {
+  container: rd-hero / inline-size;
   background: var(--paper); border: 0.0625rem solid var(--line); border-radius: var(--radius-xl);
   box-shadow: var(--shadow-sm); overflow: hidden; margin-bottom: 1.5rem;
 }
 .hero-body {
   display: grid; grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 1.25rem; align-items: center; padding: 1.5rem;
+}
+@container rd-hero (max-width: 50rem) {
+  .hero-body { grid-template-columns: auto minmax(0, 1fr); }
+  .hero-actions { grid-column: 1 / -1; }
+  .hero-actions .btn { flex: 1 1 auto; justify-content: center; }
 }
 .hero-ava {
   width: 5.5rem; height: 5.5rem; flex: 0 0 5.5rem; border-radius: 50%; object-fit: cover;
@@ -4488,10 +4504,19 @@ onUnmounted(() => {
   padding: 0.125rem 0.5rem; border-radius: 62.5rem;
 }
 
-.hero-name-row { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.hero-name-row {
+  white-space: nowrap; text-wrap: balance;
+  font-family: var(--font-serif); font-size: calc(2rem * var(--name-scale, 1)); line-height: 1.1;
+}
 .hero-name {
-  font-family: var(--font-serif); font-size: 2rem; line-height: 1.1; font-weight: 500;
-  letter-spacing: -0.02em; color: var(--ink-strong); margin: 0; word-break: break-word;
+  display: inline; white-space: normal;
+  font: inherit; font-weight: 500;
+  letter-spacing: -0.02em; color: var(--ink-strong); margin: 0;
+  overflow-wrap: break-word; hyphens: auto;
+}
+.hero-name-row .icon-btn {
+  margin-left: 0.5rem; vertical-align: middle;
+  position: relative; top: calc(-0.25rem * var(--name-scale, 1));
 }
 .icon-btn {
   display: inline-flex; align-items: center; justify-content: center;
@@ -5716,7 +5741,7 @@ textarea.input { min-height: 5rem; resize: vertical; }
   .hero-actions { grid-column: 1 / -1; }
   .hero-actions .btn { flex: 1 1 auto; }
   .hero-ava { width: 4rem; height: 4rem; flex: 0 0 4rem; font-size: 1.375rem; }
-  .hero-name { font-size: 1.625rem; }
+  .hero-name-row { font-size: calc(1.625rem * var(--name-scale, 1)); }
   .route { padding: 1rem; }
   .steps { grid-template-columns: 1fr; gap: 0.5rem; }
   .step { padding-top: 0; padding-left: 0.875rem; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 0.5rem; }
@@ -5750,7 +5775,6 @@ textarea.input { min-height: 5rem; resize: vertical; }
   .alert .btn { width: 100%; }
 
   .hero-actions { flex-wrap: wrap; }
-  .hero-name-row { flex-wrap: wrap; }
 
   .cyc-tab { min-width: 9.5rem; }
   .subtabs { width: 100%; }

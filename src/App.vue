@@ -228,7 +228,7 @@ body {
 }
 input, select, textarea, button { font-family: inherit; }
 .app { display: flex; min-height: 100vh; min-height: 100dvh; }
-.main { flex: 1; margin-left: var(--sidebar-width, 260px); display: flex; flex-direction: column; min-width: 0; }
+.main { flex: 1; margin-left: var(--sidebar-width, 260px); display: flex; flex-direction: column; min-width: 0; transition: margin-left 200ms ease; }
 .content { padding: 1.75rem; }
 
 .drawer-backdrop {
