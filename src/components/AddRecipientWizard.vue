@@ -92,12 +92,12 @@
             </li>
             <li class="rw-step-finish" :class="{ 'is-reached': allComplete }">
               <div class="rw-finish-line">
-                <span class="rw-finish-flag" :class="{ 'is-reached': allComplete }" :title="allComplete ? 'Все этапы заполнены — можно создавать карточку' : 'Завершение добавления реабилитанта'">
+                <span class="rw-finish-flag" :class="{ 'is-reached': allComplete }" :title="allComplete ? 'Все этапы заполнены — можно создавать карточку' : 'Заполните все этапы, чтобы карточка была готова к публикации'">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 </span>
               </div>
               <div class="rw-finish-cap" :class="{ 'is-reached': allComplete }">
-                {{ allComplete ? 'Готово' : 'Завершение' }}
+                Готово к публикации
               </div>
             </li>
           </ol>
@@ -189,12 +189,13 @@
                 </div>
               </div>
 
-              <label class="rw-switch-row" style="margin-top:1rem">
+              <label class="rw-switch-row" :class="{ 'is-disabled': capacityLocked }" style="margin-top:1rem">
                 <div class="rw-sr-text">
-                  <div class="rw-sr-title">Реабилитант совершеннолетний и признан недееспособным</div>
+                  <div class="rw-sr-title">Реабилитант признан недееспособным</div>
+                  <div class="rw-sr-sub">{{ capacityHint }}</div>
                 </div>
                 <span class="rw-switch">
-                  <input type="checkbox" :checked="f.rCapacity === 'incapable'" @change="f.rCapacity = $event.target.checked ? 'incapable' : 'capable'" />
+                  <input type="checkbox" :disabled="capacityLocked" :checked="f.rCapacity === 'incapable'" @change="f.rCapacity = $event.target.checked ? 'incapable' : 'capable'" />
                   <span class="rw-slider"></span>
                 </span>
               </label>
@@ -385,6 +386,10 @@
 
               <div class="rw-divider"><span class="rw-dv-label">Медицинские сведения и реабилитационная группа</span><span class="rw-dv-line"></span></div>
               <div class="rw-fg">
+                <div class="rw-f rw-c6">
+                  <label class="rw-label" for="r-snils">СНИЛС <span class="rw-req">*</span><span v-if="ocrFilled.includes('rSnils')" class="rw-ocr-tag">распознано</span></label>
+                  <input id="r-snils" class="rw-input" type="text" inputmode="numeric" maxlength="14" placeholder="000-000-000 00" :value="f.rSnils" @input="onMask('rSnils', $event, maskSnils)" enterkeyhint="next" />
+                </div>
                 <div class="rw-f rw-c12">
                   <fieldset style="border:none;padding:0;margin:0">
                     <legend class="rw-label" style="margin-bottom:0.5rem">Группа инвалидности <span class="rw-req">*</span></legend>
@@ -396,14 +401,10 @@
                   </fieldset>
                 </div>
                 <div class="rw-f rw-c6">
-                  <label class="rw-label" for="r-snils">СНИЛС <span class="rw-req">*</span><span v-if="ocrFilled.includes('rSnils')" class="rw-ocr-tag">распознано</span></label>
-                  <input id="r-snils" class="rw-input" type="text" inputmode="numeric" maxlength="14" placeholder="000-000-000 00" :value="f.rSnils" @input="onMask('rSnils', $event, maskSnils, { len: 14, to: 'r-mse-date' })" enterkeyhint="next" />
-                </div>
-                <div class="rw-f rw-c3">
                   <label class="rw-label" for="r-mse-date">Дата выдачи МСЭ</label>
                   <input id="r-mse-date" class="rw-input" type="date" v-model="f.rMseDate" :max="today" />
                 </div>
-                <div class="rw-f rw-c3">
+                <div class="rw-f rw-c6">
                   <div class="rw-label-row">
                     <label class="rw-label" for="r-mse-until">Дата действия МСЭ</label>
                     <button
@@ -564,17 +565,29 @@
               </div>
 
               <div class="rw-divider"><span class="rw-dv-label">Адрес регистрации</span><span class="rw-dv-line"></span></div>
+              <label v-if="!noRep" class="rw-switch-row" style="margin-bottom:1rem">
+                <div class="rw-sr-text">
+                  <div class="rw-sr-title">Совпадает с адресом регистрации законного представителя</div>
+                </div>
+                <span class="rw-switch">
+                  <input type="checkbox" v-model="f.rAddrRegSameRep" />
+                  <span class="rw-slider"></span>
+                </span>
+              </label>
               <div class="rw-fg">
                 <div class="rw-f rw-c4">
                   <label class="rw-label" for="r-reg-okrug">Округ Москвы</label>
                   <select id="r-reg-okrug" class="rw-select" v-model="f.rRegOkrug">
-                    <option value="">Не в Москве / выберите…</option>
+                    <option value="">Выберите округ…</option>
                     <option v-for="o in moscowOkruga" :key="o" :value="o">{{ o }}</option>
                   </select>
                 </div>
                 <div class="rw-f rw-c8">
                   <label class="rw-label" for="r-reg">Адрес регистрации <span class="rw-req">*</span></label>
-                  <input id="r-reg" class="rw-input" type="text" placeholder="Город, улица, дом, квартира" :value="f.rAddrReg" @input="onMask('rAddrReg', $event, v => maskText(v, 500))" maxlength="500" />
+                  <input id="r-reg" class="rw-input" type="text"
+                         :placeholder="regFromRep ? 'Заполните адрес представителя на шаге 1' : 'Город, улица, дом, квартира'"
+                         :value="f.rAddrReg" :readonly="regFromRep" :class="{ 'rw-input-locked': regFromRep }"
+                         @input="onMask('rAddrReg', $event, v => maskText(v, 500))" maxlength="500" />
                 </div>
               </div>
 
@@ -592,15 +605,11 @@
                 <div class="rw-f rw-c4">
                   <label class="rw-label" for="r-fact-okrug">Округ Москвы</label>
                   <select id="r-fact-okrug" class="rw-select" v-model="f.rFactOkrug">
-                    <option value="">Не в Москве / выберите…</option>
+                    <option value="">Выберите округ…</option>
                     <option v-for="o in moscowOkruga" :key="o" :value="o">{{ o }}</option>
                   </select>
                 </div>
-                <div class="rw-f rw-c4">
-                  <label class="rw-label" for="r-fact-area">Район</label>
-                  <input id="r-fact-area" class="rw-input" type="text" placeholder="Например: Тёплый Стан" :value="f.rFactArea" @input="onMask('rFactArea', $event, v => maskText(v, 120))" maxlength="120" />
-                </div>
-                <div class="rw-f rw-c4">
+                <div class="rw-f rw-c8">
                   <label class="rw-label" for="r-fact">Адрес фактического места проживания <span class="rw-req">*</span></label>
                   <input id="r-fact" class="rw-input" type="text" placeholder="Город, улица, дом, квартира" :value="f.rAddrFact" @input="onMask('rAddrFact', $event, v => maskText(v, 500))" maxlength="500" />
                 </div>
@@ -646,7 +655,7 @@
                   <div class="rw-ssh-step">1</div>
                   <div class="rw-ssh-body">
                     <div class="rw-ssh-title">Сканы готовых документов</div>
-                    <div class="rw-ssh-sub">PDF, JPG или PNG до 10 МБ. <span class="rw-req-dot"></span> — обязательный документ.</div>
+                    <div class="rw-ssh-sub">PDF, JPG или PNG до {{ MAX_UPLOAD_MB }} МБ. <span class="rw-req-dot"></span> — обязательный документ.</div>
                   </div>
                   <span class="rw-ssh-meta">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
@@ -972,7 +981,8 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 import api from '../api';
-import { notifySaved } from '../utils/toast';
+import { notify, notifySaved } from '../utils/toast';
+import { MAX_UPLOAD_MB, MAX_UPLOAD_BYTES } from '../utils/uploadLimits';
 import {
   DRAFT_KEY, DRAFT_FILES_DB, DRAFT_FILES_STORE,
   draftPersonFields, summarizeDraft, touchDraftSavedAt, forgetDraftSavedAt,
@@ -981,7 +991,7 @@ import {
 import { useScrollLock } from '../utils/scrollLock';
 import { joinDiagnoses, toDiagnosisFields } from '../utils/diagnosisList';
 import { recognizePassport, recognizeSnils, isSupportedScan, disposeOcr } from '../utils/docOcr';
-import { categoryOf, packageDocs, CONSENT_DOCS } from '../utils/consentRules';
+import { categoryOf, packageDocs, CONSENT_DOCS, INCAPACITY_MIN_AGE } from '../utils/consentRules';
 
 useScrollLock();
 
@@ -1161,9 +1171,10 @@ const makeEmptyForm = () => ({
   rDocSeries: '', rDocNum: '', rDocDate: '', rDocIssuer: '',
 
   rRegOkrug: '', rAddrReg: '',
+  rAddrRegSameRep: false,
 
   rAddrSame: false,
-  rFactOkrug: '', rFactArea: '', rAddrFact: '',
+  rFactOkrug: '', rAddrFact: '',
 
   rEduName: '',
 
@@ -1182,6 +1193,7 @@ const hydrateForm = (saved) => {
   );
   delete form.rDiagnosis;
   delete form.rRegArea;
+  delete form.rFactArea;
   delete form.consentConfirmed;
   form.lrNone = src.lrNone === true;
   return form;
@@ -1341,6 +1353,27 @@ const recipientAgeYears = computed(() =>
 );
 
 const minorWarning = computed(() => noRep.value && crgAge.value != null && crgAge.value < 18);
+
+const capacityLocked = computed(() => crgAge.value != null && crgAge.value < INCAPACITY_MIN_AGE);
+
+const capacityHint = computed(() => (
+  capacityLocked.value
+    ? `Отметка ставится с ${INCAPACITY_MIN_AGE} лет — реабилитанту ${crgAge.value} ${pluralYears(crgAge.value)}`
+    : `С ${INCAPACITY_MIN_AGE} лет. Согласия подписывает законный представитель по форме для недееспособного`
+));
+
+watch(capacityLocked, (locked) => {
+  if (locked && f.value.rCapacity === 'incapable') f.value.rCapacity = 'capable';
+}, { immediate: true });
+
+const regFromRep = computed(() => !noRep.value && f.value.rAddrRegSameRep === true);
+
+watch(
+  () => [regFromRep.value, f.value.lrAddress],
+  ([same, address]) => {
+    if (same) f.value.rAddrReg = address || '';
+  }
+);
 
 const REP_FIELDS = [
   'lrLast', 'lrFirst', 'lrMid', 'lrRelation', 'lrPhone',
@@ -2319,18 +2352,17 @@ function applyScan() {
   closeScan();
 }
 
-const MAX_SCAN_MB = 15;
 const ALLOWED_SCAN_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];
 
 const rejectFile = (file, e) => {
-  if (file.size > MAX_SCAN_MB * 1024 * 1024) {
+  if (file.size > MAX_UPLOAD_BYTES) {
     e.target.value = '';
-    alert(`Файл «${file.name}» больше ${MAX_SCAN_MB} МБ — выберите файл меньшего размера.`);
+    notify(`Файл «${file.name}» больше ${MAX_UPLOAD_MB} МБ — выберите файл меньшего размера.`, { ms: 6000 });
     return true;
   }
   if (file.type && !ALLOWED_SCAN_TYPES.includes(file.type)) {
     e.target.value = '';
-    alert(`Файл «${file.name}» не подходит: нужен PDF, JPG, PNG или WEBP.`);
+    notify(`Файл «${file.name}» не подходит: нужен PDF, JPG, PNG или WEBP.`, { ms: 6000 });
     return true;
   }
   return false;
@@ -2603,7 +2635,6 @@ const sendIntake = async () => {
       district:       f.value.rAddrSame
                         ? f.value.rRegOkrug
                         : (f.value.rFactOkrug || f.value.rRegOkrug),
-      area:           f.value.rAddrSame ? '' : f.value.rFactArea,
       educationPlace: f.value.rEduName,
       specialNote:    f.value.rSpecial,
     },
@@ -3248,6 +3279,12 @@ onUnmounted(() => {
   border-color: var(--rw-sage-500);
   box-shadow: var(--rw-focus-ring);
 }
+.rw-input.rw-input-locked,
+.rw-input.rw-input-locked:hover,
+.rw-input.rw-input-locked:focus {
+  background: var(--rw-sage-50); border-color: var(--rw-sage-100);
+  color: var(--rw-sage-700); box-shadow: none; cursor: default;
+}
 .rw-select {
   appearance: none;
   -webkit-appearance: none;
@@ -3521,6 +3558,10 @@ onUnmounted(() => {
 }
 .rw-sr-text { flex: 1; min-width: 0; }
 .rw-sr-title { font-size: 0.9375rem; font-weight: 600; color: var(--rw-ink-strong); }
+.rw-sr-sub { margin-top: 0.125rem; font-size: 0.8125rem; line-height: 1.4; color: var(--rw-ink-muted); }
+.rw-switch-row.is-disabled { cursor: not-allowed; }
+.rw-switch-row.is-disabled .rw-sr-title { color: var(--rw-ink-muted); }
+.rw-switch-row.is-disabled .rw-slider { cursor: not-allowed; opacity: 0.5; }
 .rw-switch {
   position: relative; display: inline-block;
   width: 2.75rem; height: 1.625rem; flex: 0 0 2.75rem; margin-top: 0.125rem;

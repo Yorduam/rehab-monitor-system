@@ -1,5 +1,7 @@
-export const MAX_SCAN_BYTES = 15 * 1024 * 1024;
-export const MAX_SCAN_MB = Math.round(MAX_SCAN_BYTES / (1024 * 1024));
+import { MAX_UPLOAD_BYTES, MAX_UPLOAD_MB } from '../src/utils/uploadLimits.js';
+
+export const MAX_SCAN_BYTES = MAX_UPLOAD_BYTES;
+export const MAX_SCAN_MB = MAX_UPLOAD_MB;
 export const MAX_SCANS_PER_REQUEST = 12;
 
 export const ALLOWED_SCAN_MIME = ['application/pdf', 'image/jpeg', 'image/png', 'image/webp'];

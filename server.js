@@ -13,6 +13,7 @@ import { errorHandler } from './middleware/errorHandler.js';
 import { requestId } from './middleware/requestId.js';
 import { authMiddleware, staffOnly } from './middleware/auth.js';
 import logger from './config/logger.js';
+import { MAX_REQUEST_MB } from './src/utils/uploadLimits.js';
 
 import authRoutes from './routes/auth.js';
 import recipientsRoutes from './routes/recipients.js';
@@ -32,7 +33,7 @@ app.use(cors({
   credentials: true,
   origin: process.env.FRONTEND_URL || 'http://localhost:3000'
 }));
-app.use(express.json({ limit: '50mb' }));
+app.use(express.json({ limit: `${MAX_REQUEST_MB}mb` }));
 app.use(cookieParser());
 
 function isAuthenticated(req) {

@@ -14,7 +14,7 @@ import {
 } from '../models/index.js';
 import { getRecipientReadiness } from '../services/recipientReadiness.js';
 import { getEnrollmentState, generateEnrollmentDocument, getConsentState } from '../services/enrollmentDocs.js';
-import { ageAt } from '../src/utils/consentRules.js';
+import { ageAt, INCAPACITY_MIN_AGE } from '../src/utils/consentRules.js';
 import { summarizeDraft } from '../src/utils/recipientDraft.js';
 import { buildScanFileName } from '../services/scanFileName.js';
 import { readScan, sendScanFile, sniffMime, ALLOWED_SCAN_MIME, MAX_SCANS_PER_REQUEST } from '../services/fileGuard.js';
@@ -1118,7 +1118,9 @@ router.post('/intake', authMiddleware, roleMiddleware(...INTAKE_ROLES), async (r
         nozology: nozId,
         groupId: groupId || null,
         CRGMain: crgId,
-        legalCapacity: recipient.legalCapacity === 'incapable' ? 'incapable' : 'capable',
+        legalCapacity: recipient.legalCapacity === 'incapable' && (ageAt(recipient.birthDate) ?? 0) >= INCAPACITY_MIN_AGE
+          ? 'incapable'
+          : 'capable',
         guardianBasis: blankToNull(recipient.guardianBasis) ? String(recipient.guardianBasis).trim().slice(0, 500) : null,
         createdAt: new Date(),
         createdBy: req.user?.id ?? null
@@ -1554,6 +1556,14 @@ router.patch('/:id/card', authMiddleware, roleMiddleware('admin', 'employee'), l
         d.rejected = d.rejected.filter((m) => !m.startsWith('адрес проживания'));
         if (reg && reg !== doc.factAddress) d.patch.factAddress = reg;
         else delete d.patch.factAddress;
+      }
+    }
+
+    if ('legalCapacity' in r.patch || 'birthDate' in r.patch) {
+      const nextCapacity = 'legalCapacity' in r.patch ? r.patch.legalCapacity : recipient.legalCapacity;
+      const nextAge = ageAt('birthDate' in r.patch ? r.patch.birthDate : recipient.birthDate);
+      if (nextCapacity === 'incapable' && nextAge != null && nextAge < INCAPACITY_MIN_AGE) {
+        r.rejected.push(`дееспособность — отметку «недееспособен» ставят только с ${INCAPACITY_MIN_AGE} лет`);
       }
     }
 

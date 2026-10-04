@@ -1,5 +1,7 @@
+import { MAX_UPLOAD_MB } from './uploadLimits';
+
 export const PHOTO_MAX_SIDE = 512;
-export const PHOTO_MAX_FILE_MB = 15;
+export const PHOTO_MAX_FILE_MB = MAX_UPLOAD_MB;
 
 const loadImage = (url) => new Promise((resolve, reject) => {
   const img = new Image();

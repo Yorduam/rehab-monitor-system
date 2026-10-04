@@ -949,13 +949,17 @@
             <div v-if="historyLoading && !docJournal.length" class="rd-loading" style="min-height:5rem"><div class="spinner"></div></div>
             <div v-else-if="!docJournal.length" class="empty">Документы ещё не изменялись</div>
             <ol v-else class="hist">
-              <li v-for="h in docJournal" :key="h.key" class="hist-item">
+              <li v-for="g in docJournalGroups" :key="g.key" class="hist-item">
                 <div class="hist-head">
-                  <span class="hist-date">{{ formatDateTime(h.at) }}</span>
-                  <span class="hist-author">{{ h.author }}</span>
+                  <span class="hist-date">{{ g.label }}</span>
+                  <span v-if="g.count > 1" class="hist-count">{{ g.count }} {{ changesWord(g.count) }}</span>
                 </div>
-                <div class="hist-reason">{{ h.reason }}</div>
-                <div v-if="h.fields" class="hist-fields">{{ h.fields }}</div>
+                <div v-for="e in g.entries" :key="e.key" class="hist-entry">
+                  <div class="hist-reason">{{ e.reason }} <span class="hist-author">· {{ e.author }}</span></div>
+                  <ul v-if="e.details.length" class="hist-details">
+                    <li v-for="(d, i) in e.details" :key="i">{{ d }}</li>
+                  </ul>
+                </div>
               </li>
             </ol>
           </div>
@@ -1725,7 +1729,7 @@
                     >Убрать</button>
                   </div>
                   <p class="ce-photo-note" :class="{ 'is-error': cardPhotoError }" aria-live="polite">
-                    {{ cardPhotoError || 'JPG, PNG или WEBP до 15 МБ. На телефоне можно сразу сфотографировать.' }}
+                    {{ cardPhotoError || `JPG, PNG или WEBP до ${MAX_UPLOAD_MB} МБ. На телефоне можно сразу сфотографировать.` }}
                   </p>
                 </div>
               </div>
@@ -1859,10 +1863,10 @@
             </div>
 
             <div v-show="cardSection === 'rep'" class="du-grid">
-              <label class="du-field"><span class="du-key">Дееспособность <span class="du-hint">— учитывается с 18 лет</span></span>
+              <label class="du-field"><span class="du-key">Дееспособность <span class="du-hint">— учитывается с {{ INCAPACITY_MIN_AGE }} лет</span></span>
                 <select v-model="cardForm.legalCapacity" class="du-input">
                   <option value="capable">Дееспособен</option>
-                  <option value="incapable">Признан недееспособным</option>
+                  <option value="incapable" :disabled="cardIncapacityLocked">Признан недееспособным</option>
                 </select>
               </label>
               <label class="du-field"><span class="du-key">Основание полномочий представителя</span>
@@ -2211,7 +2215,8 @@ import { useUiStore } from '../stores/ui';
 import api from '../api';
 import { fullName, initials, recipientAge, statusLabel } from '../utils/recipient';
 import { preparePhoto } from '../utils/photo';
-import { CONSENT_SCAN_CODES } from '../utils/consentRules';
+import { MAX_UPLOAD_MB } from '../utils/uploadLimits';
+import { CONSENT_SCAN_CODES, INCAPACITY_MIN_AGE } from '../utils/consentRules';
 import { splitDiagnoses, formatDiagnoses } from '../utils/diagnosisList';
 import { notify, notifySaved } from '../utils/toast';
 import { SCALE, getBlock, averageScore } from '../utils/diagnosticBlocks';
@@ -2710,7 +2715,14 @@ const FIELD_LABELS = {
   educationPlace: 'Место обучения',
   specialNote: 'Особые отметки'
 };
-const fieldLabel = (key) => FIELD_LABELS[key] || key;
+const fieldLabel = (key) => {
+  if (FIELD_LABELS[key]) return FIELD_LABELS[key];
+  const isRep = String(key).startsWith('representative.');
+  const label = CARD_LABELS[isRep ? key.slice('representative.'.length) : key];
+  if (!label) return key;
+  const text = label.charAt(0).toUpperCase() + label.slice(1);
+  return isRep ? `${text} представителя` : text;
+};
 
 const docUpdateOpen = ref(false);
 const docForm = ref({});
@@ -3092,7 +3104,7 @@ const openScanByCode = (code) => {
   openScanDoc(scan);
 };
 
-const MAX_SCAN_MB = 15;
+const MAX_SCAN_MB = MAX_UPLOAD_MB;
 
 const fileToBase64 = (file) => new Promise((resolve, reject) => {
   const reader = new FileReader();
@@ -3394,6 +3406,34 @@ const docJournal = computed(() => {
   return rows
     .filter((r) => r.at)
     .sort((a, b) => String(b.at).localeCompare(String(a.at)));
+});
+
+const changesWord = (n) => {
+  const m10 = n % 10;
+  const m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return 'изменение';
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return 'изменения';
+  return 'изменений';
+};
+
+const docJournalGroups = computed(() => {
+  const groups = [];
+  for (const row of docJournal.value) {
+    const label = formatDateTime(row.at);
+    let group = groups[groups.length - 1];
+    if (!group || group.label !== label) {
+      group = { key: row.key, label, count: 0, entries: [] };
+      groups.push(group);
+    }
+    group.count += 1;
+    let entry = group.entries.find((e) => e.author === row.author && e.reason === row.reason);
+    if (!entry) {
+      entry = { key: row.key, author: row.author, reason: row.reason, details: [] };
+      group.entries.push(entry);
+    }
+    if (row.fields) entry.details.push(row.fields);
+  }
+  return groups;
 });
 
 const uploadOpen = ref(false);
@@ -4100,9 +4140,14 @@ const cardReasonValid = computed(() => cardReason.value.trim().length >= 3);
 const cardFioValid = computed(() =>
   !!cardForm.value && !!cardForm.value.lastName.trim() && !!cardForm.value.firstName.trim()
 );
-const cardRequiredDocType = computed(() => {
+const cardAge = computed(() => {
   const birth = cardForm.value?.birthDate;
-  return docTypeForAge(birth ? recipientAge({ birthDate: birth }) : age.value);
+  return birth ? recipientAge({ birthDate: birth }) : age.value;
+});
+const cardRequiredDocType = computed(() => docTypeForAge(cardAge.value));
+const cardIncapacityLocked = computed(() => cardAge.value != null && cardAge.value < INCAPACITY_MIN_AGE);
+watch(cardIncapacityLocked, (locked) => {
+  if (locked && cardForm.value?.legalCapacity === 'incapable') cardForm.value.legalCapacity = 'capable';
 });
 
 const cardHasChanges = computed(() =>
@@ -5683,6 +5728,21 @@ textarea.input { min-height: 5rem; resize: vertical; }
 .hist-reason { font-size: 0.9375rem; color: var(--ink-strong); }
 .hist-fields { font-size: 0.8125rem; color: var(--ink-muted); margin-top: 0.1875rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .hist-head .pill { margin-left: auto; }
+.hist-count {
+  font-size: 0.75rem; font-weight: 600; color: var(--ink-muted);
+  background: var(--paper-soft); padding: 0.0625rem 0.5rem; border-radius: 62.5rem;
+}
+.hist-entry + .hist-entry { margin-top: 0.5rem; }
+.hist-entry .hist-author { font-weight: 400; }
+.hist-details {
+  list-style: none; margin: 0.25rem 0 0; padding: 0;
+  font-size: 0.8125rem; color: var(--ink-muted); line-height: 1.5;
+}
+.hist-details li { position: relative; padding-left: 0.875rem; }
+.hist-details li::before {
+  content: ''; position: absolute; left: 0.25rem; top: 0.6em;
+  width: 0.25rem; height: 0.25rem; border-radius: 50%; background: var(--ink-subtle);
+}
 
 .au { display: grid; gap: 0.875rem; }
 .au-row { display: flex; gap: 0.75rem; align-items: flex-start; }

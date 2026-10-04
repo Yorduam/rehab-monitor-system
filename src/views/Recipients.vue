@@ -700,7 +700,7 @@
                       <button v-if="form.photo" type="button" class="btn-clear-photo" @click="form.photo = ''">Убрать</button>
                     </div>
                     <span v-if="photoFileError" class="photo-field-error">{{ photoFileError }}</span>
-                    <span v-else class="photo-field-hint">JPG или PNG, до 15 МБ. Фото сразу появится на карточке.</span>
+                    <span v-else class="photo-field-hint">JPG или PNG, до {{ MAX_UPLOAD_MB }} МБ. Фото сразу появится на карточке.</span>
                   </div>
                 </div>
               </div>
@@ -817,7 +817,7 @@
                     <button v-if="form.photo" type="button" class="btn-clear-photo" @click="form.photo = ''">Убрать</button>
                   </div>
                   <span v-if="photoFileError" class="photo-field-error">{{ photoFileError }}</span>
-                  <span v-else class="photo-field-hint">JPG или PNG, до 15 МБ. Фото сразу появится на карточке.</span>
+                  <span v-else class="photo-field-hint">JPG или PNG, до {{ MAX_UPLOAD_MB }} МБ. Фото сразу появится на карточке.</span>
                 </div>
               </div>
             </div>
@@ -888,6 +888,7 @@ import api from '../api';
 import { fullName, recipientAge, initials, statusLabel } from '../utils/recipient';
 import { splitDiagnoses, formatDiagnoses } from '../utils/diagnosisList';
 import { notifySaved } from '../utils/toast';
+import { MAX_UPLOAD_MB, MAX_UPLOAD_BYTES } from '../utils/uploadLimits';
 import Modal from '../components/Modal.vue';
 import RecipientsPager from '../components/RecipientsPager.vue';
 import AddRecipientWizard from '../components/AddRecipientWizard.vue';
@@ -982,7 +983,7 @@ const onPhotoFile = async (e) => {
   if (!file) return;
   photoFileError.value = '';
   if (!file.type.startsWith('image/')) { photoFileError.value = 'Выберите файл изображения (JPG, PNG…)'; return; }
-  if (file.size > 15 * 1024 * 1024)    { photoFileError.value = 'Файл слишком большой (максимум 15 МБ)'; return; }
+  if (file.size > MAX_UPLOAD_BYTES)    { photoFileError.value = `Файл слишком большой (максимум ${MAX_UPLOAD_MB} МБ)`; return; }
   photoUploading.value = true;
   try {
     form.value.photo = await resizeImage(file, 512, 0.85);
@@ -994,7 +995,7 @@ const onPhotoFile = async (e) => {
   }
 };
 
-const sortMode        = ref('schedule');
+const sortMode        = ref('recent');
 const sortMenuOpen    = ref(false);
 const openFilterMenu  = ref(null);
 const filterGroupId   = ref(null);

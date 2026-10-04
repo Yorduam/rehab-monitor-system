@@ -4,7 +4,7 @@ export const CATEGORY_LABELS = {
   minor: 'до 14 лет',
   teen: '14–17 лет',
   adult: '18 лет и старше',
-  ward: '18+ · недееспособен'
+  ward: '14+ · недееспособен'
 };
 
 export const STAGE_LABELS = {
@@ -79,10 +79,12 @@ export function ageAt(birthDate, at = new Date()) {
   return age;
 }
 
+export const INCAPACITY_MIN_AGE = 14;
+
 export function categoryOf(age, legalCapacity) {
-  if (age == null || age < 14) return 'minor';
-  if (age < 18) return 'teen';
-  return legalCapacity === 'incapable' ? 'ward' : 'adult';
+  if (age == null || age < INCAPACITY_MIN_AGE) return 'minor';
+  if (legalCapacity === 'incapable') return 'ward';
+  return age < 18 ? 'teen' : 'adult';
 }
 
 export const stageOf = (verdict) => (POSITIVE_VERDICTS.includes(verdict) ? 'rehab' : 'diag');
