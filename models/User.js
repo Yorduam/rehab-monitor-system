@@ -16,6 +16,17 @@ const User = sequelize.define('User', {
   canFillForOthers: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   failedLoginCount: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   lockedUntil: { type: DataTypes.DATE, allowNull: true, defaultValue: null },
+  twoFactorEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  twoFactorMode: {
+    type: DataTypes.ENUM('inherit', 'required', 'exempt'),
+    allowNull: false,
+    defaultValue: 'inherit'
+  },
+  certThumbprint: { type: DataTypes.CHAR(40), allowNull: true, unique: 'users_cert_thumbprint' },
+  certPem: { type: DataTypes.TEXT, allowNull: true },
+  certSubject: { type: DataTypes.STRING(255), allowNull: true },
+  certValidTo: { type: DataTypes.DATE, allowNull: true },
+  twoFactorBoundAt: { type: DataTypes.DATE, allowNull: true },
   fullName: {
     type: DataTypes.VIRTUAL,
     get() {

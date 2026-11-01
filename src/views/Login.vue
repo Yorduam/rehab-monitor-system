@@ -1,7 +1,10 @@
 <template>
-  <div class="login-form">
+  <TwoFactorStep v-if="authStore.awaitingSecondFactor" />
+  <TwoFactorEnroll v-else-if="authStore.awaitingEnrollment" />
+  <div v-else class="login-form">
     <h2>Добро пожаловать</h2>
     <p class="subtitle">Войдите в систему ERP-Реабилитация</p>
+    <p v-if="authStore.notice" class="notice" role="status">{{ authStore.notice }}</p>
     <form @submit.prevent="handleLogin">
       <div class="form-group">
         <label for="login-email">Email</label>
@@ -45,6 +48,8 @@
 <script setup>
 import { ref } from 'vue';
 import { useAuthStore } from '../stores/auth';
+import TwoFactorStep from '../components/TwoFactorStep.vue';
+import TwoFactorEnroll from '../components/TwoFactorEnroll.vue';
 
 const authStore = useAuthStore();
 const email = ref('');
@@ -57,6 +62,7 @@ const handleLogin = async () => {
   error.value = '';
   try {
     await authStore.login(email.value, password.value);
+    password.value = '';
   } catch (err) {
     error.value = err.response?.data?.message || 'Ошибка входа. Проверьте данные.';
   } finally {
@@ -78,6 +84,15 @@ h2 {
   color: var(--text-secondary);
   margin-bottom: 1.5rem;
   font-size: 0.9rem;
+}
+.notice {
+  margin-bottom: 1rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--amber-soft, #fff0df);
+  color: var(--amber-text, #7a5900);
+  font-size: 0.85rem;
+  line-height: 1.4;
 }
 .form-group {
   margin-bottom: 1rem;

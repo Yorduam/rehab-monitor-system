@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --test \"tests/*.test.js\"",
+    "test:e2e": "playwright test",
+    "migrate:2fa": "node scripts/add2faColumns.js"
   },
   "dependencies": {
     "@sequelize/core": "^7.0.0-alpha.42",
@@ -17,6 +20,7 @@
     "chart.js": "^4.5.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.6",
+    "crypto-pro-cadesplugin": "1.2.0",
     "dotenv": "^17.3.1",
     "express": "^5.2.1",
     "express-rate-limit": "^8.5.1",
@@ -37,6 +41,7 @@
     "vue-router": "^5.0.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@vitejs/plugin-vue": "^6.0.4",
     "vite": "^8.0.3",
     "vite-plugin-vue-devtools": "^8.0.7"

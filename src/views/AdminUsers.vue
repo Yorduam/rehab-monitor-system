@@ -21,6 +21,27 @@
       </button>
     </header>
 
+    <section class="card tfp" aria-labelledby="tfp-title">
+      <div class="tfp-text">
+        <div id="tfp-title" class="card-title">Обязательный вход по ключу ЭП</div>
+        <p>Для отмеченных ролей после пароля нужно подписать код ключом с токена. Кто ещё не привязал ключ, при следующем входе попадёт на привязку. Исключения и личные требования — кнопка «Ключ ЭП» у пользователя.</p>
+      </div>
+      <div class="tfp-roles">
+        <label v-for="r in POLICY_ROLES" :key="r.id" class="tfp-role" :class="{ 'is-on': rolePolicies[r.id] }">
+          <input
+            type="checkbox"
+            :checked="rolePolicies[r.id]"
+            :disabled="policySaving || !policyLoaded"
+            @change="toggleRolePolicy(r.id, $event)"
+          >
+          <span>
+            {{ r.label }}
+            <small>{{ policyRoleNote(r.id) }}</small>
+          </span>
+        </label>
+      </div>
+    </section>
+
     <div class="card">
       <div class="card-header">
         <div class="card-title">Управление пользователями</div>
@@ -59,13 +80,14 @@
               <th>Кабинет</th>
               <th>Роль</th>
               <th>Проф. ориентированность</th>
+              <th>Ключ ЭП</th>
               <th>Действия</th>
             </tr>
           </thead>
           <tbody>
             <template v-for="row in pageRows" :key="row.user.id">
               <tr v-if="row.head" class="group-row">
-                <td colspan="9">
+                <td colspan="10">
                   <span class="group-title">{{ row.head === 'staff' ? 'Сотрудники центра' : 'Реабилитанты' }}</span>
                   <span class="group-count">{{ groupCounts[row.head] }}</span>
                 </td>
@@ -86,17 +108,30 @@
                   </select>
                  </td>
                 <td data-label="Проф. ориентированность">{{ userDirection(row.user) }}</td>
+                <td class="cell-key" data-label="Ключ ЭП">
+                  <template v-if="isStaff(row.user)">
+                    <span class="key-chip" :class="'is-' + keyState(row.user).tone">{{ keyState(row.user).label }}</span>
+                    <small v-if="keyState(row.user).note" class="key-note">{{ keyState(row.user).note }}</small>
+                  </template>
+                  <span v-else class="key-none">—</span>
+                </td>
                 <td class="cell-actions" data-label="Действия">
                   <div class="row-actions">
                     <button class="btn-ghost-sm" @click="openEditModal(row.user)">Изменить</button>
                     <button class="btn-ghost-sm" @click="resetPassword(row.user)">Сброс пароля</button>
+                    <button
+                      v-if="isStaff(row.user)"
+                      class="btn-ghost-sm"
+                      title="Привязка, обязательность и сброс ключа электронной подписи"
+                      @click="openKeyModal(row.user)"
+                    >Ключ ЭП</button>
                     <button class="btn-ghost-sm btn-ghost-danger" @click="deleteUser(row.user.id)" v-if="row.user.id !== authStore.user?.id" title="Удалить">🗑</button>
                   </div>
                  </td>
                </tr>
             </template>
             <tr v-if="!pageRows.length" class="empty-row">
-              <td colspan="9">Ничего не найдено — измените фильтр или поисковый запрос.</td>
+              <td colspan="10">Ничего не найдено — измените фильтр или поисковый запрос.</td>
             </tr>
           </tbody>
         </table>
@@ -246,6 +281,68 @@
         <div class="modal-buttons"><button type="button" class="btn-secondary" @click="passwordModalVisible = false">Отмена</button><button type="submit" class="btn-primary">Сохранить</button></div>
       </form>
     </Modal>
+
+    <Modal v-if="keyUser" :title="`Ключ ЭП: ${userLabel(keyUser)}`" @close="closeKeyModal">
+      <div class="km">
+        <section class="km-block">
+          <h4>Текущий ключ</h4>
+          <dl v-if="keyUser.twoFactorEnabled" class="km-dl">
+            <div><dt>Владелец</dt><dd>{{ keyUser.certSubject || '—' }}</dd></div>
+            <div><dt>Отпечаток</dt><dd class="km-mono">{{ groupThumb(keyUser.certThumbprint) }}</dd></div>
+            <div><dt>Действует до</dt><dd>{{ fmtDate(keyUser.certValidTo) }}</dd></div>
+            <div><dt>Привязан</dt><dd>{{ fmtDateTime(keyUser.twoFactorBoundAt) }}</dd></div>
+          </dl>
+          <p v-else class="km-muted">Ключ не привязан.</p>
+          <div v-if="keyUser.twoFactorEnabled" class="km-row">
+            <button v-if="!confirmReset" type="button" class="btn-secondary" :disabled="keyBusy" @click="confirmReset = true">Отвязать ключ</button>
+            <template v-else>
+              <span class="km-confirm">Отвязать? {{ keyRequiredNow ? 'При следующем входе сотрудник попадёт на привязку нового ключа.' : 'Вход станет только по паролю.' }}</span>
+              <button type="button" class="btn-danger" :disabled="keyBusy" @click="resetKey">Да, отвязать</button>
+              <button type="button" class="btn-secondary" :disabled="keyBusy" @click="confirmReset = false">Нет</button>
+            </template>
+          </div>
+        </section>
+
+        <section class="km-block">
+          <h4><label for="km-mode">Обязательность</label></h4>
+          <select id="km-mode" v-model="keyMode" :disabled="keyBusy" @change="saveKeyMode">
+            <option value="inherit">Как у роли — сейчас {{ rolePolicies[keyUser.role] ? 'обязателен' : 'не требуется' }}</option>
+            <option value="required">Обязателен для этого пользователя</option>
+            <option value="exempt">Не требуется (исключение из правила роли)</option>
+          </select>
+          <small class="form-hint">Исключение пригодится, если сотрудник потерял токен, а роль требует ключ.</small>
+        </section>
+
+        <section class="km-block">
+          <h4><label for="km-file">Привязать по файлу сертификата</label></h4>
+          <p class="km-muted">Открытая часть сертификата сотрудника (.cer, .crt или .pem). Закрытый ключ не нужен: владение токеном сотрудник подтвердит при первом входе.</p>
+          <input id="km-file" ref="certInput" type="file" accept=".cer,.crt,.pem,.der" :disabled="keyBusy" @change="onCertFile">
+
+          <div v-if="certPreview" class="km-preview" :class="{ 'is-bad': !certPreview.canBind }">
+            <dl class="km-dl">
+              <div><dt>Владелец</dt><dd>{{ certPreview.subject || '—' }}</dd></div>
+              <div><dt>Издатель</dt><dd>{{ certPreview.issuer || '—' }}</dd></div>
+              <div><dt>Действует</dt><dd>{{ fmtDate(certPreview.validFrom) }} — {{ fmtDate(certPreview.validTo) }}</dd></div>
+              <div><dt>Отпечаток</dt><dd class="km-mono">{{ groupThumb(certPreview.thumbprint) }}</dd></div>
+            </dl>
+            <ul class="km-checks">
+              <li :class="certPreview.chainOk ? 'ok' : 'bad'">{{ certPreview.chainOk ? 'Цепочка до доверенного УЦ построена, сертификат не отозван' : certPreview.chainMessage }}</li>
+              <li v-if="certPreview.expired" class="bad">Срок действия истёк или ещё не наступил</li>
+              <li v-if="certPreview.inUseBy" class="bad">Уже привязан к пользователю {{ certPreview.inUseBy }}</li>
+              <li v-if="surnameMismatch" class="warn">Фамилия в сертификате «{{ certPreview.surname }}» не совпадает с фамилией пользователя «{{ keyUser.lastName }}»</li>
+              <li v-if="certPreview.sameAsCurrent" class="warn">Этот сертификат уже привязан к пользователю</li>
+            </ul>
+          </div>
+          <div class="km-row">
+            <button type="button" class="btn-primary" :disabled="keyBusy || !certPreview?.canBind" @click="bindCertFile">
+              {{ keyBusyLabel || 'Привязать этот сертификат' }}
+            </button>
+          </div>
+        </section>
+
+        <p v-if="keyError" class="km-error" role="alert">{{ keyError }}</p>
+      </div>
+    </Modal>
   </div>
 </template>
 
@@ -253,7 +350,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useAuthStore } from '../stores/auth';
 import api from '../api';
-import { notifySaved } from '../utils/toast';
+import { notify, notifySaved } from '../utils/toast';
 import Modal from '../components/Modal.vue';
 import Pagination from '../components/Pagination.vue';
 
@@ -386,6 +483,215 @@ const saveNewPassword = async () => {
   passwordModalVisible.value = false;
   notifySaved(`Пароль изменён: ${who}`);
 };
+const POLICY_ROLES = [
+  { id: 'admin', label: 'Администраторы' },
+  { id: 'employee', label: 'Сотрудники' },
+  { id: 'teacher', label: 'Преподаватели' }
+];
+const rolePolicies = ref({ admin: false, employee: false, teacher: false });
+const policyLoaded = ref(false);
+const policySaving = ref(false);
+
+const DAY = 24 * 60 * 60 * 1000;
+const fmtDate = (iso) => (iso ? new Date(iso).toLocaleDateString('ru-RU') : '—');
+const fmtDateTime = (iso) => (iso ? new Date(iso).toLocaleString('ru-RU', { dateStyle: 'short', timeStyle: 'short' }) : '—');
+const groupThumb = (t) => String(t || '').replace(/(.{4})/g, '$1 ').trim();
+const errorText = (err, fallback) => err?.response?.data?.message || fallback;
+
+const keyRequired = (u) => {
+  const mode = u.twoFactorMode || 'inherit';
+  if (mode === 'required') return true;
+  if (mode === 'exempt') return false;
+  return !!rolePolicies.value[u.role];
+};
+
+const keyState = (u) => {
+  const mode = u.twoFactorMode || 'inherit';
+  const modeNote = mode === 'required' ? 'обязателен лично' : mode === 'exempt' ? 'исключение' : '';
+  if (u.twoFactorEnabled) {
+    const left = u.certValidTo ? new Date(u.certValidTo).getTime() - Date.now() : Infinity;
+    if (left <= 0) return { label: 'Истёк', tone: 'bad', note: [`до ${fmtDate(u.certValidTo)}`, modeNote].filter(Boolean).join(' · ') };
+    return {
+      label: 'Привязан',
+      tone: left <= 30 * DAY ? 'warn' : 'ok',
+      note: [`до ${fmtDate(u.certValidTo)}`, modeNote].filter(Boolean).join(' · ')
+    };
+  }
+  if (keyRequired(u)) return { label: 'Нужен ключ', tone: 'warn', note: ['привяжет при входе', modeNote].filter(Boolean).join(' · ') };
+  return { label: 'Нет', tone: 'off', note: modeNote };
+};
+
+const policyRoleNote = (role) => {
+  const staff = users.value.filter((u) => u.role === role);
+  const missing = staff.filter((u) => !u.twoFactorEnabled).length;
+  return staff.length ? `без ключа: ${missing} из ${staff.length}` : 'нет пользователей';
+};
+
+const loadPolicy = async () => {
+  try {
+    const { data } = await api.get('/auth/2fa/admin/policy');
+    rolePolicies.value = { ...rolePolicies.value, ...data.roles };
+    policyLoaded.value = true;
+  } catch (err) {
+    notify(errorText(err, 'Не удалось загрузить настройки входа по ключу'), { ms: 5000 });
+  }
+};
+
+const toggleRolePolicy = async (role, event) => {
+  const required = event.target.checked;
+  policySaving.value = true;
+  try {
+    const { data } = await api.put('/auth/2fa/admin/policy', { role, required });
+    rolePolicies.value = { ...rolePolicies.value, ...data.roles };
+    const label = POLICY_ROLES.find((r) => r.id === role)?.label || role;
+    notifySaved(required ? `Вход по ключу обязателен: ${label}` : `Вход по ключу больше не обязателен: ${label}`);
+  } catch (err) {
+    event.target.checked = !required;
+    notify(errorText(err, 'Не удалось сохранить настройку'), { ms: 6000 });
+  } finally {
+    policySaving.value = false;
+  }
+};
+
+const keyUser = ref(null);
+const keyMode = ref('inherit');
+const keyBusy = ref(false);
+const keyBusyLabel = ref('');
+const keyError = ref('');
+const confirmReset = ref(false);
+const certPreview = ref(null);
+const certPayload = ref('');
+const certInput = ref(null);
+
+const keyRequiredNow = computed(() => (keyUser.value ? keyRequired(keyUser.value) : false));
+const normName = (s) => String(s || '').trim().toLowerCase().replace(/ё/g, 'е');
+const surnameMismatch = computed(() => {
+  const a = normName(certPreview.value?.surname);
+  const b = normName(keyUser.value?.lastName);
+  return !!a && !!b && a !== b;
+});
+
+const applyKeyView = (view) => {
+  if (!keyUser.value || !view) return;
+  Object.assign(keyUser.value, {
+    twoFactorEnabled: view.twoFactorEnabled,
+    twoFactorMode: view.twoFactorMode,
+    certThumbprint: view.certThumbprint,
+    certSubject: view.certSubject,
+    certValidTo: view.certValidTo,
+    twoFactorBoundAt: view.twoFactorBoundAt
+  });
+  keyMode.value = view.twoFactorMode;
+};
+
+const openKeyModal = (user) => {
+  keyUser.value = user;
+  keyMode.value = user.twoFactorMode || 'inherit';
+  keyError.value = '';
+  confirmReset.value = false;
+  certPreview.value = null;
+  certPayload.value = '';
+};
+
+const closeKeyModal = () => {
+  keyUser.value = null;
+  certPreview.value = null;
+  certPayload.value = '';
+};
+
+const saveKeyMode = async () => {
+  const user = keyUser.value;
+  const previous = user.twoFactorMode || 'inherit';
+  keyBusy.value = true;
+  keyError.value = '';
+  try {
+    const { data } = await api.put(`/auth/2fa/users/${user.id}/mode`, { mode: keyMode.value });
+    applyKeyView(data);
+    notifySaved(`Настройка ключа сохранена: ${userLabel(user)}`);
+  } catch (err) {
+    keyMode.value = previous;
+    keyError.value = errorText(err, 'Не удалось сохранить настройку');
+  } finally {
+    keyBusy.value = false;
+  }
+};
+
+const resetKey = async () => {
+  const user = keyUser.value;
+  keyBusy.value = true;
+  keyError.value = '';
+  try {
+    const { data } = await api.post(`/auth/2fa/users/${user.id}/reset`);
+    applyKeyView(data);
+    confirmReset.value = false;
+    notifySaved(`Ключ ЭП отвязан: ${userLabel(user)}`);
+  } catch (err) {
+    keyError.value = errorText(err, 'Не удалось отвязать ключ');
+  } finally {
+    keyBusy.value = false;
+  }
+};
+
+const MAX_CERT_BYTES = 48 * 1024;
+
+const readFileBase64 = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    const bytes = new Uint8Array(reader.result);
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    resolve(btoa(binary));
+  };
+  reader.onerror = () => reject(reader.error);
+  reader.readAsArrayBuffer(file);
+});
+
+const onCertFile = async (event) => {
+  const file = event.target.files?.[0];
+  certPreview.value = null;
+  certPayload.value = '';
+  keyError.value = '';
+  if (!file) return;
+  if (file.size > MAX_CERT_BYTES) {
+    keyError.value = 'Файл слишком большой для сертификата. Нужен файл .cer с одним сертификатом.';
+    return;
+  }
+  keyBusy.value = true;
+  keyBusyLabel.value = 'Проверяем сертификат…';
+  try {
+    const payload = await readFileBase64(file);
+    const { data } = await api.post(`/auth/2fa/users/${keyUser.value.id}/certificate/check`, { certificate: payload });
+    certPayload.value = payload;
+    certPreview.value = data;
+  } catch (err) {
+    keyError.value = errorText(err, 'Не удалось проверить сертификат');
+  } finally {
+    keyBusy.value = false;
+    keyBusyLabel.value = '';
+  }
+};
+
+const bindCertFile = async () => {
+  const user = keyUser.value;
+  if (!certPayload.value || !certPreview.value?.canBind) return;
+  keyBusy.value = true;
+  keyBusyLabel.value = 'Привязываем…';
+  keyError.value = '';
+  try {
+    const { data } = await api.post(`/auth/2fa/users/${user.id}/certificate`, { certificate: certPayload.value });
+    applyKeyView(data);
+    certPreview.value = null;
+    certPayload.value = '';
+    if (certInput.value) certInput.value.value = '';
+    notifySaved(`Ключ привязан: ${userLabel(user)}. При следующем входе понадобится токен.`);
+  } catch (err) {
+    keyError.value = errorText(err, 'Не удалось привязать сертификат');
+  } finally {
+    keyBusy.value = false;
+    keyBusyLabel.value = '';
+  }
+};
+
 const deleteUser = async (id) => {
   if (!confirm('Удалить пользователя?')) return;
   try {
@@ -470,6 +776,7 @@ onMounted(() => {
   document.documentElement.style.setProperty('--bg-app', '#F7F4ED');
   loadUsers();
   loadDirections();
+  loadPolicy();
 });
 onUnmounted(() => {
   document.documentElement.style.removeProperty('--bg-app');
@@ -573,6 +880,66 @@ onUnmounted(() => {
 .data-table tbody tr:last-child td { border-bottom: none; }
 
 .row-actions { display: flex; align-items: center; gap: 0.15rem; flex-wrap: wrap; }
+
+.tfp {
+  display: flex; align-items: center; justify-content: space-between; gap: 1rem 1.5rem; flex-wrap: wrap;
+  padding: 1rem 1.35rem; margin-bottom: 1.25rem;
+}
+.tfp-text { flex: 1 1 22rem; min-width: 0; }
+.tfp-text p { margin: 0.3rem 0 0; font-size: 0.84rem; color: #4F564A; line-height: 1.45; max-width: 44rem; }
+.tfp-roles { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.tfp-role {
+  display: flex; align-items: flex-start; gap: 0.5rem;
+  padding: 0.5rem 0.75rem; border: 1px solid #E4DECF; border-radius: 0.7rem; background: #FBF9F3;
+  cursor: pointer; min-width: 10.5rem;
+}
+.tfp-role.is-on { border-color: #5F7E45; background: #EEF4E2; }
+.tfp-role input { margin-top: 0.2rem; accent-color: #2F4A2F; }
+.tfp-role > span { display: flex; flex-direction: column; font-size: 0.86rem; font-weight: 600; color: #1a211a; }
+.tfp-role small { font-weight: 400; font-size: 0.74rem; color: #6E7368; font-variant-numeric: tabular-nums; }
+
+.cell-key { min-width: 8.5rem; }
+.key-chip {
+  display: inline-block; font-size: 0.74rem; font-weight: 700; padding: 0.12rem 0.5rem; border-radius: 999px;
+}
+.key-chip.is-ok { background: #EEF4E2; color: #2F4A2F; }
+.key-chip.is-warn { background: #FFF0DF; color: #7A5900; }
+.key-chip.is-bad { background: #FBE7E2; color: #86302A; }
+.key-chip.is-off { background: #F3EEE4; color: #6E7368; }
+.key-note { display: block; margin-top: 0.2rem; font-size: 0.74rem; color: #6E7368; font-variant-numeric: tabular-nums; }
+.key-none { color: #9AA093; }
+
+.km { display: grid; gap: 1rem; }
+.km-block { display: grid; gap: 0.5rem; padding-bottom: 1rem; border-bottom: 1px solid #EFEADC; }
+.km-block:last-of-type { border-bottom: none; padding-bottom: 0; }
+.km-block h4 { margin: 0; font-size: 0.82rem; font-weight: 700; color: #2F4A2F; text-transform: uppercase; letter-spacing: 0.06em; }
+.km-block select { width: 100%; }
+.km-muted { margin: 0; font-size: 0.84rem; color: #4F564A; line-height: 1.45; }
+.km-dl { display: grid; gap: 0.35rem; margin: 0; }
+.km-dl > div { display: grid; grid-template-columns: 7.5rem minmax(0, 1fr); gap: 0.6rem; }
+.km-dl dt { font-size: 0.8rem; color: #6E7368; }
+.km-dl dd { margin: 0; font-size: 0.86rem; color: #1a211a; overflow-wrap: anywhere; }
+.km-mono { font-family: ui-monospace, 'Cascadia Mono', Consolas, monospace; font-size: 0.8rem; }
+.km-row { display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem; }
+.km-confirm { flex: 1 1 100%; font-size: 0.84rem; color: #7A5900; }
+.km-preview { border: 1px solid #CBDDB4; background: #F7FAF1; border-radius: 0.7rem; padding: 0.75rem; display: grid; gap: 0.6rem; }
+.km-preview.is-bad { border-color: #E8C4B8; background: #FDF5F2; }
+.km-checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.3rem; font-size: 0.82rem; }
+.km-checks li { padding-left: 1.2rem; position: relative; }
+.km-checks li::before { position: absolute; left: 0; font-weight: 700; }
+.km-checks li.ok { color: #2F4A2F; }
+.km-checks li.ok::before { content: '✓'; }
+.km-checks li.bad { color: #86302A; }
+.km-checks li.bad::before { content: '✕'; }
+.km-checks li.warn { color: #7A5900; }
+.km-checks li.warn::before { content: '!'; }
+.km-error { margin: 0; padding: 0.5rem 0.75rem; border-radius: 0.5rem; background: #FBE7E2; color: #86302A; font-size: 0.85rem; }
+.btn-danger {
+  background: #FFFFFF; color: var(--btn-danger-fg); border: 1px solid #E8C4B8;
+  padding: 0.55rem 1.1rem; border-radius: 0.7rem; font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.btn-danger:hover { background: var(--btn-danger-bg-hover); }
+.km button:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-ghost-danger { color: var(--btn-danger-fg); }
 .btn-ghost-danger:hover { background: var(--btn-danger-bg-hover); }
 .form-hint { display: block; margin-top: 0.3rem; font-size: 0.75rem; color: #6E7368; }
@@ -727,6 +1094,10 @@ select:disabled { background: #F3EEE4; color: #6E7368; cursor: not-allowed; }
 
   .data-table td[data-label="Роль"] select { flex: 1 1 auto; min-width: 0; max-width: 60%; }
   .data-table td.cell-actions { flex-wrap: wrap; align-items: flex-start; }
+  .data-table td.cell-key { flex-wrap: wrap; justify-content: flex-end; column-gap: 0.5rem; row-gap: 0.2rem; }
+  .data-table td.cell-key::before { margin-right: auto; }
+  .data-table td.cell-key .key-note { flex: 1 1 100%; margin-top: 0; text-align: right; }
+  .tfp-role { flex: 1 1 100%; }
   .data-table td.cell-actions::before { flex: 1 1 100%; }
 
   .group-row { margin: 0 !important; padding: 0 !important; border: none !important; }

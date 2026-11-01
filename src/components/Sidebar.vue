@@ -117,6 +117,18 @@
           <div class="s-user-role">Куратор</div>
         </div>
       </div>
+      <button
+        type="button"
+        class="s-logout"
+        :class="{ 's-logout--active': pageStore.current === 'security' }"
+        title="Безопасность и ключ ЭП"
+        aria-label="Безопасность и ключ ЭП"
+        @click="go('security', 'Безопасность')"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </button>
       <button class="s-logout" @click="logout" title="Выйти">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
@@ -218,6 +230,18 @@
           <div class="s-user-role">{{ roleLabel }}</div>
         </div>
       </div>
+      <button
+        type="button"
+        class="s-logout"
+        :class="{ 's-logout--active': pageStore.current === 'security' }"
+        title="Безопасность и ключ ЭП"
+        aria-label="Безопасность и ключ ЭП"
+        @click="go('security', 'Безопасность')"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </button>
       <button class="s-logout" @click="logout" title="Выйти">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
@@ -319,6 +343,18 @@
           <div class="s-user-role">Сотрудник</div>
         </div>
       </div>
+      <button
+        type="button"
+        class="s-logout"
+        :class="{ 's-logout--active': pageStore.current === 'security' }"
+        title="Безопасность и ключ ЭП"
+        aria-label="Безопасность и ключ ЭП"
+        @click="go('security', 'Безопасность')"
+      >
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+        </svg>
+      </button>
       <button class="s-logout" @click="logout" title="Выйти">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
           <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4"/>
@@ -731,6 +767,9 @@ const logout = () => {
   font-size: 0.75rem;
   color: #B8C6B2;
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .s-logout {
   width: 2.75rem;
@@ -756,6 +795,7 @@ const logout = () => {
   outline-offset: 2px;
 }
 .s-logout svg { width: 1rem; height: 1rem; }
+.s-logout--active { background: rgba(255, 255, 255, 0.1); color: #F3F6EA; }
 @media (min-width: 769px) {
   .sidebar-teacher { transition: width 200ms ease, padding 200ms ease; }
   .sidebar-teacher.is-rail { width: 4.5rem; padding: 1.25rem 0.5rem 0.75rem; }

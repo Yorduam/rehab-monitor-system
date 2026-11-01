@@ -9,6 +9,7 @@ const logger = pino({
       'req.headers.cookie',
       'req.headers.authorization',
       'req.headers["x-access-token"]',
+      'req.headers["x-csrf-token"]',
       'res.headers["set-cookie"]',
       'headers.cookie',
       'headers["set-cookie"]',
@@ -16,6 +17,9 @@ const logger = pino({
       'req.body.currentPassword',
       'req.body.newPassword',
       'req.body.token',
+      'req.body.signature',
+      'req.body.nonce',
+      'res.body.nonce',
       'req.body.base64',
       'req.body.scans'
     ],

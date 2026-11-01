@@ -1,18 +1,20 @@
 import express from 'express';
 import bcrypt from 'bcrypt';
-import jwt from 'jsonwebtoken';
 import { User } from '../models/index.js';
 import { validatePassword } from '../validations/passwordPolicy.js';
+import { ensureCsrfToken } from '../middleware/csrf.js';
+import { isTwoFactorRequired } from '../services/twoFactorPolicy.js';
+import {
+  issueSession, issuePending, readSession, readPending, clearSession, clearPending,
+  toPublicUser as publicUser, USER_ATTRIBUTES_EXCLUDE, MAX_FAILED_LOGINS, LOCK_MS
+} from '../services/session.js';
 
 const router = express.Router();
 
-const publicUser = (user) => {
-  const { passwordHash, failedLoginCount, lockedUntil, ...rest } = user.toJSON();
-  return rest;
-};
-
-const MAX_FAILED_LOGINS = 5;
-const LOCK_MS = 15 * 60 * 1000;
+router.get('/csrf', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ csrfToken: ensureCsrfToken(req, res) });
+});
 
 router.post('/register', async (req, res, next) => {
   try {
@@ -34,13 +36,7 @@ router.post('/register', async (req, res, next) => {
       lastName: lastName || null,
       directionId: null
     });
-    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60 * 1000
-    });
+    issueSession(res, user);
     res.json({ user: publicUser(user) });
   } catch (err) {
     next(err);
@@ -74,19 +70,25 @@ router.post('/login', async (req, res, next) => {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
+    if (user.twoFactorEnabled || await isTwoFactorRequired(user)) {
+      if (user.lockedUntil) {
+        user.lockedUntil = null;
+        await user.save();
+      }
+      const stage = user.twoFactorEnabled ? 'mfa' : 'enroll';
+      clearSession(res);
+      issuePending(res, user, stage);
+      res.set('Cache-Control', 'no-store');
+      return res.json(stage === 'mfa' ? { mfaRequired: true } : { enrollRequired: true });
+    }
+
     if (user.failedLoginCount || user.lockedUntil) {
       user.failedLoginCount = 0;
       user.lockedUntil = null;
       await user.save();
     }
 
-    const token = jwt.sign({ id: user.id, role: user.role }, process.env.JWT_SECRET, { expiresIn: '1d' });
-    res.cookie('token', token, {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
-      maxAge: 24 * 60 * 60 * 1000
-    });
+    issueSession(res, user);
     res.json({ user: publicUser(user) });
   } catch (err) {
     next(err);
@@ -95,13 +97,23 @@ router.post('/login', async (req, res, next) => {
 
 router.get('/me', async (req, res, next) => {
   try {
-    const token = req.cookies?.token;
-    if (!token) return res.status(401).json({ message: 'Unauthorized' });
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    res.set('Cache-Control', 'no-store');
+    const pendingReply = () => {
+      const pending = readPending(req);
+      if (!pending) return null;
+      return pending.stage === 'enroll'
+        ? res.status(401).json({ code: 'MFA_ENROLL_PENDING', message: 'Привяжите ключ электронной подписи, чтобы продолжить' })
+        : res.status(401).json({ code: 'MFA_PENDING', message: 'Подтвердите вход ключом электронной подписи' });
+    };
+    const decoded = readSession(req);
+    if (!decoded) return pendingReply() || res.status(401).json({ message: 'Unauthorized' });
     const user = await User.findByPk(decoded.id, {
-      attributes: { exclude: ['passwordHash', 'failedLoginCount', 'lockedUntil'] }
+      attributes: { exclude: USER_ATTRIBUTES_EXCLUDE }
     });
     if (!user) return res.status(401).json({ message: 'User not found' });
+    if (decoded.mfa !== true && (user.twoFactorEnabled || await isTwoFactorRequired(user))) {
+      return pendingReply() || res.status(401).json({ code: 'MFA_REQUIRED', message: 'Войдите заново с ключом электронной подписи' });
+    }
     res.json(user);
   } catch (err) {
     next(err);
@@ -109,7 +121,8 @@ router.get('/me', async (req, res, next) => {
 });
 
 router.post('/logout', (req, res) => {
-  res.clearCookie('token');
+  clearSession(res);
+  clearPending(res);
   res.json({ message: 'Logged out' });
 });
 

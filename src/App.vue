@@ -55,6 +55,7 @@ import TeacherDashboard from './views/TeacherDashboard.vue';
 import EmployeeDocuments from './views/EmployeeDocuments.vue';
 import RecipientDetails from './views/RecipientDetails.vue';
 import Schedule from './views/Schedule.vue';
+import SecuritySettings from './views/SecuritySettings.vue';
 
 const authStore = useAuthStore();
 const pageStore = usePageStore();
@@ -73,7 +74,8 @@ const componentMap = {
   documents: Documents,
   schedule: Schedule,
   'admin-users': AdminUsers,
-  'recipient-details': RecipientDetails
+  'recipient-details': RecipientDetails,
+  security: SecuritySettings
 };
 
 const PAGE_ROLES = {
@@ -83,10 +85,12 @@ const PAGE_ROLES = {
   progress: ['admin', 'employee', 'teacher'],
   schedule: ['admin', 'employee', 'teacher'],
   'recipient-details': ['admin', 'employee', 'teacher'],
-  'admin-users': ['admin']
+  'admin-users': ['admin'],
+  security: ['admin', 'employee', 'teacher']
 };
 
 const canOpenPage = (page) => {
+  if (!authStore.isAuthenticated) return false;
   const allowed = PAGE_ROLES[page];
   if (!allowed) return true;
   return allowed.includes(authStore.user?.role);

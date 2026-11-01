@@ -14,7 +14,8 @@ const AdminAuditLog = sequelize.define('AdminAuditLog', {
   action: {
     type: DataTypes.ENUM(
       'user.create', 'user.delete', 'role.change', 'password.reset',
-      'password.change', 'email.change', 'rights.change'
+      'password.change', 'email.change', 'rights.change',
+      '2fa.start', '2fa.verify', '2fa.bind', '2fa.unbind', '2fa.policy'
     ),
     allowNull: false
   },

@@ -1,24 +1,12 @@
-
-import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { makeAuthMiddleware } from './sessionAuth.js';
+import { isTwoFactorRequired } from '../services/twoFactorPolicy.js';
 
-export const authMiddleware = async (req, res, next) => {
-  const token = req.cookies?.token;
-  if (!token) {
-    return res.status(401).json({ message: 'Вы не вошли в систему' });
-  }
-  try {
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findByPk(decoded.id);
-    if (!user) {
-      return res.status(401).json({ message: 'Учётная запись не найдена' });
-    }
-    req.user = user;
-    next();
-  } catch (err) {
-    return res.status(401).json({ message: 'Сессия истекла — войдите заново' });
-  }
-};
+export { makeAuthMiddleware };
+
+export const authMiddleware = makeAuthMiddleware((id) => User.findByPk(id), {
+  requiresSecondFactor: isTwoFactorRequired
+});
 
 export const roleMiddleware = (...roles) => {
   return (req, res, next) => {

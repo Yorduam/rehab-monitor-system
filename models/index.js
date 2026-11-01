@@ -27,6 +27,8 @@ import AccessLog from './AccessLog.js';
 import AdminAuditLog from './AdminAuditLog.js';
 import AccessGrant from './AccessGrant.js';
 import RepresentativeRelease from './RepresentativeRelease.js';
+import TwoFactorChallenge from './TwoFactorChallenge.js';
+import TwoFactorRolePolicy from './TwoFactorRolePolicy.js';
 
 Recipient.belongsTo(User, { as: 'user', foreignKey: 'userId' });
 User.hasOne(Recipient, { as: 'recipient', foreignKey: 'userId' });
@@ -151,5 +153,7 @@ export {
   AccessLog,
   AdminAuditLog,
   AccessGrant,
-  RepresentativeRelease
+  RepresentativeRelease,
+  TwoFactorChallenge,
+  TwoFactorRolePolicy
 };

@@ -12,7 +12,8 @@ const PAGE_TITLES = {
   documents: 'Документы',
   schedule: 'Расписание',
   'admin-users': 'Пользователи',
-  'recipient-details': 'Карточка реабилитанта'
+  'recipient-details': 'Карточка реабилитанта',
+  security: 'Безопасность'
 }
 
 function buildUrl(page, params = {}) {

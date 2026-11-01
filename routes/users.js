@@ -36,7 +36,7 @@ const countAdmins = () => User.count({ where: { role: 'admin' } })
 router.get('/', authMiddleware, roleMiddleware('admin'), async (req, res, next) => {
   try {
     const users = await User.findAll({
-      attributes: { exclude: ['passwordHash'] }
+      attributes: { exclude: ['passwordHash', 'certPem'] }
     })
     res.json(users)
   } catch (err) {
@@ -79,7 +79,7 @@ router.post('/', authMiddleware, roleMiddleware('admin'), async (req, res, next)
 
     await audit(req, 'user.create', user, { role: finalRole })
 
-    const { passwordHash, ...safeUser } = user.toJSON()
+    const { passwordHash, certPem, ...safeUser } = user.toJSON()
     res.status(201).json(safeUser)
   } catch (err) {
     next(err)
@@ -89,7 +89,7 @@ router.post('/', authMiddleware, roleMiddleware('admin'), async (req, res, next)
 router.get('/me', authMiddleware, async (req, res, next) => {
   try {
     const user = await User.findByPk(req.user.id, {
-      attributes: { exclude: ['passwordHash'] }
+      attributes: { exclude: ['passwordHash', 'certPem'] }
     })
     if (!user) return res.status(404).json({ message: 'Пользователь не найден' })
     res.json(user)
@@ -204,7 +204,7 @@ router.put('/:id', authMiddleware, async (req, res, next) => {
       await audit(req, action, user, change)
     }
 
-    const { passwordHash, ...safeUser } = user.toJSON()
+    const { passwordHash, certPem, ...safeUser } = user.toJSON()
     res.json(safeUser)
   } catch (err) {
     next(err)

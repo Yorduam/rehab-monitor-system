@@ -3,7 +3,6 @@ import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
-import jwt from 'jsonwebtoken';
 import pinoHttp from 'pino-http';
 import dotenv from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,10 +11,17 @@ import { sequelize, Recipient } from './models/index.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { requestId } from './middleware/requestId.js';
 import { authMiddleware, staffOnly } from './middleware/auth.js';
+import { requireHttps, trustProxySetting } from './middleware/https.js';
+import { csrfProtection } from './middleware/csrf.js';
 import logger from './config/logger.js';
 import { MAX_REQUEST_MB } from './src/utils/uploadLimits.js';
+import { readSession } from './services/session.js';
+import { createCadescomVerifier } from './services/cryptoProVerifier.js';
+import { sequelizeUsers, sequelizeChallenges, auditTwoFactor, startChallengeCleanup } from './services/twoFactor.js';
+import { sequelizePolicy } from './services/twoFactorPolicy.js';
 
 import authRoutes from './routes/auth.js';
+import { createTwoFactorRouter } from './routes/twoFactor.js';
 import recipientsRoutes from './routes/recipients.js';
 import groupsRoutes from './routes/groups.js';
 import diagnosticsRoutes from './routes/diagnostics.js';
@@ -28,7 +34,9 @@ import scheduleRoutes from './routes/schedule.js';
 dotenv.config();
 const app = express();
 
+app.set('trust proxy', trustProxySetting());
 app.use(helmet());
+app.use('/api', requireHttps);
 app.use(cors({
   credentials: true,
   origin: process.env.FRONTEND_URL || 'http://localhost:3000'
@@ -36,16 +44,7 @@ app.use(cors({
 app.use(express.json({ limit: `${MAX_REQUEST_MB}mb` }));
 app.use(cookieParser());
 
-function isAuthenticated(req) {
-  const token = req.cookies?.token;
-  if (!token) return false;
-  try {
-    jwt.verify(token, process.env.JWT_SECRET);
-    return true;
-  } catch {
-    return false;
-  }
-}
+const isAuthenticated = (req) => !!readSession(req);
 
 const guestLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -64,11 +63,8 @@ const userLimiter = rateLimit({
   legacyHeaders: false,
   skip: (req) => !isAuthenticated(req),
   keyGenerator: (req) => {
-    try {
-      return 'user:' + jwt.verify(req.cookies.token, process.env.JWT_SECRET).id;
-    } catch {
-      return ipKeyGenerator(req.ip);
-    }
+    const session = readSession(req);
+    return session ? 'user:' + session.id : ipKeyGenerator(req.ip);
   },
   message: { message: 'Слишком много запросов подряд. Подождите несколько минут.' },
 });
@@ -83,7 +79,17 @@ app.use(pinoHttp({
   })
 }));
 app.use(requestId);
+app.use('/api', csrfProtection);
 
+const twoFactorVerifier = createCadescomVerifier({ logger });
+app.use('/api/v1/auth/2fa', createTwoFactorRouter({
+  users: sequelizeUsers,
+  challenges: sequelizeChallenges,
+  verifier: twoFactorVerifier,
+  audit: auditTwoFactor,
+  policy: sequelizePolicy,
+  authenticate: authMiddleware
+}));
 app.use('/api/v1/auth', authRoutes);
 
 app.use('/api/v1/recipients', authMiddleware, staffOnly, recipientsRoutes);
@@ -133,6 +139,10 @@ const PORT = process.env.PORT || 5000;
 sequelize.authenticate()
   .then(() => {
     console.log('Database connected');
+    startChallengeCleanup({ logger });
+    twoFactorVerifier.about().then((info) => {
+      if (!info.ok) logger.warn({ detail: info.detail }, '2FA: КриптоПро для проверки подписи недоступен — вход по ключу работать не будет');
+    });
     app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
   })
   .catch(err => {
